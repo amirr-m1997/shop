@@ -17,7 +17,6 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from rest_framework import routers
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -25,6 +24,8 @@ urlpatterns = [
     path('api/products/', include('products.urls')),
     path('api/cart/', include('cart.urls')),
     path('api/orders/', include('orders.urls')),
+    path('api/blog/', include('blog.urls')),
+    path('api/pages/', include('pages.urls')),
 ]
 
 if settings.DEBUG:

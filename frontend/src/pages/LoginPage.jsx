@@ -29,10 +29,13 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-16 flex items-center justify-center">
+    <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl text-center">ورود به حساب کاربری</CardTitle>
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl font-bold">ورود به حساب کاربری</CardTitle>
+          <p className="text-sm text-muted-foreground mt-2">
+            خوش آمدید! برای ادامه خرید وارد شوید
+          </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -41,7 +44,7 @@ const LoginPage = () => {
                 {error}
               </div>
             )}
-            
+
             <div>
               <label className="block text-sm font-medium mb-2">نام کاربری</label>
               <Input
@@ -50,6 +53,7 @@ const LoginPage = () => {
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 placeholder="نام کاربری خود را وارد کنید"
+                autoFocus
               />
             </div>
 
@@ -64,13 +68,23 @@ const LoginPage = () => {
               />
             </div>
 
+            <div className="flex items-center justify-between text-sm">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" className="rounded border-gray-300" />
+                <span className="text-muted-foreground">مرا به خاطر بسپار</span>
+              </label>
+              <Link to="/forgot-password" className="text-primary hover:underline">
+                فراموشی رمز عبور؟
+              </Link>
+            </div>
+
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'در حال ورود...' : 'ورود'}
             </Button>
 
             <div className="text-center text-sm text-muted-foreground">
               حساب کاربری ندارید؟{' '}
-              <Link to="/register" className="text-primary hover:underline">
+              <Link to="/register" className="text-primary hover:underline font-medium">
                 ثبت نام کنید
               </Link>
             </div>

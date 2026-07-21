@@ -47,7 +47,7 @@ class CartItem(models.Model):
         blank=True,
         verbose_name="نوع (واریانت)"
     )
-    quantity = models.IntegerField(default=1, verbose_name="تعداد")
+    quantity = models.PositiveIntegerField(default=1, verbose_name="تعداد")
     added_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ افزودن")
 
     class Meta:

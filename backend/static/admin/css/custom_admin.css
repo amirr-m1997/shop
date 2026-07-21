@@ -1,0 +1,234 @@
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap');
+
+/* Global admin font override */
+#header,
+#container,
+body,
+h1, h2, h3, h4, h5, h6,
+.module h2,
+.module caption,
+.text,
+.vTextField,
+.form-row label,
+.breadcrumbs,
+.object-tools,
+.submit-row,
+.results th,
+.results td,
+.fieldset,
+.legend,
+fieldset .field-box label,
+.inline-group h3,
+.tabular inline-related h3,
+.vRelatedPopupLink,
+#changelist-filter label,
+#changelist-filter select,
+#changelist-filter .help,
+#changelist table,
+#result_list th,
+#result_list td,
+.change-form .submit-row,
+#nav-sidebar,
+#nav-sidebar .module,
+#nav-sidebar .module caption,
+#nav-sidebar .menu-item,
+#user-tools,
+#user-nav,
+#content-related,
+.colMS,
+.colSM,
+.field-content,
+.help,
+.help-tooltip,
+#content h1,
+#content h2,
+.editable,
+.editable-help,
+.form-row .help,
+.inline-group .help,
+.vDateField,
+.vTimeField,
+.errornote,
+.error,
+.warning,
+.debug,
+.info,
+tr.error,
+ td.error,
+raiserror,
+慈,
+success {
+    font-family: 'Vazirmatn', 'Tahoma', 'B Nazanin', 'Arial', sans-serif !important;
+}
+
+/* RTL support for admin */
+#container {
+    direction: rtl;
+}
+
+body {
+    direction: rtl;
+}
+
+/* Header alignment */
+#header {
+    direction: rtl;
+}
+
+#branding h1 {
+    direction: rtl;
+}
+
+/* Navigation sidebar RTL */
+#nav-sidebar {
+    direction: rtl;
+}
+
+/* Breadcrumbs RTL */
+.breadcrumbs {
+    direction: rtl;
+}
+
+/* Content area */
+#content {
+    direction: rtl;
+}
+
+/* Change list table RTL */
+#result_list th:first-child,
+#result_list td:first-child {
+    text-align: right;
+}
+
+/* Field labels RTL */
+.form-row label {
+    text-align: right;
+    float: right;
+    padding-left: 10px;
+}
+
+/* Horizontal form rows */
+.form-row {
+    overflow: hidden;
+}
+
+/* Fieldsets */
+fieldset {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 15px;
+}
+
+/* Inline groups */
+.inline-group h3 {
+    font-weight: 600;
+}
+
+/* Buttons */
+.submit-row input[type="submit"],
+.submit-row a {
+    font-family: 'Vazirmatn', 'Tahoma', sans-serif !important;
+    border-radius: 4px;
+}
+
+/* Calendar/DateTime widgets */
+.vDateField, .vTimeField {
+    font-family: 'Vazirmatn', 'Tahoma', sans-serif !important;
+}
+
+/* Search input */
+#searchbar {
+    font-family: 'Vazirmatn', 'Tahoma', sans-serif !important;
+    direction: rtl;
+}
+
+/* Module headers */
+.module h2, .module caption {
+    font-weight: 600;
+}
+
+/* Results table */
+.results th, .results td {
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+/* Message tags */
+.messagelist .success {
+    background-color: #dff0d8;
+}
+
+.messagelist .error {
+    background-color: #f2dede;
+}
+
+/* Improve readability of text areas */
+.vLargeTextField, .vSmallTextField {
+    font-family: 'Vazirmatn', 'Tahoma', sans-serif !important;
+    direction: rtl;
+    text-align: right;
+}
+
+/* Checkbox and radio alignment in RTL */
+.checkbox-row {
+    direction: rtl;
+}
+
+/* Select elements */
+select {
+    font-family: 'Vazirmatn', 'Tahoma', sans-serif !important;
+}
+
+/* Filter sidebar */
+#changelist-filter {
+    direction: rtl;
+    text-align: right;
+}
+
+#changelist-filter h2 {
+    text-align: right;
+}
+
+#changelist-filter ul {
+    list-style: none;
+    padding-right: 0;
+}
+
+/* Action bar */
+#changelist-form .actions {
+    direction: rtl;
+}
+
+/* Pagination */
+.pagination {
+    direction: rtl;
+}
+
+/* Date hierarchy */
+.datehierarchy {
+    direction: rtl;
+}
+
+/* Admin action toggle */
+.action-toggle {
+    direction: rtl;
+}
+
+/* Object tools */
+.object-tools {
+    direction: rtl;
+    text-align: left;
+}
+
+.object-tools li {
+    display: inline-block;
+    margin-left: 5px;
+    margin-right: 0;
+}
+
+/* Footer */
+#footer {
+    direction: rtl;
+    text-align: center;
+}

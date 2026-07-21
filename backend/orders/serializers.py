@@ -6,6 +6,8 @@ from products.serializers import ProductListSerializer
 
 
 class ShippingAddressSerializer(serializers.ModelSerializer):
+    country = serializers.CharField(default='Iran', required=False)
+
     class Meta:
         model = ShippingAddress
         fields = [
@@ -61,7 +63,6 @@ class CreateOrderSerializer(serializers.Serializer):
     shipping_address_id = serializers.IntegerField(
         error_messages={'required': 'آدرس ارسال الزامی است.'}
     )
-    shipping_method = serializers.CharField(default='standard', required=False)
     payment_method = serializers.ChoiceField(
         choices=Order.PAYMENT_METHOD_CHOICES,
         error_messages={'invalid_choice': 'روش پرداخت نامعتبر است.'}

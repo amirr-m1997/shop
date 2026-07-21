@@ -1,6 +1,19 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from django.utils import timezone
 from .models import ShippingAddress, Order, OrderItem
+
+try:
+    import jdatetime
+    HAS_JALALI = True
+except ImportError:
+    HAS_JALALI = False
+
+
+def to_jalali(dt):
+    if not dt or not HAS_JALALI:
+        return dt
+    return jdatetime.datetime.fromgregorian(datetime=dt).strftime('%Y/%m/%d - %H:%M')
 
 
 # ──────────────── آدرس ارسال ────────────────
@@ -9,7 +22,7 @@ from .models import ShippingAddress, Order, OrderItem
 class ShippingAddressAdmin(admin.ModelAdmin):
     list_display = [
         'full_name', 'user', 'phone', 'city', 'state',
-        'is_default_badge', 'created_at'
+        'is_default_badge', 'created_at_jalali'
     ]
     list_filter = ['is_default', 'city', 'state', 'created_at']
     search_fields = ['full_name', 'phone', 'user__username', 'city']
@@ -34,6 +47,10 @@ class ShippingAddressAdmin(admin.ModelAdmin):
     def is_default_badge(self, obj):
         return obj.is_default
 
+    @admin.display(description='تاریخ ایجاد')
+    def created_at_jalali(self, obj):
+        return to_jalali(obj.created_at)
+
 
 # ──────────────── سفارش ────────────────
 
@@ -54,7 +71,7 @@ class OrderAdmin(admin.ModelAdmin):
     list_display = [
         'order_number', 'user', 'status_badge',
         'payment_status_badge', 'payment_method_display',
-        'total_display', 'created_at'
+        'total_display', 'created_at_jalali'
     ]
     list_filter = ['status', 'payment_status', 'payment_method', 'created_at']
     search_fields = ['order_number', 'user__username', 'user__email']
@@ -64,6 +81,7 @@ class OrderAdmin(admin.ModelAdmin):
     ]
     inlines = [OrderItemInline]
     date_hierarchy = 'created_at'
+    actions = ['mark_processing', 'mark_shipped', 'mark_delivered', 'mark_paid']
 
     fieldsets = (
         ('اطلاعات سفارش', {
@@ -117,7 +135,32 @@ class OrderAdmin(admin.ModelAdmin):
 
     @admin.display(description='مبلغ کل')
     def total_display(self, obj):
-        return f"{obj.total:,.0f} تومان"
+        return f"{obj.total:,.0f} "
+
+    @admin.display(description='تاریخ ثبت')
+    def created_at_jalali(self, obj):
+        return to_jalali(obj.created_at)
+
+    # ── Bulk Actions ──
+    @admin.action(description='تغییر وضعیت به "در حال پردازش"')
+    def mark_processing(self, request, queryset):
+        count = queryset.update(status='processing')
+        self.message_user(request, f'{count} سفارش به "در حال پردازش" تغییر کرد.')
+
+    @admin.action(description='تغییر وضعیت به "ارسال شده"')
+    def mark_shipped(self, request, queryset):
+        count = queryset.update(status='shipped')
+        self.message_user(request, f'{count} سفارش به "ارسال شده" تغییر کرد.')
+
+    @admin.action(description='تغییر وضعیت به "تحویل داده شده"')
+    def mark_delivered(self, request, queryset):
+        count = queryset.update(status='delivered')
+        self.message_user(request, f'{count} سفارش به "تحویل داده شده" تغییر کرد.')
+
+    @admin.action(description='تغییر وضعیت پرداخت به "پرداخت شده"')
+    def mark_paid(self, request, queryset):
+        count = queryset.update(payment_status='paid')
+        self.message_user(request, f'{count} سفارش به "پرداخت شده" تغییر کرد.')
 
 
 @admin.register(OrderItem)

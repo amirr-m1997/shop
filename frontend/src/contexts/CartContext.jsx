@@ -1,16 +1,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { cartAPI } from '../services/api';
+import { useAuth } from './AuthContext';
 
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
+  const { isAuthenticated } = useAuth();
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const fetchCart = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    if (!isAuthenticated) {
       setCart(null);
       return;
     }
@@ -35,6 +36,7 @@ export const CartProvider = ({ children }) => {
     try {
       const response = await cartAPI.addToCart(data);
       setCart(response.data);
+      return response.data;
     } catch (err) {
       setError(err.message);
       throw err;
@@ -84,7 +86,7 @@ export const CartProvider = ({ children }) => {
 
   useEffect(() => {
     fetchCart();
-  }, []);
+  }, [isAuthenticated]);
 
   return (
     <CartContext.Provider value={{

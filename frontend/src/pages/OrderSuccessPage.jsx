@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { CheckCircle, ArrowRight } from 'lucide-react';
+import { CheckCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
 
@@ -18,14 +18,14 @@ const OrderSuccessPage = () => {
             یک ایمیل تایید به آدرس ایمیل شما ارسال خواهد شد.
           </p>
           <div className="flex gap-4 justify-center">
-            <Link to="/">
-              <Button>
-                بازگشت به خانه <ArrowRight className="h-4 w-4 mr-2" />
-              </Button>
-            </Link>
-            <Link to="/products">
-              <Button variant="outline">ادامه خرید</Button>
-            </Link>
+            <Button asChild>
+              <Link to="/">
+                بازگشت به خانه <ArrowLeft className="h-4 w-4 mr-2" />
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/products">ادامه خرید</Link>
+            </Button>
           </div>
         </CardContent>
       </Card>

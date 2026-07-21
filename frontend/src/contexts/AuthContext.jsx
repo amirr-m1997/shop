@@ -21,6 +21,7 @@ export const AuthProvider = ({ children }) => {
       } catch (err) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        setUser(null);
       }
     }
     setLoading(false);
@@ -35,7 +36,7 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       return { success: true };
     } catch (err) {
-      const message = err.response?.data?.error || 'خطا در ورود به سیستم';
+      const message = err.response?.data?.error || err.response?.data?.detail || 'خطا در ورود به سیستم';
       setError(message);
       throw new Error(message);
     }
@@ -50,8 +51,36 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       return { success: true };
     } catch (err) {
-      const message = err.response?.data?.error || 'خطا در ثبت نام';
+      const message = err.response?.data?.error || err.response?.data?.detail || 'خطا در ثبت نام';
       setError(message);
+      throw new Error(message);
+    }
+  };
+
+  const updateProfile = async (data) => {
+    try {
+      const response = await authAPI.updateUser(data);
+      setUser(response.data);
+      return response.data;
+    } catch (err) {
+      const message = err.response?.data?.error || err.response?.data?.detail || 'خطا در بروزرسانی پروفایل';
+      throw new Error(message);
+    }
+  };
+
+  const changePassword = async (oldPassword, newPassword) => {
+    try {
+      const response = await authAPI.changePassword({
+        old_password: oldPassword,
+        new_password: newPassword,
+      });
+      // Update token if returned
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token);
+      }
+      return response.data;
+    } catch (err) {
+      const message = err.response?.data?.error || err.response?.data?.detail || 'خطا در تغییر رمز عبور';
       throw new Error(message);
     }
   };
@@ -75,6 +104,8 @@ export const AuthProvider = ({ children }) => {
       login,
       register,
       logout,
+      updateProfile,
+      changePassword,
       isAuthenticated: !!user,
     }}>
       {children}

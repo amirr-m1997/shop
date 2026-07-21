@@ -122,7 +122,7 @@ class Order(models.Model):
         if not self.order_number:
             import uuid
             self.order_number = f"ORD-{uuid.uuid4().hex[:8].upper()}"
-        if not self.total:
+        if self.total is None:
             self.total = self.subtotal + self.shipping_cost + self.tax - self.discount
         super().save(*args, **kwargs)
 
@@ -136,9 +136,9 @@ class OrderItem(models.Model):
     )
     product = models.ForeignKey(
         'products.Product',
-        on_delete=models.CASCADE,
-        null=True,  # این را اضافه کنید
-        blank=True  # این را هم اضافه کنید
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
     )
     quantity = models.PositiveIntegerField(default=1, verbose_name="تعداد")
     price = models.DecimalField(

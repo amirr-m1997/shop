@@ -2,6 +2,7 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.db import transaction
 from decimal import Decimal
 
 from .models import ShippingAddress, Order, OrderItem
@@ -11,6 +12,7 @@ from .serializers import (
     CreateOrderSerializer,
 )
 from cart.models import Cart, CartItem
+from pages.models import SiteSettings
 
 
 class ShippingAddressViewSet(viewsets.ModelViewSet):
@@ -108,33 +110,40 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
                 'price': price,
             })
 
-        shipping_cost = Decimal('0')  # بعداً بر اساس shipping_method محاسبه شود
+        site_settings = SiteSettings.load()
+        shipping_cost = site_settings.calculate_shipping(subtotal)
+        discount = Decimal('0')
+        for item in cart_items:
+            if item.product.compare_price and item.product.compare_price > item.product.price:
+                discount += (item.product.compare_price - item.product.price) * item.quantity
         tax_rate = Decimal('0.09')
-        tax = (subtotal * tax_rate).quantize(Decimal('0.01'))
-        total = subtotal + shipping_cost + tax
+        tax = ((subtotal - discount) * tax_rate).quantize(Decimal('0.01'))
+        total = subtotal - discount + shipping_cost + tax
 
-        # ایجاد سفارش
-        order = Order.objects.create(
-            user=request.user,
-            shipping_address=shipping_address,
-            payment_method=serializer.validated_data['payment_method'],
-            subtotal=subtotal,
-            shipping_cost=shipping_cost,
-            tax=tax,
-            total=total,
-            notes=serializer.validated_data.get('notes', ''),
-        )
+        with transaction.atomic():
+            # ایجاد سفارش
+            order = Order.objects.create(
+                user=request.user,
+                shipping_address=shipping_address,
+                payment_method=serializer.validated_data['payment_method'],
+                subtotal=subtotal,
+                shipping_cost=shipping_cost,
+                tax=tax,
+                discount=discount,
+                total=total,
+                notes=serializer.validated_data.get('notes', ''),
+            )
 
-        # ایجاد آیتم‌های سفارش
-        for item_data in order_items_data:
-            OrderItem.objects.create(order=order, **item_data)
-            # کاهش موجودی
-            product = item_data['product']
-            product.stock -= item_data['quantity']
-            product.save(update_fields=['stock'])
+            # ایجاد آیتم‌های سفارش
+            for item_data in order_items_data:
+                OrderItem.objects.create(order=order, **item_data)
+                # کاهش موجودی
+                product = item_data['product']
+                product.stock -= item_data['quantity']
+                product.save(update_fields=['stock'])
 
-        # خالی کردن سبد خرید
-        cart_items.delete()
+            # خالی کردن سبد خرید
+            cart_items.delete()
 
         return Response(
             OrderSerializer(order).data,
@@ -156,7 +165,9 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             item.product.save(update_fields=['stock'])
 
         order.status = 'cancelled'
-        order.save(update_fields=['status', 'updated_at'])
+        if order.payment_status == 'paid':
+            order.payment_status = 'refunded'
+        order.save(update_fields=['status', 'payment_status', 'updated_at'])
 
         return Response(
             {'message': 'سفارش با موفقیت لغو شد.', 'order': OrderSerializer(order).data},
