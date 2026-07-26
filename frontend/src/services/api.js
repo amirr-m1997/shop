@@ -31,9 +31,8 @@ api.interceptors.response.use(
       if (!isAuthPage) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        // Use React Router-compatible redirect instead of hard reload
         if (!isAuthRequest) {
-          window.location.href = '/login';
+          window.dispatchEvent(new CustomEvent('auth:unauthorized'));
         }
       }
     }
@@ -46,7 +45,7 @@ export default api;
 // Products API
 export const productsAPI = {
   getProducts: (params) => api.get('/products/products/', { params }),
-  getProduct: (id) => api.get(`/products/products/${id}/`),
+  getProduct: (slug) => api.get(`/products/products/${slug}/`),
   getCategories: () => api.get('/products/categories/'),
   getBrands: () => api.get('/products/brands/'),
   getColors: () => api.get('/products/colors/'),
@@ -60,6 +59,7 @@ export const productsAPI = {
   getHomepageSections: () => api.get('/products/homepage-sections/'),
   getBanners: () => api.get('/products/banners/'),
   getStyles: () => api.get('/products/styles/'),
+  getStyle: (slug) => api.get(`/products/styles/${slug}/`),
   getRecommendations: (params) => api.get('/products/recommendations/', { params }),
   // Wishlist
   getWishlist: () => api.get('/products/wishlist/'),
@@ -67,12 +67,23 @@ export const productsAPI = {
   removeFromWishlist: (wishlistId) => api.delete(`/products/wishlist/${wishlistId}/`),
 };
 
+export const pagesAPI = {
+  getFaq: () => api.get('/pages/faq/'),
+  getContactInfo: () => api.get('/pages/contact-info/'),
+  sendMessage: (data) => api.post('/pages/contact-messages/', data),
+  getLookbook: (params) => api.get('/pages/lookbook/', { params }),
+  getSettings: () => api.get('/pages/settings/'),
+  getTestimonials: () => api.get('/pages/testimonials/'),
+  submitTestimonial: (data) => api.post('/pages/testimonials/', data),
+  getFeatures: () => api.get('/pages/features/'),
+};
+
 // Cart API
 export const cartAPI = {
   getCart: () => api.get('/cart/'),
   addToCart: (data) => api.post('/cart/add_item/', data),
   updateCartItem: (data) => api.put('/cart/update_item/', data),
-  removeCartItem: (itemId) => api.delete('/cart/remove_item/', { data: { item_id: itemId } }),
+  removeCartItem: (itemId) => api.delete('/cart/remove_item/', { params: { item_id: itemId } }),
   clearCart: () => api.delete('/cart/clear/'),
 };
 
@@ -94,16 +105,10 @@ export const blogAPI = {
   getCategories: () => api.get('/blog/categories/'),
 };
 
-// Pages API
-export const pagesAPI = {
-  getFaq: () => api.get('/pages/faq/'),
-  getContactInfo: () => api.get('/pages/contact-info/'),
-  sendMessage: (data) => api.post('/pages/contact-messages/', data),
-  getLookbook: () => api.get('/pages/lookbook/'),
-  getSettings: () => api.get('/pages/settings/'),
-  getTestimonials: () => api.get('/pages/testimonials/'),
-  submitTestimonial: (data) => api.post('/pages/testimonials/', data),
-  getFeatures: () => api.get('/pages/features/'),
+// Payments API
+export const paymentsAPI = {
+  initiate: (data) => api.post('/payments/initiate/', data),
+  getStatus: (paymentId) => api.get(`/payments/${paymentId}/status/`),
 };
 
 // Auth API
@@ -118,6 +123,7 @@ export const authAPI = {
   passwordResetConfirm: (data) => api.post('/auth/password-reset-confirm/', data),
   sendVerification: (data) => api.post('/auth/send-verification/', data),
   verifyCode: (data) => api.post('/auth/verify-code/', data),
+  getLoginHistory: () => api.get('/auth/login-history/'),
   getAddresses: () => api.get('/auth/addresses/'),
   createAddress: (data) => api.post('/auth/addresses/', data),
   updateAddress: (id, data) => api.put(`/auth/addresses/${id}/`, data),

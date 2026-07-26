@@ -5,9 +5,8 @@ __pycache__/
 *.pyc
 dist/
 build/
+__distill_*.py
 # ===== فایل‌های Django =====
-*.pyc
-__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -16,7 +15,6 @@ venv/
 env/
 ENV/
 .venv
-.venv/
 
 # ===== تنظیمات حساس =====
 .env

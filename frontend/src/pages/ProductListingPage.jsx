@@ -25,7 +25,7 @@ const ProductCard = ({ product, navigate }) => {
   return (
     <Card
       className="group cursor-pointer overflow-hidden transition-all hover:shadow-lg"
-      onClick={() => navigate(`/product/${product.id}`)}
+      onClick={() => navigate(`/product/${product.slug}`)}
     >
       <CardContent className="p-0">
         <div className="relative aspect-[3/4] overflow-hidden bg-muted">
@@ -65,7 +65,7 @@ const ProductCard = ({ product, navigate }) => {
 const FilterSection = ({ title, defaultOpen = true, children }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border-b border-border pb-4 last:border-b-0 last:pb-0">
+    <div className="border-b border-border pb-4 last:border-b-0 last:pb-0 overflow-visible">
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -127,10 +127,10 @@ const ProductListingPage = () => {
           productsAPI.getFabrics(),
           productsAPI.getCategories(),
         ]);
-        setAvailableSizes(sizesRes.data || []);
-        setAvailableColors(colorsRes.data || []);
-        setAvailableBrands(brandsRes.data || []);
-        setAvailableFabrics(fabricsRes.data || []);
+        setAvailableSizes(sizesRes.data.results || sizesRes.data || []);
+        setAvailableColors(colorsRes.data.results || colorsRes.data || []);
+        setAvailableBrands(brandsRes.data.results || brandsRes.data || []);
+        setAvailableFabrics(fabricsRes.data.results || fabricsRes.data || []);
         const allCats = catsRes.data.results || catsRes.data || [];
         setAllCategories(allCats.filter(c => !c.parent));
       } catch (error) {
@@ -357,7 +357,7 @@ const ProductListingPage = () => {
 
       <div className="flex flex-col md:flex-row gap-8">
         {/* ── Filters Sidebar ── */}
-        <aside className={`${filterOpen ? 'block' : 'hidden'} md:block md:w-72 shrink-0`}>
+        <aside className={`${filterOpen ? 'block' : 'hidden'} md:block md:w-72 shrink-0 overflow-visible`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold flex items-center gap-2">
               <SlidersHorizontal className="h-5 w-5" />
@@ -375,7 +375,7 @@ const ProductListingPage = () => {
             </div>
           </div>
 
-          <Card className="p-4 space-y-5">
+          <Card className="p-4 space-y-5 overflow-visible">
             {/* ── Sorting ── */}
             <FilterSection title="مرتب‌سازی" defaultOpen={true}>
               <Select value={sortOrder} onValueChange={(v) => setSortOrder(v)}>
@@ -447,31 +447,49 @@ const ProductListingPage = () => {
                   همه
                 </button>
                 {allCategories.map(cat => (
-                  <React.Fragment key={cat.id}>
-                    <button
-                      onClick={() => handleFilterChange('category_slug', cat.slug)}
-                      className={`block w-full text-right px-3 py-1.5 rounded-md text-sm transition-colors ${
-                        filters.category_slug === cat.slug
-                          ? 'bg-primary text-primary-foreground font-medium'
-                          : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      {cat.name}
-                    </button>
-                    {cat.children?.map(child => (
+                  <div key={cat.id} className="relative group/cat">
+                    <div className="flex items-center">
                       <button
-                        key={child.id}
-                        onClick={() => handleFilterChange('category_slug', child.slug)}
-                        className={`block w-full text-right pr-6 pl-3 py-1.5 rounded-md text-xs transition-colors ${
-                          filters.category_slug === child.slug
-                            ? 'bg-primary/80 text-primary-foreground font-medium'
+                        onClick={() => handleFilterChange('category_slug', cat.slug)}
+                        className={`flex-1 text-right px-3 py-1.5 rounded-md text-sm transition-colors ${
+                          filters.category_slug === cat.slug
+                            ? 'bg-primary text-primary-foreground font-medium'
                             : 'hover:bg-muted text-muted-foreground hover:text-foreground'
                         }`}
                       >
-                        {child.name}
+                        {cat.name}
                       </button>
-                    ))}
-                  </React.Fragment>
+                      {cat.children && cat.children.length > 0 && (
+                        <span className="px-1 text-muted-foreground">
+                          <ChevronDown className="h-3 w-3" />
+                        </span>
+                      )}
+                    </div>
+                    {cat.children && cat.children.length > 0 && (
+                      <div className="hidden group-hover/cat:block w-full mt-1 bg-background border rounded-xl shadow-lg py-1 z-50">
+                        <button
+                          onClick={() => handleFilterChange('category_slug', cat.slug)}
+                          className="block w-full text-right px-4 py-1.5 text-xs font-bold text-primary hover:bg-muted transition-colors"
+                        >
+                          همه {cat.name}
+                        </button>
+                        <div className="border-t my-1" />
+                        {cat.children.map(child => (
+                          <button
+                            key={child.id}
+                            onClick={() => handleFilterChange('category_slug', child.slug)}
+                            className={`block w-full text-right px-4 py-1.5 text-xs transition-colors ${
+                              filters.category_slug === child.slug
+                                ? 'bg-primary/10 text-primary font-medium'
+                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                            }`}
+                          >
+                            {child.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </FilterSection>

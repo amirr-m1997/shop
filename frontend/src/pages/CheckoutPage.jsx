@@ -10,7 +10,7 @@ import { Card, CardContent } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { useCart } from '../contexts/CartContext';
-import { ordersAPI } from '../services/api';
+import { ordersAPI, paymentsAPI } from '../services/api';
 import { formatPrice } from '../lib/formatPrice';
 import { calcShipping, useShippingConfig } from '../lib/shipping';
 
@@ -86,8 +86,9 @@ const Stepper = ({ step }) => (
 );
 
 /* ─── Order Summary Sidebar ─── */
-const OrderSummary = ({ cart, subtotal, shippingInfo, total }) => {
-  const { shipping, isFree, remaining, threshold, progress } = shippingInfo;
+const OrderSummary = ({ cart, subtotal, shipping, total }) => {
+  const shippingInfo = calcShipping(subtotal);
+  const { isFree, remaining, threshold, progress } = shippingInfo;
   const itemCount = cart.total_items || cart.items.length;
 
   return (
@@ -229,6 +230,7 @@ const CheckoutPage = () => {
     postal_code: '',
   });
   const [paymentMethod, setPaymentMethod] = useState('cash_on_delivery');
+  const [orderNotes, setOrderNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [addrLoading, setAddrLoading] = useState(true);
@@ -306,12 +308,28 @@ const CheckoutPage = () => {
     setLoading(true);
     setError('');
     try {
-      await ordersAPI.createOrder({
+      const orderRes = await ordersAPI.createOrder({
         shipping_address_id: selectedAddress,
-        shipping_method: 'Standard',
         payment_method: paymentMethod,
-        notes: '',
+        notes: orderNotes,
       });
+      const orderId = orderRes.data.id;
+
+      if (paymentMethod === 'card') {
+        try {
+          const payRes = await paymentsAPI.initiate({ order_id: orderId });
+          if (payRes.data.gateway_url) {
+            window.location.href = payRes.data.gateway_url;
+            return;
+          }
+        } catch (payErr) {
+          console.error('Payment initiation error:', payErr);
+          setError(payErr.response?.data?.error || 'خطا در اتصال به درگاه پرداخت. سفارش ثبت شد و می‌توانید از پنل کاربری پرداخت کنید.');
+          setLoading(false);
+          return;
+        }
+      }
+
       await clearCart();
       navigate('/order-success');
     } catch (err) {
@@ -704,6 +722,17 @@ const CheckoutPage = () => {
                     })}
                   </div>
 
+                  <div className="mt-5">
+                    <label className="block text-sm font-medium mb-2">یادداشت سفارش (اختیاری)</label>
+                    <textarea
+                      value={orderNotes}
+                      onChange={(e) => setOrderNotes(e.target.value)}
+                      rows={3}
+                      className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                      placeholder="هر نکته یا توضیحی درباره سفارش خود دارید بنویسید..."
+                    />
+                  </div>
+
                   {/* Pay amount highlight */}
                   <div className="mt-5 rounded-2xl border border-primary/20 bg-primary/5 p-4 flex items-center justify-between">
                     <span className="text-sm font-medium text-muted-foreground">مبلغ نهایی</span>
@@ -750,7 +779,7 @@ const CheckoutPage = () => {
           <OrderSummary
             cart={cart}
             subtotal={subtotal}
-            shippingInfo={shippingInfo}
+            shipping={shippingInfo.shipping}
             total={total}
           />
         </div>

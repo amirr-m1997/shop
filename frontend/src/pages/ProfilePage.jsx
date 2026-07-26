@@ -4,42 +4,140 @@ import {
   User, Mail, Lock, Save, Plus, Trash2, MapPin, Phone,
   Package, LogOut, Calendar, Eye, EyeOff, AlertTriangle,
   CheckCircle, Pencil, Shield, Cake, ShoppingCart, Heart,
-  ChevronLeft, X, BadgeCheck, AlertCircle
+  ChevronLeft, X, BadgeCheck, AlertCircle, Sparkles,
+  ShieldCheck, Star, History, Monitor, Globe
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../components/ui/Dialog';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+  DialogFooter, DialogDescription
+} from '../components/ui/Dialog';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useWishlist } from '../contexts/WishlistContext';
-import { authAPI, productsAPI } from '../services/api';
+import { authAPI } from '../services/api';
 import { formatPrice } from '../lib/formatPrice';
 import { formatDate } from '../lib/formatDate';
 import { JalaliDatePicker, toJalaliString } from '../components/ui/JalaliDatePicker';
 
-/* ─── Stat Card ─── */
-const STAT_COLORS = {
-  primary: { bg: 'bg-primary/10', text: 'text-primary' },
-  blue: { bg: 'bg-blue-500/10', text: 'text-blue-500' },
-  amber: { bg: 'bg-amber-500/10', text: 'text-amber-500' },
-  green: { bg: 'bg-green-500/10', text: 'text-green-500' },
-};
+/* ─── Ambient Background ─── */
+const AmbientBg = () => (
+  <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+    <div className="absolute -top-40 left-1/4 h-[30rem] w-[30rem] -translate-x-1/2 rounded-full bg-primary/[0.05] blur-3xl dark:bg-primary/[0.08]" />
+    <div className="absolute top-1/2 -right-20 h-80 w-80 rounded-full bg-violet-500/[0.05] blur-3xl dark:bg-violet-400/[0.07]" />
+    <div className="absolute bottom-20 left-10 h-64 w-64 rounded-full bg-blue-500/[0.04] blur-3xl" />
+    <div
+      className="absolute inset-0 opacity-[0.3] dark:opacity-[0.12]"
+      style={{
+        backgroundImage:
+          'radial-gradient(circle at 1px 1px, hsl(var(--foreground) / 0.035) 1px, transparent 0)',
+        backgroundSize: '26px 26px',
+      }}
+    />
+  </div>
+);
 
-const StatCard = ({ icon: Icon, label, value, color = 'primary' }) => {
-  const colors = STAT_COLORS[color] || STAT_COLORS.primary;
+/* ─── Circular Progress ─── */
+const CompletionRing = ({ percent, size = 56, stroke = 4 }) => {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (percent / 100) * c;
+
   return (
-    <div className="flex items-center gap-3 p-4 bg-background border rounded-xl">
-      <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${colors.bg}`}>
-        <Icon className={`h-5 w-5 ${colors.text}`} />
-      </div>
-      <div>
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="text-sm font-bold">{value}</p>
-      </div>
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={stroke}
+          className="text-muted/80"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="url(#profileRingGrad)"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          className="transition-all duration-700 ease-out"
+        />
+        <defs>
+          <linearGradient id="profileRingGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="hsl(var(--primary))" />
+            <stop offset="100%" stopColor="#8b5cf6" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-black tabular-nums">
+        {percent.toLocaleString('fa-IR')}٪
+      </span>
     </div>
   );
+};
+
+/* ─── Premium Field ─── */
+const Field = ({ label, icon: Icon, children, hint }) => (
+  <div className="group/field space-y-1.5">
+    <label className="flex items-center gap-1.5 text-sm font-semibold text-foreground/90">
+      {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
+      {label}
+    </label>
+    {children}
+    {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+  </div>
+);
+
+/* ─── Alert chips ─── */
+const SuccessAlert = ({ children }) => (
+  <div className="mb-4 flex items-center gap-2.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-700 dark:text-emerald-300 animate-fade-in">
+    <CheckCircle className="h-4 w-4 shrink-0" />
+    {children}
+  </div>
+);
+
+const ErrorAlert = ({ children }) => (
+  <div className="mb-4 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive animate-fade-in">
+    {children}
+  </div>
+);
+
+/* ─── Section Card shell ─── */
+const SectionCard = ({ children, className = '', delay = 0 }) => (
+  <section
+    className={`overflow-hidden rounded-[1.5rem] border border-border/50 bg-card/80 shadow-sm shadow-black/[0.03] backdrop-blur-xl ring-1 ring-black/[0.02] transition-all duration-500 hover:shadow-lg hover:shadow-primary/[0.04] dark:ring-white/[0.03] animate-fade-in-up ${className}`}
+    style={{ animationDelay: `${delay}s` }}
+  >
+    {children}
+  </section>
+);
+
+const SectionHead = ({ icon: Icon, title, action, tone = 'from-primary/15 to-violet-500/10 text-primary' }) => (
+  <div className="flex items-center justify-between gap-3 border-b border-border/40 bg-gradient-to-l from-muted/40 via-transparent to-transparent px-5 py-4 sm:px-6">
+    <div className="flex items-center gap-3">
+      <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${tone}`}>
+        <Icon className="h-4.5 w-4.5 h-[18px] w-[18px]" />
+      </div>
+      <h2 className="text-base font-black tracking-tight sm:text-lg">{title}</h2>
+    </div>
+    {action}
+  </div>
+);
+
+/* ─── Greeting helper ─── */
+const getGreeting = () => {
+  const h = new Date().getHours();
+  if (h < 12) return 'صبح بخیر';
+  if (h < 17) return 'ظهر بخیر';
+  if (h < 21) return 'عصر بخیر';
+  return 'شب بخیر';
 };
 
 /* ─── Main ─── */
@@ -89,6 +187,13 @@ const ProfilePage = () => {
   /* ── Dialogs ── */
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [pwSectionOpen, setPwSectionOpen] = useState(false);
+  const [deleteAddrOpen, setDeleteAddrOpen] = useState(false);
+  const [deleteAddrId, setDeleteAddrId] = useState(null);
+
+  /* ── Login History ── */
+  const [loginHistory, setLoginHistory] = useState([]);
+  const [loginHistoryLoading, setLoginHistoryLoading] = useState(false);
+  const [loginHistoryOpen, setLoginHistoryOpen] = useState(false);
 
   /* ── Profile completion ── */
   const completionPercent = useMemo(() => {
@@ -110,6 +215,13 @@ const ProfilePage = () => {
     return (f + l).toUpperCase() || user?.username?.[0]?.toUpperCase() || '?';
   }, [user]);
 
+  const displayName = useMemo(() => {
+    if (user?.first_name && user?.last_name) return `${user.first_name} ${user.last_name}`;
+    return user?.username || 'کاربر';
+  }, [user]);
+
+  const greeting = useMemo(() => getGreeting(), []);
+
   /* ── Load data ── */
   useEffect(() => {
     if (!isAuthenticated) { navigate('/login'); return; }
@@ -129,6 +241,16 @@ const ProfilePage = () => {
   const loadAddresses = async () => {
     setAddrLoading(true);
     try { const res = await authAPI.getAddresses(); setAddresses(res.data); } catch {} finally { setAddrLoading(false); }
+  };
+
+  const loadLoginHistory = async () => {
+    setLoginHistoryLoading(true);
+    try {
+      const res = await authAPI.getLoginHistory();
+      setLoginHistory(res.data);
+    } catch {} finally {
+      setLoginHistoryLoading(false);
+    }
   };
 
   /* ── Profile update ── */
@@ -177,9 +299,7 @@ const ProfilePage = () => {
       await authAPI.verifyCode({ code: verifyCode, type: verifyType });
       setVerifyMsg(`${verifyType === 'phone' ? 'تلفن' : 'ایمیل'} با موفقیت تأیید شد`);
       setVerifyCode(''); setVerifyCodeDev('');
-      // Refresh user data
-      const res = await authAPI.getUser();
-      // Update auth context if possible
+      await authAPI.getUser();
       setTimeout(() => { setVerifyType(''); setVerifyMsg(''); }, 2000);
     } catch (err) { setVerifyErr(err.response?.data?.error || 'کد اشتباه است'); }
     finally { setVerifyLoading(false); }
@@ -205,149 +325,206 @@ const ProfilePage = () => {
     } catch (err) { setAddrErr(err.response?.data?.error || 'خطا در ذخیره آدرس'); }
   };
   const handleDeleteAddress = async (id) => {
-    if (!window.confirm('آیا از حذف این آدرس مطمئن هستید؟')) return;
-    try { await authAPI.deleteAddress(id); loadAddresses(); } catch {}
+    setDeleteAddrId(id);
+    setDeleteAddrOpen(true);
+  };
+
+  const confirmDeleteAddress = async () => {
+    if (!deleteAddrId) return;
+    try { await authAPI.deleteAddress(deleteAddrId); loadAddresses(); } catch {}
+    setDeleteAddrOpen(false);
+    setDeleteAddrId(null);
   };
 
   const handleLogout = async () => { await logout(); setLogoutOpen(false); navigate('/'); };
 
   if (!isAuthenticated) return null;
 
+  const inputClass =
+    'h-11 rounded-xl border-border/60 bg-background/80 shadow-sm transition-all duration-300 focus-visible:border-primary/40 focus-visible:ring-primary/20';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-muted/30 via-background to-muted/20">
-      <div className="container mx-auto px-4 py-6 sm:py-10 max-w-5xl">
+    <div className="relative min-h-screen">
+      <AmbientBg />
+
+      <div className="container relative mx-auto max-w-5xl px-4 py-6 sm:py-10">
 
         {/* ── Hero Header ── */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-l from-primary/20 via-primary/5 to-transparent border border-primary/10 mb-8">
-          <div className="relative p-6 sm:p-8 flex flex-col sm:flex-row items-center gap-6">
+        <div className="relative mb-8 overflow-hidden rounded-[1.75rem] border border-border/50 bg-card/70 shadow-xl shadow-primary/[0.06] backdrop-blur-xl ring-1 ring-black/[0.02] dark:ring-white/[0.04] animate-fade-in-down">
+          {/* Mesh gradient layer */}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-bl from-primary/[0.12] via-violet-500/[0.05] to-transparent" />
+          <div className="pointer-events-none absolute -left-16 -top-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 right-10 h-40 w-40 rounded-full bg-violet-500/10 blur-3xl" />
+
+          <div className="relative flex flex-col items-center gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
             {/* Avatar */}
             <div className="relative group">
-              <div className="h-24 w-24 sm:h-28 sm:w-28 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center text-3xl sm:text-4xl font-black shadow-lg shadow-primary/25 rotate-3 group-hover:rotate-0 transition-transform">
+              <div className="absolute -inset-1 rounded-[1.35rem] bg-gradient-to-br from-primary via-violet-500 to-blue-500 opacity-70 blur-[2px] transition-opacity duration-500 group-hover:opacity-100" />
+              <div className="relative flex h-24 w-24 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-primary via-primary to-primary/85 text-3xl font-black text-primary-foreground shadow-2xl shadow-primary/30 ring-4 ring-background sm:h-28 sm:w-28 sm:text-4xl transition-transform duration-500 group-hover:scale-[1.02]">
                 {initials}
               </div>
               {(user?.phone_verified || user?.email_verified) && (
-                <div className="absolute -bottom-1 -left-1 h-7 w-7 bg-green-500 rounded-full flex items-center justify-center border-2 border-background">
-                  <BadgeCheck className="h-4 w-4 text-white" />
+                <div className="absolute -bottom-1.5 -left-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg ring-4 ring-background">
+                  <BadgeCheck className="h-4 w-4" />
                 </div>
               )}
             </div>
 
             {/* Info */}
-            <div className="flex-1 text-center sm:text-right">
-              <h1 className="text-2xl sm:text-3xl font-black">
-                {user?.first_name && user?.last_name
-                  ? `${user.first_name} ${user.last_name}`
-                  : user?.username}
+            <div className="min-w-0 flex-1 text-center sm:text-right">
+              <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground">
+                {greeting} ✨
+              </p>
+              <h1 className="truncate text-2xl font-black tracking-tight sm:text-3xl">
+                {displayName}
               </h1>
-              <p className="text-muted-foreground mt-1" dir="ltr">{user?.email}</p>
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-3">
+              <p className="mt-1.5 text-sm text-muted-foreground" dir="ltr">
+                {user?.email}
+              </p>
+
+              <div className="mt-3.5 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                 {user?.phone && (
-                  <Badge variant="secondary" className="gap-1">
-                    <Phone className="h-3 w-3" />
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-background/70 px-3 py-1 text-xs font-medium shadow-sm backdrop-blur-sm">
+                    <Phone className="h-3 w-3 text-primary/70" />
                     <span dir="ltr">{user.phone}</span>
-                  </Badge>
+                  </span>
                 )}
                 {user?.date_of_birth && (
-                  <Badge variant="secondary" className="gap-1">
-                    <Cake className="h-3 w-3" />
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-background/70 px-3 py-1 text-xs font-medium shadow-sm backdrop-blur-sm">
+                    <Cake className="h-3 w-3 text-rose-500/80" />
                     {toJalaliString(user.date_of_birth)}
-                  </Badge>
+                  </span>
                 )}
                 {user?.date_joined && (
-                  <Badge variant="secondary" className="gap-1">
-                    <Calendar className="h-3 w-3" />
-                    عضو: {formatDate(user.date_joined)}
-                  </Badge>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-background/70 px-3 py-1 text-xs font-medium shadow-sm backdrop-blur-sm">
+                    <Calendar className="h-3 w-3 text-blue-500/80" />
+                    عضو از {formatDate(user.date_joined)}
+                  </span>
                 )}
               </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="flex sm:flex-col gap-2">
-              <Button asChild variant="outline" size="sm">
-                <Link to="/orders">
-                  <Package className="ml-1 h-4 w-4" />
-                  سفارش‌ها
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="sm">
-                <Link to="/cart">
-                  <ShoppingCart className="ml-1 h-4 w-4" />
-                  سبد خرید ({cart?.total_items || 0})
-                </Link>
-              </Button>
+            {/* Completion + actions */}
+            <div className="flex flex-col items-center gap-3 sm:items-end">
+              <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-background/60 px-3.5 py-2.5 shadow-sm backdrop-blur-md">
+                <CompletionRing percent={completionPercent} />
+                <div className="text-right">
+                  <p className="text-[11px] font-medium text-muted-foreground">تکمیل پروفایل</p>
+                  <p className="text-sm font-bold">
+                    {completionPercent === 100 ? 'کامل شد' : 'در حال تکمیل'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="h-9 rounded-xl border-border/60 bg-background/60 shadow-sm backdrop-blur-sm transition-all hover:border-primary/30 hover:shadow-md"
+                >
+                  <Link to="/orders" className="flex items-center gap-1.5">
+                    <Package className="h-3.5 w-3.5" />
+                    سفارش‌ها
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="h-9 rounded-xl border-border/60 bg-background/60 shadow-sm backdrop-blur-sm transition-all hover:border-primary/30 hover:shadow-md"
+                >
+                  <Link to="/cart" className="flex items-center gap-1.5">
+                    <ShoppingCart className="h-3.5 w-3.5" />
+                    سبد ({(cart?.total_items || 0).toLocaleString('fa-IR')})
+                  </Link>
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* ── Profile Completion Bar ── */}
-        <Card className="mb-6 border-primary/20">
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">تکمیل پروفایل</span>
-              <span className="text-sm font-bold text-primary">{completionPercent}%</span>
+          {/* Completion bar strip */}
+          {completionPercent < 100 && (
+            <div className="relative border-t border-border/40 bg-muted/20 px-6 py-3">
+              <div className="mb-1.5 flex items-center justify-between text-xs">
+                <span className="font-medium text-muted-foreground">
+                  {completionPercent < 40
+                    ? 'پروفایل خود را تکمیل کنید تا تجربه بهتری داشته باشید'
+                    : 'تقریباً تمام شد! فقط کمی دیگر'}
+                </span>
+                <span className="font-bold text-primary tabular-nums">
+                  {completionPercent.toLocaleString('fa-IR')}٪
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-gradient-to-l from-primary via-violet-500 to-blue-500 transition-all duration-700"
+                  style={{ width: `${completionPercent}%` }}
+                />
+              </div>
             </div>
-            <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-primary to-primary/70 rounded-full transition-all duration-500"
-                style={{ width: `${completionPercent}%` }}
-              />
-            </div>
-            {completionPercent < 100 && (
-              <p className="text-xs text-muted-foreground mt-2">
-                {completionPercent < 40
-                  ? 'پروفایل خود را تکمیل کنید تا تجربه بهتری داشته باشید'
-                  : 'تقریباً تمام شد! فقط کمی دیگر'}
-              </p>
-            )}
-          </CardContent>
-        </Card>
+          )}
+        </div>
 
         {/* ── Verification Banner ── */}
         {(!user?.phone_verified && !user?.email_verified) && (
-          <Card className="mb-6 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-900/10">
-            <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium">حساب خود را تأیید کنید</p>
-                <p className="text-xs text-muted-foreground">برای خرید، لطفاً شماره تلفن یا ایمیل خود را تأیید کنید</p>
+          <div className="mb-6 overflow-hidden rounded-[1.35rem] border border-amber-500/25 bg-gradient-to-l from-amber-500/[0.12] via-amber-500/[0.05] to-transparent p-4 shadow-sm backdrop-blur-sm sm:p-5 animate-fade-in-up">
+            <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                <AlertCircle className="h-5 w-5" />
               </div>
-              <div className="flex gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold">حساب خود را تأیید کنید</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  برای خرید امن، لطفاً شماره تلفن یا ایمیل خود را تأیید کنید
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
                 {user?.phone && !user?.phone_verified && (
-                  <Button size="sm" variant="outline" onClick={() => handleSendVerification('phone')} disabled={verifyLoading}>
-                    <Phone className="ml-1 h-3 w-3" />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleSendVerification('phone')}
+                    disabled={verifyLoading}
+                    className="h-9 rounded-xl border-amber-500/30 bg-background/70 shadow-sm"
+                  >
+                    <Phone className="ml-1 h-3.5 w-3.5" />
                     تأیید تلفن
                   </Button>
                 )}
                 {user?.email && !user?.email_verified && (
-                  <Button size="sm" variant="outline" onClick={() => handleSendVerification('email')} disabled={verifyLoading}>
-                    <Mail className="ml-1 h-3 w-3" />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleSendVerification('email')}
+                    disabled={verifyLoading}
+                    className="h-9 rounded-xl border-amber-500/30 bg-background/70 shadow-sm"
+                  >
+                    <Mail className="ml-1 h-3.5 w-3.5" />
                     تأیید ایمیل
                   </Button>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* ── Verification Code Input ── */}
         {verifyType && (
-          <Card className="mb-6 border-primary/20">
-            <CardContent className="p-4">
-              {verifyMsg && (
-                <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 p-3 rounded-lg mb-3 text-sm">
-                  <CheckCircle className="h-4 w-4" />
-                  {verifyMsg}
-                </div>
-              )}
-              {verifyErr && (
-                <div className="bg-destructive/10 text-destructive p-3 rounded-lg mb-3 text-sm">{verifyErr}</div>
-              )}
+          <SectionCard className="mb-6 border-primary/20" delay={0.05}>
+            <div className="p-5 sm:p-6">
+              <div className="mb-4 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <p className="text-sm font-bold">
+                  تأیید {verifyType === 'phone' ? 'تلفن' : 'ایمیل'}
+                </p>
+              </div>
+              {verifyMsg && <SuccessAlert>{verifyMsg}</SuccessAlert>}
+              {verifyErr && <ErrorAlert>{verifyErr}</ErrorAlert>}
               {verifyCodeDev && (
-                <div className="bg-muted p-3 rounded-lg mb-3 text-sm">
-                  <span className="font-medium">کد تأیید (برای تست): </span>
-                  <code className="font-bold" dir="ltr">{verifyCodeDev}</code>
-                </div>
+                <p className="mb-3 rounded-xl bg-muted/60 px-3 py-2 text-xs text-muted-foreground" dir="ltr">
+                  Dev code: {verifyCodeDev}
+                </p>
               )}
               <div className="flex gap-2">
                 <Input
@@ -355,234 +532,324 @@ const ProfilePage = () => {
                   value={verifyCode}
                   onChange={(e) => setVerifyCode(e.target.value)}
                   maxLength={6}
-                  className="flex-1"
+                  className={`flex-1 text-center text-lg font-bold tracking-[0.35em] ${inputClass}`}
                   dir="ltr"
                 />
-                <Button onClick={handleVerifyCode} disabled={verifyLoading || verifyCode.length !== 6}>
+                <Button
+                  onClick={handleVerifyCode}
+                  disabled={verifyLoading || verifyCode.length !== 6}
+                  className="h-11 rounded-xl px-6 font-bold shadow-md shadow-primary/15"
+                >
                   تأیید
                 </Button>
-                <Button variant="ghost" size="icon" onClick={() => { setVerifyType(''); setVerifyCode(''); setVerifyCodeDev(''); }}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-11 w-11 rounded-xl"
+                  onClick={() => { setVerifyType(''); setVerifyCode(''); setVerifyCodeDev(''); }}
+                >
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* ── Left Column ── */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="space-y-6 lg:col-span-2">
             {/* ── Personal Info ── */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <User className="h-5 w-5" />
-                  اطلاعات شخصی
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {profileMsg && (
-                  <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 p-3 rounded-lg mb-4 text-sm">
-                    <CheckCircle className="h-4 w-4" />
-                    {profileMsg}
-                  </div>
-                )}
-                {profileErr && (
-                  <div className="bg-destructive/10 text-destructive p-3 rounded-lg mb-4 text-sm">{profileErr}</div>
-                )}
+            <SectionCard delay={0.08}>
+              <SectionHead icon={User} title="اطلاعات شخصی" />
+              <div className="p-5 sm:p-6">
+                {profileMsg && <SuccessAlert>{profileMsg}</SuccessAlert>}
+                {profileErr && <ErrorAlert>{profileErr}</ErrorAlert>}
 
-                <form onSubmit={handleProfileSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-1.5">نام</label>
-                      <Input value={profileForm.first_name} onChange={(e) => setProfileForm({ ...profileForm, first_name: e.target.value })} placeholder="نام" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1.5">نام خانوادگی</label>
-                      <Input value={profileForm.last_name} onChange={(e) => setProfileForm({ ...profileForm, last_name: e.target.value })} placeholder="نام خانوادگی" />
-                    </div>
+                <form onSubmit={handleProfileSubmit} className="space-y-5">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field label="نام">
+                      <Input
+                        value={profileForm.first_name}
+                        onChange={(e) => setProfileForm({ ...profileForm, first_name: e.target.value })}
+                        placeholder="نام"
+                        className={inputClass}
+                      />
+                    </Field>
+                    <Field label="نام خانوادگی">
+                      <Input
+                        value={profileForm.last_name}
+                        onChange={(e) => setProfileForm({ ...profileForm, last_name: e.target.value })}
+                        placeholder="نام خانوادگی"
+                        className={inputClass}
+                      />
+                    </Field>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium mb-1.5">نام کاربری</label>
-                    <Input value={user?.username || ''} disabled className="bg-muted" />
-                    <p className="text-xs text-muted-foreground mt-1">نام کاربری قابل تغییر نیست</p>
-                  </div>
+                  <Field label="نام کاربری" hint="نام کاربری قابل تغییر نیست">
+                    <Input value={user?.username || ''} disabled className={`${inputClass} bg-muted/60`} />
+                  </Field>
 
-                  <div>
-                    <label className="block text-sm font-medium mb-1.5">ایمیل</label>
+                  <Field label="ایمیل" icon={Mail}>
                     <div className="relative">
-                      <Mail className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input type="email" value={profileForm.email} onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })} className="pr-10" placeholder="ایمیل" dir="ltr" />
+                      <Mail className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                      <Input
+                        type="email"
+                        value={profileForm.email}
+                        onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                        className={`${inputClass} pr-11`}
+                        placeholder="ایمیل"
+                        dir="ltr"
+                      />
                     </div>
-                  </div>
+                  </Field>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-1.5">شماره تلفن</label>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <Field label="شماره تلفن" icon={Phone}>
                       <div className="relative">
-                        <Phone className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} className="pr-10" placeholder="09121234567" dir="ltr" />
+                        <Phone className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                        <Input
+                          value={profileForm.phone}
+                          onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                          className={`${inputClass} pr-11`}
+                          placeholder="09121234567"
+                          dir="ltr"
+                        />
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1.5">تاریخ تولد</label>
+                    </Field>
+                    <Field label="تاریخ تولد" icon={Cake}>
                       <JalaliDatePicker
                         value={profileForm.date_of_birth}
                         onChange={(gDate) => setProfileForm({ ...profileForm, date_of_birth: gDate })}
                         placeholder="تاریخ تولد"
                       />
                       {profileForm.date_of_birth && (
-                        <p className="text-xs text-muted-foreground mt-1">{toJalaliString(profileForm.date_of_birth)}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {toJalaliString(profileForm.date_of_birth)}
+                        </p>
                       )}
-                    </div>
+                    </Field>
                   </div>
 
-                  <Button type="submit" disabled={profileLoading} className="w-full sm:w-auto">
+                  <Button
+                    type="submit"
+                    disabled={profileLoading}
+                    className="h-11 rounded-xl px-6 font-bold shadow-md shadow-primary/15 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg"
+                  >
                     <Save className="ml-2 h-4 w-4" />
                     {profileLoading ? 'در حال ذخیره...' : 'ذخیره تغییرات'}
                   </Button>
                 </form>
-              </CardContent>
-            </Card>
+              </div>
+            </SectionCard>
 
             {/* ── Password ── */}
-            <Card>
-              <CardHeader className="cursor-pointer" onClick={() => setPwSectionOpen(!pwSectionOpen)}>
-                <CardTitle className="flex items-center justify-between text-lg">
-                  <div className="flex items-center gap-2">
-                    <Lock className="h-5 w-5" />
-                    تغییر رمز عبور
+            <SectionCard delay={0.12}>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-3 border-b border-border/40 bg-gradient-to-l from-muted/40 via-transparent to-transparent px-5 py-4 text-right transition-colors hover:bg-muted/20 sm:px-6"
+                onClick={() => setPwSectionOpen(!pwSectionOpen)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500/15 to-amber-500/10 text-orange-600 dark:text-orange-400">
+                    <Lock className="h-[18px] w-[18px]" />
                   </div>
-                  <ChevronLeft className={`h-5 w-5 transition-transform ${pwSectionOpen ? 'rotate-90' : ''}`} />
-                </CardTitle>
-              </CardHeader>
-              {pwSectionOpen && (
-                <CardContent className="pt-0">
-                  {pwMsg && (
-                    <div className="flex items-center gap-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 p-3 rounded-lg mb-4 text-sm">
-                      <CheckCircle className="h-4 w-4" />
-                      {pwMsg}
-                    </div>
-                  )}
-                  {pwErr && (
-                    <div className="bg-destructive/10 text-destructive p-3 rounded-lg mb-4 text-sm">{pwErr}</div>
-                  )}
-                  <form onSubmit={handlePasswordSubmit} className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-1.5">رمز عبور فعلی</label>
-                      <div className="relative">
-                        <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input type={showOldPw ? 'text' : 'password'} value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="pr-10 pl-10" required placeholder="رمز عبور فعلی" />
-                        <button type="button" onClick={() => setShowOldPw(!showOldPw)} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                          {showOldPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-1.5">رمز عبور جدید</label>
+                  <div>
+                    <h2 className="text-base font-black tracking-tight sm:text-lg">تغییر رمز عبور</h2>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">امنیت حساب خود را مدیریت کنید</p>
+                  </div>
+                </div>
+                <ChevronLeft
+                  className={`h-5 w-5 text-muted-foreground transition-transform duration-300 ${
+                    pwSectionOpen ? 'rotate-90' : ''
+                  }`}
+                />
+              </button>
+
+              <div
+                className={`grid transition-all duration-500 ease-out ${
+                  pwSectionOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                }`}
+              >
+                <div className="overflow-hidden">
+                  <div className="p-5 sm:p-6">
+                    {pwMsg && <SuccessAlert>{pwMsg}</SuccessAlert>}
+                    {pwErr && <ErrorAlert>{pwErr}</ErrorAlert>}
+                    <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                      <Field label="رمز عبور فعلی">
                         <div className="relative">
-                          <Lock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input type={showNewPw ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="pr-10 pl-10" required placeholder="حداقل ۶ کاراکتر" />
-                          <button type="button" onClick={() => setShowNewPw(!showNewPw)} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                            {showNewPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          <Lock className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                          <Input
+                            type={showOldPw ? 'text' : 'password'}
+                            value={oldPassword}
+                            onChange={(e) => setOldPassword(e.target.value)}
+                            className={`${inputClass} pr-11 pl-11`}
+                            required
+                            placeholder="رمز عبور فعلی"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowOldPw(!showOldPw)}
+                            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            {showOldPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </button>
                         </div>
+                      </Field>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <Field label="رمز عبور جدید">
+                          <div className="relative">
+                            <Lock className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                            <Input
+                              type={showNewPw ? 'text' : 'password'}
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              className={`${inputClass} pr-11 pl-11`}
+                              required
+                              placeholder="حداقل ۶ کاراکتر"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowNewPw(!showNewPw)}
+                              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+                            >
+                              {showNewPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        </Field>
+                        <Field label="تکرار رمز عبور">
+                          <Input
+                            type={showNewPw ? 'text' : 'password'}
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            className={inputClass}
+                            required
+                            placeholder="تکرار رمز عبور"
+                          />
+                        </Field>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-1.5">تکرار رمز عبور</label>
-                        <Input type={showNewPw ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required placeholder="تکرار رمز عبور" />
-                      </div>
-                    </div>
-                    <Button type="submit" disabled={pwLoading}>
-                      <Lock className="ml-2 h-4 w-4" />
-                      {pwLoading ? 'در حال تغییر...' : 'تغییر رمز عبور'}
-                    </Button>
-                  </form>
-                </CardContent>
-              )}
-            </Card>
+                      <Button
+                        type="submit"
+                        disabled={pwLoading}
+                        className="h-11 rounded-xl font-bold shadow-md shadow-primary/15"
+                      >
+                        <Lock className="ml-2 h-4 w-4" />
+                        {pwLoading ? 'در حال تغییر...' : 'تغییر رمز عبور'}
+                      </Button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </SectionCard>
           </div>
 
           {/* ── Right Column ── */}
           <div className="space-y-6">
             {/* ── Verification Status ── */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Shield className="h-5 w-5" />
-                  تأیید حساب
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4" />
-                    <span className="text-sm">تلفن</span>
+            <SectionCard delay={0.1}>
+              <SectionHead
+                icon={Shield}
+                title="تأیید حساب"
+                tone="from-emerald-500/15 to-teal-500/10 text-emerald-600 dark:text-emerald-400"
+              />
+              <div className="space-y-3 p-5">
+                {[
+                  {
+                    key: 'phone',
+                    icon: Phone,
+                    label: 'تلفن',
+                    verified: user?.phone_verified,
+                    hasValue: !!user?.phone,
+                  },
+                  {
+                    key: 'email',
+                    icon: Mail,
+                    label: 'ایمیل',
+                    verified: user?.email_verified,
+                    hasValue: !!user?.email,
+                  },
+                ].map(({ key, icon: Icon, label, verified, hasValue }) => (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-border/40 bg-gradient-to-l from-muted/40 to-transparent p-3.5 transition-all duration-300 hover:border-border hover:shadow-sm"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-background shadow-sm ring-1 ring-border/50">
+                        <Icon className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <span className="text-sm font-semibold">{label}</span>
+                    </div>
+                    {verified ? (
+                      <Badge className="gap-1 rounded-lg border-0 bg-emerald-500 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-600">
+                        <CheckCircle className="h-3 w-3" />
+                        تأیید شده
+                      </Badge>
+                    ) : hasValue ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleSendVerification(key)}
+                        disabled={verifyLoading}
+                        className="h-8 rounded-lg text-xs font-semibold"
+                      >
+                        تأیید
+                      </Button>
+                    ) : (
+                      <Badge variant="secondary" className="rounded-lg text-[11px]">وارد نشده</Badge>
+                    )}
                   </div>
-                  {user?.phone_verified ? (
-                    <Badge variant="default" className="bg-green-500 hover:bg-green-600 gap-1">
-                      <CheckCircle className="h-3 w-3" />
-                      تأیید شده
-                    </Badge>
-                  ) : user?.phone ? (
-                    <Button size="sm" variant="outline" onClick={() => handleSendVerification('phone')} disabled={verifyLoading}>
-                      تأیید
-                    </Button>
-                  ) : (
-                    <Badge variant="secondary">وارد نشده</Badge>
-                  )}
-                </div>
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4" />
-                    <span className="text-sm">ایمیل</span>
-                  </div>
-                  {user?.email_verified ? (
-                    <Badge variant="default" className="bg-green-500 hover:bg-green-600 gap-1">
-                      <CheckCircle className="h-3 w-3" />
-                      تأیید شده
-                    </Badge>
-                  ) : user?.email ? (
-                    <Button size="sm" variant="outline" onClick={() => handleSendVerification('email')} disabled={verifyLoading}>
-                      تأیید
-                    </Button>
-                  ) : (
-                    <Badge variant="secondary">وارد نشده</Badge>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                ))}
+              </div>
+            </SectionCard>
 
             {/* ── Quick Stats ── */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Package className="h-5 w-5" />
-                  خلاصه حساب
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <span className="text-sm text-muted-foreground">آدرس‌ها</span>
-                  <span className="font-bold">{addresses.length}</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <span className="text-sm text-muted-foreground">تکمیل پروفایل</span>
-                  <span className="font-bold text-primary">{completionPercent}%</span>
-                </div>
-                <Link to="/orders">
-                  <Button variant="outline" className="w-full justify-between">
-                    <span>سفارش‌های من</span>
-                    <ChevronLeft className="h-4 w-4" />
+            <SectionCard delay={0.14}>
+              <SectionHead
+                icon={Star}
+                title="خلاصه حساب"
+                tone="from-blue-500/15 to-cyan-500/10 text-blue-600 dark:text-blue-400"
+              />
+              <div className="space-y-2.5 p-5">
+                {[
+                  { label: 'آدرس‌ها', value: addresses.length.toLocaleString('fa-IR'), icon: MapPin },
+                  { label: 'علاقه‌مندی‌ها', value: wishlist.length.toLocaleString('fa-IR'), icon: Heart },
+                  { label: 'سبد خرید', value: (cart?.total_items || 0).toLocaleString('fa-IR'), icon: ShoppingCart },
+                  { label: 'تکمیل پروفایل', value: `${completionPercent.toLocaleString('fa-IR')}٪`, icon: ShieldCheck, accent: true },
+                ].map(({ label, value, icon: Icon, accent }) => (
+                  <div
+                    key={label}
+                    className="flex items-center justify-between rounded-2xl border border-border/40 bg-muted/20 px-3.5 py-3 transition-all duration-300 hover:bg-muted/40"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">{label}</span>
+                    </div>
+                    <span className={`text-sm font-black tabular-nums ${accent ? 'text-primary' : ''}`}>
+                      {value}
+                    </span>
+                  </div>
+                ))}
+
+                <Link to="/orders" className="block pt-1">
+                  <Button
+                    variant="outline"
+                    className="group h-11 w-full justify-between rounded-xl border-border/60 font-semibold transition-all hover:border-primary/30 hover:shadow-md"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Package className="h-4 w-4" />
+                      سفارش‌های من
+                    </span>
+                    <ChevronLeft className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
                   </Button>
                 </Link>
-              </CardContent>
-            </Card>
+              </div>
+            </SectionCard>
 
             {/* ── Logout ── */}
-            <Button variant="destructive" className="w-full" onClick={() => setLogoutOpen(true)}>
+            <Button
+              variant="outline"
+              className="h-12 w-full rounded-2xl border-destructive/25 bg-destructive/[0.04] font-bold text-destructive shadow-sm transition-all duration-300 hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive hover:shadow-md"
+              onClick={() => setLogoutOpen(true)}
+            >
               <LogOut className="ml-2 h-4 w-4" />
               خروج از حساب
             </Button>
@@ -590,48 +857,96 @@ const ProfilePage = () => {
         </div>
 
         {/* ── Addresses Section ── */}
-        <Card className="mt-6">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <MapPin className="h-5 w-5" />
-                آدرس‌های ارسال ({addresses.length})
-              </CardTitle>
-              <Button size="sm" onClick={openAddAddress}>
+        <SectionCard className="mt-6" delay={0.16}>
+          <SectionHead
+            icon={MapPin}
+            title={`آدرس‌های ارسال (${addresses.length.toLocaleString('fa-IR')})`}
+            tone="from-rose-500/15 to-pink-500/10 text-rose-600 dark:text-rose-400"
+            action={
+              <Button
+                size="sm"
+                onClick={openAddAddress}
+                className="h-9 rounded-xl font-bold shadow-md shadow-primary/15"
+              >
                 <Plus className="ml-1 h-4 w-4" />
                 افزودن آدرس
               </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
+            }
+          />
+          <div className="p-5 sm:p-6">
             {addrLoading ? (
-              <p className="text-sm text-muted-foreground text-center py-4">در حال بارگذاری...</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {[1, 2].map((i) => (
+                  <div key={i} className="h-32 animate-pulse rounded-2xl bg-muted/60" />
+                ))}
+              </div>
             ) : addresses.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <MapPin className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">هنوز آدرسی ثبت نکرده‌اید</p>
+              <div className="py-12 text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-dashed border-border bg-muted/30">
+                  <MapPin className="h-7 w-7 text-muted-foreground/40" />
+                </div>
+                <p className="text-sm font-medium text-muted-foreground">هنوز آدرسی ثبت نکرده‌اید</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={openAddAddress}
+                  className="mt-4 rounded-xl"
+                >
+                  <Plus className="ml-1 h-3.5 w-3.5" />
+                  اولین آدرس را اضافه کنید
+                </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {addresses.map((addr) => (
-                  <div key={addr.id} className={`relative p-4 border rounded-xl transition-all hover:shadow-md ${addr.is_default ? 'border-primary bg-primary/5' : 'hover:border-primary/30'}`}>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold truncate">{addr.full_name}</span>
-                          {addr.is_default && <Badge variant="secondary" className="text-xs">پیش‌فرض</Badge>}
+              <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+                {addresses.map((addr, idx) => (
+                  <div
+                    key={addr.id}
+                    className={`group relative overflow-hidden rounded-2xl border p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg ${
+                      addr.is_default
+                        ? 'border-primary/30 bg-gradient-to-bl from-primary/[0.08] via-card to-card shadow-md shadow-primary/5'
+                        : 'border-border/50 bg-card/60 hover:border-primary/20'
+                    }`}
+                    style={{ animationDelay: `${idx * 0.04}s` }}
+                  >
+                    {addr.is_default && (
+                      <div className="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-primary to-violet-500" />
+                    )}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                          <span className="truncate font-bold">{addr.full_name}</span>
+                          {addr.is_default && (
+                            <Badge className="rounded-md border-0 bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary hover:bg-primary/20">
+                              پیش‌فرض
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground" dir="ltr">{addr.phone}</p>
-                        <p className="text-sm mt-1 truncate">{addr.address_line1}</p>
-                        {addr.address_line2 && <p className="text-sm text-muted-foreground truncate">{addr.address_line2}</p>}
-                        <p className="text-xs text-muted-foreground mt-1">{addr.city}، {addr.state}</p>
+                        <p className="mt-2 line-clamp-2 text-sm leading-relaxed">{addr.address_line1}</p>
+                        {addr.address_line2 && (
+                          <p className="truncate text-sm text-muted-foreground">{addr.address_line2}</p>
+                        )}
+                        <p className="mt-2 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                          <MapPin className="h-3 w-3" />
+                          {addr.city}{addr.state ? `، ${addr.state}` : ''}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditAddress(addr)}>
-                          <Pencil className="h-4 w-4" />
+                      <div className="flex shrink-0 items-center gap-0.5 opacity-70 transition-opacity group-hover:opacity-100">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-lg"
+                          onClick={() => openEditAddress(addr)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteAddress(addr.id)}>
-                          <Trash2 className="h-4 w-4" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDeleteAddress(addr.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </div>
@@ -639,43 +954,47 @@ const ProfilePage = () => {
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
 
         {/* ── Wishlist Section ── */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Heart className="h-5 w-5 text-red-500" />
-              محصولات مورد علاقه ({wishlist.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <SectionCard className="mt-6" delay={0.2}>
+          <SectionHead
+            icon={Heart}
+            title={`محصولات مورد علاقه (${wishlist.length.toLocaleString('fa-IR')})`}
+            tone="from-red-500/15 to-rose-500/10 text-red-500"
+          />
+          <div className="p-5 sm:p-6">
             {wishlist.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Heart className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">هنوز محصولی را به علاقه‌مندی‌ها اضافه نکرده‌اید</p>
+              <div className="py-12 text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-dashed border-border bg-muted/30">
+                  <Heart className="h-7 w-7 text-muted-foreground/40" />
+                </div>
+                <p className="text-sm font-medium text-muted-foreground">
+                  هنوز محصولی را به علاقه‌مندی‌ها اضافه نکرده‌اید
+                </p>
                 <Link to="/products">
-                  <Button variant="outline" className="mt-4">
+                  <Button variant="outline" className="mt-4 rounded-xl font-semibold">
                     مشاهده محصولات
                   </Button>
                 </Link>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
                 {wishlist.map((item) => (
-                  <Link key={item.id} to={`/product/${item.product?.id}`}>
-                    <div className="group cursor-pointer">
-                      <div className="relative aspect-[3/4] bg-muted rounded-lg overflow-hidden mb-2">
+                  <Link key={item.id} to={`/product/${item.product?.slug}`} className="group">
+                    <div className="overflow-hidden rounded-2xl border border-border/50 bg-card/50 shadow-sm transition-all duration-500 hover:-translate-y-1 hover:border-primary/20 hover:shadow-xl hover:shadow-primary/[0.06]">
+                      <div className="relative aspect-[3/4] overflow-hidden bg-muted">
                         <img
                           src={item.product?.primary_image || 'https://via.placeholder.com/400x500?text=No+Image'}
                           alt={item.product?.name}
-                          className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
                           onError={(e) => { e.target.src = 'https://via.placeholder.com/400x500?text=No+Image'; }}
                         />
+                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                         {item.product?.discount_percentage > 0 && (
-                          <Badge className="absolute left-2 top-2 bg-destructive text-xs">
-                            -{item.product.discount_percentage}%
+                          <Badge className="absolute left-2.5 top-2.5 rounded-lg border-0 bg-destructive px-2 py-0.5 text-[10px] font-bold shadow-md">
+                            −{item.product.discount_percentage}٪
                           </Badge>
                         )}
                         <button
@@ -684,72 +1003,256 @@ const ProfilePage = () => {
                             e.stopPropagation();
                             toggleWishlist(item.product?.id);
                           }}
-                          className="absolute top-2 right-2 h-7 w-7 rounded-full bg-white/80 flex items-center justify-center hover:scale-110 transition-all"
+                          className="absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-red-500 shadow-md backdrop-blur-sm transition-all duration-300 hover:scale-110 hover:bg-white dark:bg-black/60 dark:hover:bg-black/80"
                         >
-                          <Heart className="h-4 w-4 fill-red-500 text-red-500" />
+                          <Heart className="h-3.5 w-3.5 fill-red-500 text-red-500" />
                         </button>
                       </div>
-                      <h4 className="font-semibold text-sm truncate">{item.product?.name}</h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="font-bold text-sm">{formatPrice(item.product?.price)}</span>
-                        {item.product?.compare_price && (
-                          <span className="text-xs text-red-500 line-through font-medium">
-                            {formatPrice(item.product.compare_price)}
+                      <div className="p-3">
+                        <h4 className="truncate text-sm font-bold leading-snug transition-colors group-hover:text-primary">
+                          {item.product?.name}
+                        </h4>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-black tabular-nums">
+                            {formatPrice(item.product?.price)}
                           </span>
-                        )}
+                          {item.product?.compare_price && (
+                            <span className="text-xs font-medium text-red-500/80 line-through tabular-nums">
+                              {formatPrice(item.product.compare_price)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </Link>
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
+
+        {/* ── Login History Section ── */}
+        <SectionCard className="mt-6" delay={0.24}>
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-3 border-b border-border/40 bg-gradient-to-l from-muted/40 via-transparent to-transparent px-5 py-4 text-right transition-colors hover:bg-muted/20 sm:px-6"
+            onClick={() => {
+              const next = !loginHistoryOpen;
+              setLoginHistoryOpen(next);
+              if (next && loginHistory.length === 0) loadLoginHistory();
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500/15 to-blue-500/10 text-cyan-600 dark:text-cyan-400">
+                <History className="h-[18px] w-[18px]" />
+              </div>
+              <div>
+                <h2 className="text-base font-black tracking-tight sm:text-lg">تاریخچه ورود</h2>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">ورودهای اخیر حساب شما</p>
+              </div>
+            </div>
+            <ChevronLeft
+              className={`h-5 w-5 text-muted-foreground transition-transform duration-300 ${
+                loginHistoryOpen ? 'rotate-90' : ''
+              }`}
+            />
+          </button>
+
+          <div
+            className={`grid transition-all duration-500 ease-out ${
+              loginHistoryOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+            }`}
+          >
+            <div className="overflow-hidden">
+              <div className="p-5 sm:p-6">
+                {loginHistoryLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="h-16 animate-pulse rounded-2xl bg-muted/60" />
+                    ))}
+                  </div>
+                ) : loginHistory.length === 0 ? (
+                  <div className="py-8 text-center">
+                    <History className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
+                    <p className="text-sm text-muted-foreground">تاریخچه ورودی ثبت نشده است</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {loginHistory.map((entry, idx) => (
+                      <div
+                        key={entry.id}
+                        className="flex items-center gap-3 rounded-2xl border border-border/40 bg-muted/20 p-3.5 transition-all duration-300 hover:border-border hover:bg-muted/40"
+                        style={{ animationDelay: `${idx * 0.03}s` }}
+                      >
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-background shadow-sm ring-1 ring-border/50">
+                          <Globe className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold">{entry.ip_address}</span>
+                          </div>
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground" dir="ltr">
+                            {entry.user_agent?.substring(0, 70)}{entry.user_agent?.length > 70 ? '...' : ''}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-left">
+                          <p className="text-[11px] font-medium text-muted-foreground">
+                            {new Date(entry.login_time).toLocaleDateString('fa-IR')}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground/70">
+                            {new Date(entry.login_time).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </SectionCard>
       </div>
+
+      {/* ── Delete Address Dialog ── */}
+      <Dialog open={deleteAddrOpen} onOpenChange={setDeleteAddrOpen}>
+        <DialogContent className="overflow-hidden rounded-3xl border-border/50 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2.5 text-lg font-black">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+              </div>
+              حذف آدرس
+            </DialogTitle>
+            <DialogDescription className="pt-1 text-sm leading-relaxed">
+              آیا مطمئن هستید که می‌خواهید این آدرس را حذف کنید؟ این عمل قابل بازگشت نیست.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-row-reverse gap-2 sm:flex-row">
+            <Button variant="destructive" onClick={confirmDeleteAddress} className="rounded-xl font-bold">
+              بله، حذف شود
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => { setDeleteAddrOpen(false); setDeleteAddrId(null); }}
+              className="rounded-xl"
+            >
+              انصراف
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Logout Dialog ── */}
       <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="overflow-hidden rounded-3xl border-border/50 sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
+            <DialogTitle className="flex items-center gap-2.5 text-lg font-black">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10">
+                <LogOut className="h-5 w-5 text-destructive" />
+              </div>
               خروج از حساب
             </DialogTitle>
-            <DialogDescription>آیا مطمئن هستید که می‌خواهید از حساب کاربری خود خارج شوید؟</DialogDescription>
+            <DialogDescription className="pt-1 text-sm leading-relaxed">
+              آیا مطمئن هستید که می‌خواهید از حساب کاربری خود خارج شوید؟
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-row-reverse gap-2 sm:flex-row">
-            <Button variant="destructive" onClick={handleLogout}>بله، خارج شوم</Button>
-            <Button variant="outline" onClick={() => setLogoutOpen(false)}>انصراف</Button>
+            <Button variant="destructive" onClick={handleLogout} className="rounded-xl font-bold">
+              بله، خارج شوم
+            </Button>
+            <Button variant="outline" onClick={() => setLogoutOpen(false)} className="rounded-xl">
+              انصراف
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ── Address Form Dialog ── */}
       <Dialog open={showAddrForm} onOpenChange={setShowAddrForm}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto rounded-3xl border-border/50 sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingAddr ? 'ویرایش آدرس' : 'افزودن آدرس جدید'}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2.5 text-lg font-black">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <MapPin className="h-5 w-5" />
+              </div>
+              {editingAddr ? 'ویرایش آدرس' : 'افزودن آدرس جدید'}
+            </DialogTitle>
           </DialogHeader>
-          {addrErr && <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm">{addrErr}</div>}
-          <form onSubmit={handleAddressSubmit} className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Input placeholder="نام و نام خانوادگی *" value={addrForm.full_name} onChange={(e) => setAddrForm({ ...addrForm, full_name: e.target.value })} required />
-              <Input placeholder="شماره تماس *" value={addrForm.phone} onChange={(e) => setAddrForm({ ...addrForm, phone: e.target.value })} required dir="ltr" />
+          {addrErr && <ErrorAlert>{addrErr}</ErrorAlert>}
+          <form onSubmit={handleAddressSubmit} className="space-y-3.5">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Input
+                placeholder="نام و نام خانوادگی *"
+                value={addrForm.full_name}
+                onChange={(e) => setAddrForm({ ...addrForm, full_name: e.target.value })}
+                required
+                className={inputClass}
+              />
+              <Input
+                placeholder="شماره تماس *"
+                value={addrForm.phone}
+                onChange={(e) => setAddrForm({ ...addrForm, phone: e.target.value })}
+                required
+                dir="ltr"
+                className={inputClass}
+              />
             </div>
-            <Input placeholder="آدرس اصلی (خیابان، کوچه، پلاک) *" value={addrForm.address_line1} onChange={(e) => setAddrForm({ ...addrForm, address_line1: e.target.value })} required />
-            <Input placeholder="آدرس تکمیلی (واحد، طبقه)" value={addrForm.address_line2} onChange={(e) => setAddrForm({ ...addrForm, address_line2: e.target.value })} />
+            <Input
+              placeholder="آدرس اصلی (خیابان، کوچه، پلاک) *"
+              value={addrForm.address_line1}
+              onChange={(e) => setAddrForm({ ...addrForm, address_line1: e.target.value })}
+              required
+              className={inputClass}
+            />
+            <Input
+              placeholder="آدرس تکمیلی (واحد، طبقه)"
+              value={addrForm.address_line2}
+              onChange={(e) => setAddrForm({ ...addrForm, address_line2: e.target.value })}
+              className={inputClass}
+            />
             <div className="grid grid-cols-2 gap-3">
-              <Input placeholder="شهر *" value={addrForm.city} onChange={(e) => setAddrForm({ ...addrForm, city: e.target.value })} required />
-              <Input placeholder="استان" value={addrForm.state} onChange={(e) => setAddrForm({ ...addrForm, state: e.target.value })} />
+              <Input
+                placeholder="شهر *"
+                value={addrForm.city}
+                onChange={(e) => setAddrForm({ ...addrForm, city: e.target.value })}
+                required
+                className={inputClass}
+              />
+              <Input
+                placeholder="استان"
+                value={addrForm.state}
+                onChange={(e) => setAddrForm({ ...addrForm, state: e.target.value })}
+                className={inputClass}
+              />
             </div>
-            <Input placeholder="کد پستی" value={addrForm.postal_code} onChange={(e) => setAddrForm({ ...addrForm, postal_code: e.target.value })} dir="ltr" />
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={addrForm.is_default} onChange={(e) => setAddrForm({ ...addrForm, is_default: e.target.checked })} className="rounded accent-primary" />
-              <span className="text-sm">تنظیم به عنوان آدرس پیش‌فرض</span>
+            <Input
+              placeholder="کد پستی"
+              value={addrForm.postal_code}
+              onChange={(e) => setAddrForm({ ...addrForm, postal_code: e.target.value })}
+              dir="ltr"
+              className={inputClass}
+            />
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border/50 bg-muted/20 px-3.5 py-3 transition-colors hover:bg-muted/40">
+              <input
+                type="checkbox"
+                checked={addrForm.is_default}
+                onChange={(e) => setAddrForm({ ...addrForm, is_default: e.target.checked })}
+                className="h-4 w-4 rounded accent-primary"
+              />
+              <span className="text-sm font-medium">تنظیم به عنوان آدرس پیش‌فرض</span>
             </label>
             <div className="flex gap-3 pt-2">
-              <Button type="submit" className="flex-1">{editingAddr ? 'ذخیره تغییرات' : 'افزودن آدرس'}</Button>
-              <Button type="button" variant="outline" onClick={() => { setShowAddrForm(false); resetAddrForm(); }}>انصراف</Button>
+              <Button type="submit" className="h-11 flex-1 rounded-xl font-bold shadow-md shadow-primary/15">
+                {editingAddr ? 'ذخیره تغییرات' : 'افزودن آدرس'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 rounded-xl"
+                onClick={() => { setShowAddrForm(false); resetAddrForm(); }}
+              >
+                انصراف
+              </Button>
             </div>
           </form>
         </DialogContent>

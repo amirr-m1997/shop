@@ -182,34 +182,34 @@ const Header = () => {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-10 px-2 flex items-center gap-2">
-                    <div className="flex flex-col items-end hidden md:flex">
-                      <span className="text-sm font-medium leading-none">{userFullName}</span>
-                    </div>
                     <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
                       <User className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex flex-col items-end hidden md:flex">
+                      <span className="text-sm font-medium leading-none">{userFullName}</span>
                     </div>
                   </Button>
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent className="w-56 text-right" align="end" forceMount>
+                <DropdownMenuContent className="w-56" align="start" sideOffset={8} forceMount>
                   <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
+                    <div className="flex flex-col items-end space-y-1">
                       <p className="text-sm font-medium leading-none">{userFullName}</p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
 
                   <DropdownMenuItem asChild>
-                    <Link to="/profile" className="cursor-pointer flex items-center gap-2 w-full">
-                      <User className="h-4 w-4" />
+                    <Link to="/profile" className="cursor-pointer flex items-center justify-end gap-2 w-full">
                       <span>پروفایل کاربری</span>
+                      <User className="h-4 w-4" />
                     </Link>
                   </DropdownMenuItem>
 
                   <DropdownMenuItem asChild>
-                    <Link to="/orders" className="cursor-pointer flex items-center gap-2 w-full">
-                      <Package className="h-4 w-4" />
+                    <Link to="/orders" className="cursor-pointer flex items-center justify-end gap-2 w-full">
                       <span>سفارش‌های من</span>
+                      <Package className="h-4 w-4" />
                     </Link>
                   </DropdownMenuItem>
 
@@ -217,10 +217,10 @@ const Header = () => {
 
                   <DropdownMenuItem
                     onClick={handleLogout}
-                    className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10 flex items-center gap-2"
+                    className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10 flex items-center justify-end gap-2"
                   >
-                    <LogOut className="h-4 w-4" />
                     <span>خروج از حساب</span>
+                    <LogOut className="h-4 w-4" />
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

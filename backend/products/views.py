@@ -1,6 +1,7 @@
 from rest_framework import viewsets, filters, permissions
 from django_filters.rest_framework import DjangoFilterBackend
 from django_filters import rest_framework as django_filters
+from django.db.models import F
 from .models import Category, Brand, Size, Color, Fabric, Product, Review, SizeGuide, HomepageSection, Banner, StyleLook, Wishlist
 from .serializers import (CategorySerializer, BrandSerializer, SizeSerializer, ColorSerializer,
                           FabricSerializer, ProductListSerializer, ProductDetailSerializer,
@@ -25,6 +26,7 @@ class BrandViewSet(viewsets.ReadOnlyModelViewSet):
 class SizeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Size.objects.all()
     serializer_class = SizeSerializer
+    filter_backends = [DjangoFilterBackend]
     filterset_fields = ['category']
 
 
@@ -36,12 +38,6 @@ class ColorViewSet(viewsets.ReadOnlyModelViewSet):
 class FabricViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Fabric.objects.all()
     serializer_class = FabricSerializer
-
-from django.db.models import F  # ✅ اضافه شود
-from .models import Category    # ✅ اضافه شود (اگر نیست)
-from django.db.models import F  # ✅ در بالای فایل
-from .models import Category  # ✅ در بالای فایل
-
 
 class ProductFilter(django_filters.FilterSet):
     min_price = django_filters.NumberFilter(field_name='price', lookup_expr='gte')
@@ -114,6 +110,7 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['name', 'description', 'sku']
     ordering_fields = ['price', 'created_at', 'rating', 'name']
     ordering = ['-created_at']
+    lookup_field = 'slug'
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -168,7 +165,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.decorators import api_view, permission_classes
-from django.db.models import Q
+from django.db.models import F, Q
 
 
 class HomepageSectionsView(APIView):
@@ -195,6 +192,18 @@ class StyleLookListView(APIView):
     def get(self, request):
         styles = StyleLook.objects.filter(is_active=True)
         serializer = StyleLookSerializer(styles, many=True, context={'request': request})
+        return Response(serializer.data)
+
+
+class StyleLookDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        try:
+            style = StyleLook.objects.get(slug=slug, is_active=True)
+        except StyleLook.DoesNotExist:
+            return Response({'error': 'استایل یافت نشد'}, status=404)
+        serializer = StyleLookSerializer(style, context={'request': request})
         return Response(serializer.data)
 
 

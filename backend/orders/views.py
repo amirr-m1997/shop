@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from decimal import Decimal
+from django.db.models import F
 
 from .models import ShippingAddress, Order, OrderItem
 from .serializers import (
@@ -13,6 +14,7 @@ from .serializers import (
 )
 from cart.models import Cart, CartItem
 from pages.models import SiteSettings
+from products.models import Product, ProductVariant
 
 
 class ShippingAddressViewSet(viewsets.ModelViewSet):
@@ -106,19 +108,14 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             subtotal += item_total
             order_items_data.append({
                 'product': item.product,
+                'variant': item.variant,
                 'quantity': item.quantity,
                 'price': price,
             })
 
         site_settings = SiteSettings.load()
         shipping_cost = site_settings.calculate_shipping(subtotal)
-        discount = Decimal('0')
-        for item in cart_items:
-            if item.product.compare_price and item.product.compare_price > item.product.price:
-                discount += (item.product.compare_price - item.product.price) * item.quantity
-        tax_rate = Decimal('0.09')
-        tax = ((subtotal - discount) * tax_rate).quantize(Decimal('0.01'))
-        total = subtotal - discount + shipping_cost + tax
+        total = subtotal + shipping_cost
 
         with transaction.atomic():
             # ایجاد سفارش
@@ -128,8 +125,8 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
                 payment_method=serializer.validated_data['payment_method'],
                 subtotal=subtotal,
                 shipping_cost=shipping_cost,
-                tax=tax,
-                discount=discount,
+                tax=0,
+                discount=0,
                 total=total,
                 notes=serializer.validated_data.get('notes', ''),
             )
@@ -137,10 +134,14 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             # ایجاد آیتم‌های سفارش
             for item_data in order_items_data:
                 OrderItem.objects.create(order=order, **item_data)
-                # کاهش موجودی
+                # کاهش موجودی (اتمیک)
                 product = item_data['product']
-                product.stock -= item_data['quantity']
-                product.save(update_fields=['stock'])
+                Product.objects.filter(id=product.id).update(stock=F('stock') - item_data['quantity'])
+
+            # کاهش موجودی واریانت‌ها
+            for item in cart_items:
+                if item.variant:
+                    ProductVariant.objects.filter(id=item.variant.id).update(stock=F('stock') - item.quantity)
 
             # خالی کردن سبد خرید
             cart_items.delete()
@@ -159,15 +160,18 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # بازگرداندن موجودی
-        for item in order.items.all():
-            item.product.stock += item.quantity
-            item.product.save(update_fields=['stock'])
+        with transaction.atomic():
+            # بازگرداندن موجودی (اتمیک)
+            for item in order.items.all():
+                if item.product:
+                    Product.objects.filter(id=item.product.id).update(stock=F('stock') + item.quantity)
+                if item.variant:
+                    ProductVariant.objects.filter(id=item.variant.id).update(stock=F('stock') + item.quantity)
 
-        order.status = 'cancelled'
-        if order.payment_status == 'paid':
-            order.payment_status = 'refunded'
-        order.save(update_fields=['status', 'payment_status', 'updated_at'])
+            order.status = 'cancelled'
+            if order.payment_status == 'paid':
+                order.payment_status = 'refunded'
+            order.save(update_fields=['status', 'payment_status', 'updated_at'])
 
         return Response(
             {'message': 'سفارش با موفقیت لغو شد.', 'order': OrderSerializer(order).data},

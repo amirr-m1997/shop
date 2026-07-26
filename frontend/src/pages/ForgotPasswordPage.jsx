@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Mail, ArrowRight } from 'lucide-react';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
+import { Link, useNavigate } from 'react-router-dom';
+import { Mail, ArrowRight, CheckCircle } from 'lucide-react';
+import AuthLayout from '../components/AuthLayout';
+import AuthInput from '../components/AuthInput';
 import { authAPI } from '../services/api';
 
 const ForgotPasswordPage = () => {
@@ -12,6 +11,7 @@ const ForgotPasswordPage = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [resetToken, setResetToken] = useState('');
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,7 +23,6 @@ const ForgotPasswordPage = () => {
     try {
       const response = await authAPI.passwordReset({ email });
       setMessage(response.data.message);
-      // In dev mode, show the token (in production this would be emailed)
       if (response.data.reset_token) {
         setResetToken(response.data.reset_token);
       }
@@ -35,82 +34,83 @@ const ForgotPasswordPage = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-16 flex items-center justify-center">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">بازیابی رمز عبور</CardTitle>
-          <CardDescription>
-            ایمیل خود را وارد کنید تا لینک بازیابی رمز عبور برایتان ارسال شود
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {error && (
-            <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm mb-4">
-              {error}
+    <AuthLayout
+      title="بازیابی رمز عبور"
+      subtitle="ایمیل خود را وارد کنید تا لینک بازیابی برایتان ارسال شود"
+      showBack
+    >
+      <div className="space-y-6">
+        {error && (
+          <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+            {error}
+          </div>
+        )}
+
+        {message && (
+          <div className="space-y-4">
+            <div className="rounded-xl bg-green-500/10 border border-green-500/20 px-4 py-3 text-sm text-green-400 flex items-center gap-3">
+              <CheckCircle className="h-5 w-5 flex-shrink-0" />
+              {message}
             </div>
-          )}
 
-          {message && (
-            <div className="space-y-4">
-              <div className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 p-3 rounded-lg text-sm">
-                {message}
+            {resetToken && (
+              <div className="rounded-xl bg-slate-800/50 border border-slate-700 p-4">
+                <p className="text-sm font-medium text-slate-300 mb-2">توکن بازیابی (برای تست):</p>
+                <code className="text-xs break-all block p-2 bg-slate-900 rounded-lg border border-slate-700 text-blue-300" dir="ltr">
+                  {resetToken}
+                </code>
+                <button
+                  onClick={() => navigate('/reset-password', { state: { token: resetToken } })}
+                  className="mt-3 w-full rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 py-2.5 px-4 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-indigo-700"
+                >
+                  بازیابی رمز عبور
+                  <ArrowRight className="h-4 w-4 mr-1 inline-block" />
+                </button>
               </div>
+            )}
 
-              {resetToken && (
-                <div className="bg-muted p-4 rounded-lg">
-                  <p className="text-sm font-medium mb-2">توکن بازیابی (برای تست):</p>
-                  <code className="text-xs break-all block p-2 bg-background rounded border" dir="ltr">
-                    {resetToken}
-                  </code>
-                  <Link
-                    to={`/reset-password?token=${resetToken}`}
-                    className="mt-3 inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                  >
-                    بازیابی رمز عبور
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
+            <Link to="/login">
+              <button className="w-full rounded-xl border border-slate-700 py-2.5 px-4 text-sm font-medium text-slate-300 transition-all duration-200 hover:bg-slate-800/50">
+                بازگشت به صفحه ورود
+              </button>
+            </Link>
+          </div>
+        )}
+
+        {!message && (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <AuthInput
+              label="ایمیل"
+              icon={Mail}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="ایمیل خود را وارد کنید"
+            />
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="relative w-full rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 py-3 px-4 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-indigo-700 hover:shadow-xl hover:shadow-blue-500/30 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {loading && (
+                <div className="absolute left-4 top-1/2 -translate-y-1/2">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 </div>
               )}
+              {loading ? 'در حال ارسال...' : 'ارسال لینک بازیابی'}
+            </button>
 
-              <Link to="/login">
-                <Button variant="outline" className="w-full">
-                  بازگشت به صفحه ورود
-                </Button>
+            <p className="text-center text-sm text-slate-400">
+              <Link to="/login" className="text-blue-400 hover:text-blue-300 transition-colors">
+                بازگشت به صفحه ورود
               </Link>
-            </div>
-          )}
-
-          {!message && (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">ایمیل</label>
-                <div className="relative">
-                  <Mail className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pr-10"
-                    required
-                    placeholder="ایمیل خود را وارد کنید"
-                  />
-                </div>
-              </div>
-
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'در حال ارسال...' : 'ارسال لینک بازیابی'}
-              </Button>
-
-              <div className="text-center text-sm text-muted-foreground">
-                <Link to="/login" className="text-primary hover:underline">
-                  بازگشت به صفحه ورود
-                </Link>
-              </div>
-            </form>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+            </p>
+          </form>
+        )}
+      </div>
+    </AuthLayout>
   );
 };
 

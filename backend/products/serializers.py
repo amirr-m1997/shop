@@ -209,7 +209,7 @@ class StyleLookSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = StyleLook
-        fields = ['id', 'title', 'description', 'image', 'link', 'order']
+        fields = ['id', 'title', 'slug', 'description', 'image', 'link', 'order']
 
     def get_image(self, obj):
         if obj.image:

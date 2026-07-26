@@ -36,7 +36,7 @@ const LookbookPage = () => {
               <Card key={look.id} className="group overflow-hidden">
                 <CardContent className="p-0">
                   <div className="relative aspect-[3/4] overflow-hidden">
-                    <img src={look.image} alt={look.title} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                    <img src={look.image} alt={look.title} className="h-full w-full object-cover transition-transform group-hover:scale-105" onError={(e) => { e.target.src = 'https://via.placeholder.com/600x800?text=Lookbook'; e.target.alt = 'تصویر موجود نیست'; }} />
                   </div>
                   <div className="p-6">
                     <h3 className="text-xl font-bold mb-2">{look.title}</h3>

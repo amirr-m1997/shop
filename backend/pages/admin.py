@@ -49,6 +49,7 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                 'shipping_content',
                 'free_shipping_threshold',
                 'shipping_cost',
+                'tax_rate',
             ),
             'description': (
                 'آستانه و هزینه ارسال از اینجا کنترل می‌شود و در سبد خرید، '

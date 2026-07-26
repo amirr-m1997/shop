@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django import forms
+from django.conf import settings
 from django.utils.html import format_html
 from .models import (
     Category, Brand, Size, Color, Fabric, Product, ProductImage,
@@ -75,28 +76,15 @@ class ProductAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        main_cat = self.initial.get('main_category') or (self.instance.main_category if self.instance and self.instance.pk else None)
-        if main_cat:
-            # پیدا کردن دسته ریشه و همه زیرمجموعه‌ها
-            root = Category.objects.filter(name=main_cat, parent__isnull=True).first()
-            if root:
-                cat_ids = [root.id]
-                self._collect_descendants(root, cat_ids)
-                self.fields['category'].queryset = Category.objects.filter(id__in=cat_ids)
-            else:
-                self.fields['category'].queryset = Category.objects.all()
-        else:
-            self.fields['category'].queryset = Category.objects.all()
-
-    def _collect_descendants(self, category, ids):
-        for child in category.children.all():
-            ids.append(child.id)
-            self._collect_descendants(child, ids)
+        # Let JS handle category filtering dynamically via API.
+        # Server-side queryset must include all categories so validation
+        # doesn't fail when JS rebuilds the dropdown with different options.
+        self.fields['category'].queryset = Category.objects.all()
 
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ['name', 'category', 'brand', 'price', 'compare_price_display', 'stock', 'is_active', 'is_featured', 'rating', 'created_at_jalali']
+    list_display = ['product_thumbnail', 'product_name_link', 'category', 'brand', 'price', 'compare_price_display', 'stock', 'is_active', 'is_featured', 'rating', 'created_at_jalali']
     list_filter = ['category', 'brand', 'main_category', 'is_active', 'is_featured', 'is_new_arrival', 'is_trending']
     search_fields = ['name', 'sku', 'description']
     inlines = [ProductImageInline, ProductVariantInline]
@@ -125,6 +113,22 @@ class ProductAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+    @admin.display(description='تصویر')
+    def product_thumbnail(self, obj):
+        img = obj.images.filter(is_primary=True).first() or obj.images.first()
+        if img and img.image:
+            return format_html(
+                '<img class="product-thumb" src="{}" data-preview="{}" />',
+                img.image.url, img.image.url
+            )
+        return '-'
+
+    @admin.display(description='نام محصول')
+    def product_name_link(self, obj):
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        url = f'{frontend_url}/product/{obj.slug}'
+        return format_html('<a href="{}" target="_blank">{}</a>', url, obj.name)
 
     @admin.display(description='قیمت اصلی / تخفیف')
     def compare_price_display(self, obj):
@@ -175,7 +179,8 @@ class ProductAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
     class Media:
-        js = ('admin/js/auto_main_category.js',)
+        js = ('admin/js/auto_main_category.js', 'admin/js/product-hover.js',)
+        css = {'all': ('admin/css/product-hover.css',)}
 
 
 @admin.register(Review)

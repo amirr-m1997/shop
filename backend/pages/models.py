@@ -132,6 +132,13 @@ class SiteSettings(models.Model):
         verbose_name="هزینه ارسال (تومان)",
         help_text="هزینه ارسال وقتی سفارش به آستانه ارسال رایگان نرسیده باشد.",
     )
+    tax_rate = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=0.09,
+        verbose_name="نرخ مالیات",
+        help_text="مثلاً 0.09 для ۹٪",
+    )
 
     class Meta:
         verbose_name = "تنظیمات سایت"

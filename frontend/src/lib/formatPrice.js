@@ -5,7 +5,7 @@
 export function formatPrice(price) {
   const num = typeof price === 'string' ? parseFloat(price) : price;
   if (num == null || isNaN(num)) return '۰ تومان';
-  return Math.round(num).toLocaleString('fa-IR') + ' ';
+  return Math.round(num).toLocaleString('fa-IR') + ' تومان';
 }
 
 /**

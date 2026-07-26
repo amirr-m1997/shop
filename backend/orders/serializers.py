@@ -50,7 +50,8 @@ class OrderSerializer(serializers.ModelSerializer):
             'payment_status', 'payment_status_display',
             'payment_method', 'subtotal', 'shipping_cost',
             'tax', 'discount', 'total', 'notes',
-            'tracking_number', 'items', 'created_at', 'updated_at'
+            'tracking_number', 'postal_tracking_code',
+            'items', 'created_at', 'updated_at'
         ]
         read_only_fields = [
             'order_number', 'user', 'status', 'payment_status',

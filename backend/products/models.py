@@ -431,6 +431,7 @@ class Banner(models.Model):
 class StyleLook(models.Model):
     """استایل‌های روز / لوک‌بوک صفحه اصلی"""
     title = models.CharField(max_length=150, verbose_name="عنوان")
+    slug = models.SlugField(max_length=150, unique=True, blank=True, verbose_name="اسلاگ")
     description = models.CharField(max_length=300, blank=True, verbose_name="توضیح کوتاه")
     image = models.ImageField(upload_to='styles/', null=True, blank=True, verbose_name="تصویر")
     image_url = models.URLField(blank=True, verbose_name="آدرس تصویر (جایگزین)")
@@ -446,6 +447,12 @@ class StyleLook(models.Model):
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            import uuid
+            self.slug = f"style-{uuid.uuid4().hex[:8]}"
+        super().save(*args, **kwargs)
 
     @property
     def display_image(self):

@@ -94,7 +94,7 @@ class OrderAdmin(admin.ModelAdmin):
             'fields': ('subtotal', 'shipping_cost', 'tax', 'discount', 'total')
         }),
         ('سایر', {
-            'fields': ('notes', 'tracking_number', 'created_at', 'updated_at')
+            'fields': ('notes', 'tracking_number', 'postal_tracking_code', 'created_at', 'updated_at')
         }),
     )
 

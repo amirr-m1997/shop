@@ -43,7 +43,7 @@ const RecommendationsSection = ({ productId, title = 'پیشنهاد ویژه ب
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         {products.map(p => (
-          <Link key={p.id} to={`/product/${p.id}`}>
+          <Link key={p.id} to={`/product/${p.slug}`}>
             <Card className="cursor-pointer hover:shadow-lg transition-shadow group">
               <CardContent className="p-0">
                 <div className="aspect-[3/4] bg-muted overflow-hidden relative">

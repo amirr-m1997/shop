@@ -58,7 +58,7 @@ const BlogPage = () => {
         <section className="container mx-auto px-4 py-12">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center bg-background rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
             <div className="relative h-64 md:h-80 overflow-hidden">
-              <img src={featuredPost.image} alt={featuredPost.title} className="w-full h-full object-cover" />
+              <img src={featuredPost.image} alt={featuredPost.title} className="w-full h-full object-cover" onError={(e) => { e.target.src = 'https://via.placeholder.com/800x400?text=Blog'; e.target.alt = 'تصویر موجود نیست'; }} />
               <Badge className="absolute top-4 right-4">ویژه</Badge>
             </div>
             <div className="p-6 md:p-8">
@@ -89,7 +89,7 @@ const BlogPage = () => {
             <div key={post.id} className="group block">
               <div className="bg-background rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow h-full flex flex-col">
                 <div className="relative h-48 overflow-hidden">
-                  <img src={post.image} alt={post.title} className="w-full h-full object-cover" />
+                  <img src={post.image} alt={post.title} className="w-full h-full object-cover" onError={(e) => { e.target.src = 'https://via.placeholder.com/400x300?text=Blog'; e.target.alt = 'تصویر موجود نیست'; }} />
                 </div>
                 <div className="p-5 flex flex-col flex-1">
                   <div className="flex items-center gap-2 mb-3">

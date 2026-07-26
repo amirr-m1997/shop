@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
+import AuthLayout from '../components/AuthLayout';
+import AuthInput from '../components/AuthInput';
 import { authAPI } from '../services/api';
 
 const ResetPasswordPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const token = searchParams.get('token') || '';
+  const location = useLocation();
+  const token = searchParams.get('token') || location.state?.token || '';
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -44,7 +44,6 @@ const ResetPasswordPage = () => {
         token,
         new_password: newPassword,
       });
-      // Auto-login after reset
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
       setSuccess(true);
@@ -58,85 +57,81 @@ const ResetPasswordPage = () => {
 
   if (success) {
     return (
-      <div className="container mx-auto px-4 py-16 flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6 text-center">
-            <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold mb-2">رمز عبور با موفقیت تغییر کرد</h2>
-            <p className="text-muted-foreground mb-4">در حال انتقال به صفحه اصلی...</p>
-          </CardContent>
-        </Card>
-      </div>
+      <AuthLayout>
+        <div className="text-center py-8">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-green-500/10">
+            <CheckCircle className="h-8 w-8 text-green-400" />
+          </div>
+          <h2 className="mt-4 text-2xl font-bold text-slate-100">رمز عبور با موفقیت تغییر کرد</h2>
+          <p className="mt-2 text-sm text-slate-400">در حال انتقال به صفحه اصلی...</p>
+        </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-16 flex items-center justify-center">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">بازیابی رمز عبور</CardTitle>
-          <CardDescription>
-            رمز عبور جدید خود را وارد کنید
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {error && (
-            <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm mb-4">
-              {error}
+    <AuthLayout
+      title="بازیابی رمز عبور"
+      subtitle="رمز عبور جدید خود را وارد کنید"
+      showBack
+    >
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+            {error}
+          </div>
+        )}
+
+        <AuthInput
+          label="رمز عبور جدید"
+          icon={Lock}
+          type={showPassword ? 'text' : 'password'}
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          required
+          placeholder="رمز عبور جدید (حداقل ۶ کاراکتر)"
+          rightElement={
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="text-slate-500 hover:text-slate-300 transition-colors"
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          }
+        />
+
+        <AuthInput
+          label="تکرار رمز عبور"
+          icon={Lock}
+          type={showPassword ? 'text' : 'password'}
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          placeholder="رمز عبور را دوباره وارد کنید"
+        />
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="relative w-full rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 py-3 px-4 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-indigo-700 hover:shadow-xl hover:shadow-blue-500/30 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {loading && (
+            <div className="absolute left-4 top-1/2 -translate-y-1/2">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
             </div>
           )}
+          {loading ? 'در حال بازیابی...' : 'بازیابی رمز عبور'}
+        </button>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">رمز عبور جدید</label>
-              <div className="relative">
-                <Lock className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type={showPassword ? 'text' : 'password'}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="pr-10 pl-10"
-                  required
-                  placeholder="رمز عبور جدید (حداقل ۶ کاراکتر)"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute left-3 top-3 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">تکرار رمز عبور</label>
-              <div className="relative">
-                <Lock className="absolute right-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type={showPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="pr-10"
-                  required
-                  placeholder="رمز عبور را دوباره وارد کنید"
-                />
-              </div>
-            </div>
-
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'در حال بازیابی...' : 'بازیابی رمز عبور'}
-            </Button>
-
-            <div className="text-center text-sm text-muted-foreground">
-              <Link to="/login" className="text-primary hover:underline">
-                بازگشت به صفحه ورود
-              </Link>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+        <p className="text-center text-sm text-slate-400">
+          <Link to="/login" className="text-blue-400 hover:text-blue-300 transition-colors">
+            بازگشت به صفحه ورود
+          </Link>
+        </p>
+      </form>
+    </AuthLayout>
   );
 };
 

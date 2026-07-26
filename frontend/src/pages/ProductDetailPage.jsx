@@ -15,7 +15,7 @@ import WishlistButton from '../components/WishlistButton';
 import ShareButton from '../components/ShareButton';
 
 const ProductDetailPage = () => {
-  const { id } = useParams();
+  const { slug } = useParams();
   const [product, setProduct] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
   const [selectedColor, setSelectedColor] = useState(null);
@@ -37,7 +37,7 @@ const ProductDetailPage = () => {
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const response = await productsAPI.getProduct(id);
+        const response = await productsAPI.getProduct(slug);
         setProduct(response.data);
         if (response.data.available_sizes?.length > 0) {
           setSelectedSize(response.data.available_sizes[0].id);
@@ -52,7 +52,7 @@ const ProductDetailPage = () => {
       }
     };
     fetchProduct();
-  }, [id]);
+  }, [slug]);
 
   useEffect(() => {
     if (!product?.category) return;
@@ -69,17 +69,17 @@ const ProductDetailPage = () => {
   }, [product?.category, product?.id]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!product?.id) return;
     const fetchReviews = async () => {
       try {
-        const res = await productsAPI.getReviews(id);
+        const res = await productsAPI.getReviews(product.id);
         setReviews(res.data.results || res.data || []);
       } catch (err) {
         console.error('Error fetching reviews:', err);
       }
     };
     fetchReviews();
-  }, [id]);
+  }, [product?.id]);
 
   const handleSubmitReview = async (e) => {
     e.preventDefault();
@@ -90,7 +90,7 @@ const ProductDetailPage = () => {
     setReviewSubmitting(true);
     try {
       await productsAPI.submitReview({
-        product: parseInt(id),
+        product: product.id,
         rating: reviewRating,
         title: reviewTitle,
         comment: reviewComment,
@@ -100,7 +100,7 @@ const ProductDetailPage = () => {
       setReviewComment('');
       setReviewRating(5);
       // Refresh reviews
-      const res = await productsAPI.getReviews(id);
+      const res = await productsAPI.getReviews(product.id);
       setReviews(res.data.results || res.data || []);
     } catch (err) {
       console.error('Error submitting review:', err);
@@ -109,49 +109,46 @@ const ProductDetailPage = () => {
     }
   };
 
-// در فایل ProductDetailPage.jsx، داخل تابع handleAddToCart:
+  const handleAddToCart = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
 
-const handleAddToCart = async () => {
-  if (!isAuthenticated) {
-    navigate('/login');
-    return;
-  }
+    if (!selectedSize || !selectedColor) {
+      alert('لطفاً سایز و رنگ مورد نظر را انتخاب کنید.');
+      return;
+    }
 
-  if (!selectedSize || !selectedColor) {
-    alert('لطفاً سایز و رنگ مورد نظر را انتخاب کنید.');
-    return;
-  }
+    try {
+      let variantId = null;
 
-  try {
-    let variantId = null;
+      if (product.variants) {
+        const variant = product.variants.find(
+          v => String(v.size) === String(selectedSize) && String(v.color) === String(selectedColor)
+        );
 
-    // پیدا کردن واریانت
-    if (product.variants) {
-      const variant = product.variants.find(
-        v => v.size === selectedSize && v.color === selectedColor
-      );
-
-      if (variant) {
-        variantId = variant.id;
+        if (variant) {
+          variantId = variant.id;
+        }
       }
+
+      const payload = {
+        product_id: product.id,
+        quantity: quantity,
+      };
+
+      if (variantId) {
+        payload.variant_id = variantId;
+      }
+
+      await addToCart(payload);
+      setAddedToCart(true);
+      setTimeout(() => setAddedToCart(false), 3000);
+    } catch (error) {
+      console.error('Error adding to cart:', error);
     }
-
-    const payload = {
-      product_id: product.id,
-      quantity: quantity,
-    };
-
-    if (variantId) {
-      payload.variant_id = variantId;
-    }
-
-    await addToCart(payload);
-    setAddedToCart(true);
-    setTimeout(() => setAddedToCart(false), 3000);
-  } catch (error) {
-    console.error('Error adding to cart:', error);
-  }
-};
+  };
 
   if (loading) {
     return <div className="container mx-auto px-4 py-8">در حال بارگذاری...</div>;
@@ -168,7 +165,7 @@ const handleAddToCart = async () => {
         <div>
           <div className="relative aspect-square bg-muted rounded-lg overflow-hidden mb-4">
             <img
-              src={product.images[selectedImage]?.image || 'https://via.placeholder.com/600x600'}
+              src={product.images?.[selectedImage]?.image || 'https://via.placeholder.com/600x600'}
               alt={product.name}
               className="h-full w-full object-cover"
             />
@@ -290,20 +287,10 @@ const handleAddToCart = async () => {
           </div>
 
           {/* Actions */}
-          <div className="flex gap-4 mb-6">
-            <Button size="lg" className="flex-1" onClick={handleAddToCart}>
+          <div className="mb-6">
+            <Button size="lg" className="w-full" onClick={handleAddToCart}>
               <ShoppingCart className="ml-2 h-5 w-5" />
               افزودن به سبد خرید
-            </Button>
-            <Button size="lg" variant="outline" onClick={async () => {
-              try {
-                await handleAddToCart();
-                navigate('/checkout');
-              } catch (e) {
-                // error already handled
-              }
-            }}>
-              خرید فوری
             </Button>
           </div>
 
@@ -449,7 +436,7 @@ const handleAddToCart = async () => {
 
       {/* AI Recommendations */}
       <div className="mt-16">
-        <RecommendationsSection productId={id} />
+        <RecommendationsSection productId={product?.id} />
       </div>
 
       {/* Recommended Products */}
@@ -458,7 +445,7 @@ const handleAddToCart = async () => {
           <h2 className="text-2xl font-bold mb-6">شاید این را هم دوست داشته باشید</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {relatedProducts.map(p => (
-              <Link key={p.id} to={`/product/${p.id}`}>
+              <Link key={p.id} to={`/product/${p.slug}`}>
                 <Card className="cursor-pointer hover:shadow-lg transition-shadow">
                   <CardContent className="p-0">
                     <div className="relative aspect-[3/4] bg-muted overflow-hidden">

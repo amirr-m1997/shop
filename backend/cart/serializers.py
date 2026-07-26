@@ -18,7 +18,6 @@ class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(many=True, read_only=True)
     total_price = serializers.ReadOnlyField()
     total_items = serializers.ReadOnlyField()
-    # تنظیمات ارسال از SiteSettings (دیتابیس) — نه هاردکد
     free_shipping_threshold = serializers.SerializerMethodField()
     shipping_cost = serializers.SerializerMethodField()
     shipping_fee = serializers.SerializerMethodField()
@@ -40,11 +39,9 @@ class CartSerializer(serializers.ModelSerializer):
         return self._site_settings().free_shipping_threshold
 
     def get_shipping_cost(self, obj):
-        """هزینه ارسال استاندارد (وقتی رایگان نیست)."""
         return self._site_settings().shipping_cost
 
     def get_shipping_fee(self, obj):
-        """هزینه ارسال محاسبه‌شده برای جمع فعلی سبد (۰ اگر رایگان)."""
         return self._site_settings().calculate_shipping(obj.total_price)
 
 

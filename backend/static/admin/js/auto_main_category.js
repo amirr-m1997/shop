@@ -43,6 +43,12 @@
     function populateCategorySelect(categorySelect, rootData, currentCatId) {
         categorySelect.innerHTML = '';
 
+        // Add a blank option first
+        var blankOpt = document.createElement('option');
+        blankOpt.value = '';
+        blankOpt.text = '---------';
+        categorySelect.appendChild(blankOpt);
+
         function addOption(cat, indent) {
             var newOpt = document.createElement('option');
             newOpt.value = cat.id;
@@ -59,7 +65,12 @@
             }
         }
 
-        addOption(rootData, 0);
+        // Skip root node, only add its children (root itself should not be a subcategory)
+        if (rootData.children) {
+            rootData.children.forEach(function(child) {
+                addOption(child, 0);
+            });
+        }
     }
 
     function autoFillMainCategory() {
@@ -77,7 +88,7 @@
             if (!categoryId) return;
 
             getRootCategoryName(categoryId, function(rootName) {
-                if (rootName) {
+                if (rootName && mainCategorySelect.value !== rootName) {
                     for (var i = 0; i < mainCategorySelect.options.length; i++) {
                         if (mainCategorySelect.options[i].value === rootName) {
                             mainCategorySelect.selectedIndex = i;

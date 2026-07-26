@@ -4,7 +4,7 @@ import { Share2, MessageCircle, Send } from 'lucide-react';
 const ShareButton = ({ product, className = '' }) => {
   const [open, setOpen] = useState(false);
 
-  const productUrl = `${window.location.origin}/product/${product.id}`;
+  const productUrl = `${window.location.origin}/product/${product.slug}`;
   const shareText = `${product.name} - ${product.price?.toLocaleString('fa-IR')} تومان`;
 
   const shareToTelegram = () => {

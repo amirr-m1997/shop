@@ -89,6 +89,12 @@ class CartViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         item_id = request.data.get('item_id')
+        if not item_id:
+            return Response(
+                {'error': 'شناسه آیتم سبد الزامی است'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         quantity = serializer.validated_data['quantity']
 
         if quantity < 1:
@@ -107,7 +113,12 @@ class CartViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['delete'])
     def remove_item(self, request):
-        item_id = request.data.get('item_id')
+        item_id = request.query_params.get('item_id') or request.data.get('item_id')
+        if not item_id:
+            return Response(
+                {'error': 'شناسه آیتم سبد الزامی است'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         try:
             cart_item = CartItem.objects.get(id=item_id, cart__user=request.user)
             cart_item.delete()

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { cartAPI } from '../services/api';
 import { useAuth } from './AuthContext';
 
@@ -9,6 +9,8 @@ export const CartProvider = ({ children }) => {
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const addCartTimerRef = useRef(null);
+  const isAddingRef = useRef(false);
 
   const fetchCart = async () => {
     if (!isAuthenticated) {
@@ -31,8 +33,10 @@ export const CartProvider = ({ children }) => {
     }
   };
 
-  const addToCart = async (data) => {
-    setLoading(true);
+  const addToCart = useCallback(async (data) => {
+    if (isAddingRef.current) return null;
+
+    isAddingRef.current = true;
     try {
       const response = await cartAPI.addToCart(data);
       setCart(response.data);
@@ -41,48 +45,41 @@ export const CartProvider = ({ children }) => {
       setError(err.message);
       throw err;
     } finally {
-      setLoading(false);
+      setTimeout(() => {
+        isAddingRef.current = false;
+      }, 500);
     }
-  };
+  }, []);
 
-  const updateCartItem = async (data) => {
-    setLoading(true);
+  const updateCartItem = useCallback(async (data) => {
     try {
       const response = await cartAPI.updateCartItem(data);
       setCart(response.data);
     } catch (err) {
       setError(err.message);
       throw err;
-    } finally {
-      setLoading(false);
     }
-  };
+  }, []);
 
-  const removeCartItem = async (itemId) => {
-    setLoading(true);
+  const removeCartItem = useCallback(async (itemId) => {
     try {
       const response = await cartAPI.removeCartItem(itemId);
       setCart(response.data);
     } catch (err) {
       setError(err.message);
       throw err;
-    } finally {
-      setLoading(false);
     }
-  };
+  }, []);
 
-  const clearCart = async () => {
-    setLoading(true);
+  const clearCart = useCallback(async () => {
     try {
       const response = await cartAPI.clearCart();
       setCart(response.data);
     } catch (err) {
       setError(err.message);
       throw err;
-    } finally {
-      setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchCart();

@@ -105,7 +105,10 @@ class Order(models.Model):
     )
     notes = models.TextField(blank=True, null=True, verbose_name="یادداشت")
     tracking_number = models.CharField(
-        max_length=100, blank=True, null=True, verbose_name="شماره پیگیری"
+        max_length=100, blank=True, null=True, verbose_name="شماره پیگیری پرداخت"
+    )
+    postal_tracking_code = models.CharField(
+        max_length=100, blank=True, null=True, verbose_name="کد رهگیری پستی"
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ثبت سفارش")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="تاریخ آخرین به‌روزرسانی")
@@ -122,7 +125,7 @@ class Order(models.Model):
         if not self.order_number:
             import uuid
             self.order_number = f"ORD-{uuid.uuid4().hex[:8].upper()}"
-        if self.total is None:
+        if self.total == 0 and (self.subtotal or self.shipping_cost or self.tax or self.discount):
             self.total = self.subtotal + self.shipping_cost + self.tax - self.discount
         super().save(*args, **kwargs)
 
@@ -139,6 +142,13 @@ class OrderItem(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True
+    )
+    variant = models.ForeignKey(
+        'products.ProductVariant',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="واریانت"
     )
     quantity = models.PositiveIntegerField(default=1, verbose_name="تعداد")
     price = models.DecimalField(
