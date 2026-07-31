@@ -11,7 +11,6 @@ import ProductDetailPage from './pages/ProductDetailPage';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
 import SizeFinderPage from './pages/SizeFinderPage';
-import LookbookPage from './pages/LookbookPage';
 import OrderSuccessPage from './pages/OrderSuccessPage';
 import PaymentCallbackPage from './pages/PaymentCallbackPage';
 import OrderFailedPage from './pages/OrderFailedPage';
@@ -21,6 +20,7 @@ import ReturnsPage from './pages/ReturnsPage';
 import FaqPage from './pages/FaqPage';
 import AboutPage from './pages/AboutPage';
 import BlogPage from './pages/BlogPage';
+import BlogPostPage from './pages/BlogPostPage';
 import Footer from './components/Footer';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -34,7 +34,6 @@ import DiscountPopup from './components/DiscountPopup';
 
 
 const MAX_SAVED_SCROLL_POSITIONS = 50;
-const isProductRoute = (pathname) => pathname.startsWith('/product/');
 
 function ScrollRestoration() {
   const location = useLocation();
@@ -54,41 +53,45 @@ function ScrollRestoration() {
   }, []);
 
   useLayoutEffect(() => {
-    const previousLocation = previousLocationRef.current;
     const savedPosition = positionsRef.current.get(location.key);
-    const shouldRestore =
-      navigationType === 'POP' &&
-      isProductRoute(previousLocation.pathname) &&
-      !isProductRoute(location.pathname) &&
-      typeof savedPosition === 'number';
+    const isPop = navigationType === 'POP';
 
     let frameId;
     let timeoutId;
+    let retryTimeoutId;
     let resizeObserver;
 
-    const restore = () => {
-      const maxScrollY = document.documentElement.scrollHeight - window.innerHeight;
-      if (maxScrollY < savedPosition) return;
+    let restored = false;
 
+    const restore = () => {
       window.scrollTo({ top: savedPosition, left: 0, behavior: 'auto' });
+      if (window.scrollY >= savedPosition - 2) {
+        restored = true;
+      }
     };
 
     const cleanup = () => {
       if (frameId) cancelAnimationFrame(frameId);
       if (timeoutId) clearTimeout(timeoutId);
+      if (retryTimeoutId) clearInterval(retryTimeoutId);
       resizeObserver?.disconnect();
     };
 
-    if (shouldRestore) {
-      // The listing can still be fetching products when Back is pressed. Wait
-      // for it to be tall enough instead of letting the browser clamp to 0.
+    if (isPop && typeof savedPosition === 'number') {
       frameId = requestAnimationFrame(() => {
         frameId = requestAnimationFrame(restore);
       });
-      resizeObserver = new ResizeObserver(restore);
+      resizeObserver = new ResizeObserver(() => {
+        if (!restored) restore();
+      });
       resizeObserver.observe(document.body);
-      timeoutId = setTimeout(cleanup, 8000);
-    } else {
+      retryTimeoutId = setInterval(() => {
+        if (!restored) restore();
+        else clearInterval(retryTimeoutId);
+      }, 200);
+      timeoutId = setTimeout(cleanup, 10000);
+    } else if (!isPop) {
+      // Only scroll to top on forward navigation, not on POP
       window.scrollTo(0, 0);
     }
 
@@ -135,7 +138,6 @@ function App() {
                     <Route path="/cart" element={<CartPage />} />
                     <Route path="/checkout" element={<CheckoutPage />} />
                     <Route path="/size-finder" element={<SizeFinderPage />} />
-                    <Route path="/lookbook" element={<LookbookPage />} />
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/register" element={<RegisterPage />} />
                     <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -154,6 +156,7 @@ function App() {
                     <Route path="/faq" element={<FaqPage />} />
                     <Route path="/about" element={<AboutPage />} />
                     <Route path="/blog" element={<BlogPage />} />
+                    <Route path="/blog/:slug" element={<BlogPostPage />} />
                     <Route path="/style/:slug" element={<StylePage />} />
                     <Route path="*" element={<NotFoundPage />} />
                   </Routes>

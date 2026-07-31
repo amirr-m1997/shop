@@ -9,6 +9,9 @@ export const CartProvider = ({ children }) => {
   const [cart, setCart] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [coupon, setCoupon] = useState(null); // { code, discount_amount, discount_type, discount_value }
+  const [couponError, setCouponError] = useState(null);
+  const [couponLoading, setCouponLoading] = useState(false);
   const addCartTimerRef = useRef(null);
   const isAddingRef = useRef(false);
 
@@ -81,6 +84,27 @@ export const CartProvider = ({ children }) => {
     }
   }, []);
 
+  const applyCoupon = useCallback(async (code) => {
+    setCouponLoading(true);
+    setCouponError(null);
+    try {
+      const response = await cartAPI.applyCoupon(code);
+      setCoupon(response.data);
+      return response.data;
+    } catch (err) {
+      const msg = err.response?.data?.error || 'خطا در اعمال کد تخفیف';
+      setCouponError(msg);
+      throw err;
+    } finally {
+      setCouponLoading(false);
+    }
+  }, []);
+
+  const removeCoupon = useCallback(() => {
+    setCoupon(null);
+    setCouponError(null);
+  }, []);
+
   useEffect(() => {
     fetchCart();
   }, [isAuthenticated]);
@@ -95,6 +119,11 @@ export const CartProvider = ({ children }) => {
       removeCartItem,
       clearCart,
       refetch: fetchCart,
+      coupon,
+      couponError,
+      couponLoading,
+      applyCoupon,
+      removeCoupon,
     }}>
       {children}
     </CartContext.Provider>

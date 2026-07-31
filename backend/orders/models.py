@@ -1,5 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
+from decimal import Decimal
+from datetime import timedelta
 from products.models import Product
 
 
@@ -112,6 +115,7 @@ class Order(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ثبت سفارش")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="تاریخ آخرین به‌روزرسانی")
+    expires_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان انقضای رزرو")
 
     class Meta:
         verbose_name = "سفارش"
@@ -128,6 +132,28 @@ class Order(models.Model):
         if self.total == 0 and (self.subtotal or self.shipping_cost or self.tax or self.discount):
             self.total = self.subtotal + self.shipping_cost + self.tax - self.discount
         super().save(*args, **kwargs)
+
+    @property
+    def is_expired(self):
+        if not self.expires_at:
+            return False
+        return timezone.now() > self.expires_at
+
+    def cancel_if_expired(self):
+        if self.is_expired and self.status in ['pending', 'processing']:
+            from django.db.models import F
+            from products.models import Product, ProductVariant
+            from django.db import transaction
+            with transaction.atomic():
+                for item in self.items.all():
+                    if item.product:
+                        Product.objects.filter(id=item.product.id).update(stock=F('stock') + item.quantity)
+                    if item.variant:
+                        ProductVariant.objects.filter(id=item.variant.id).update(stock=F('stock') + item.quantity)
+                self.status = 'cancelled'
+                self.save(update_fields=['status', 'updated_at'])
+            return True
+        return False
 
 
 class OrderItem(models.Model):
@@ -166,3 +192,85 @@ class OrderItem(models.Model):
     @property
     def total_price(self):
         return self.price * self.quantity
+
+
+class Coupon(models.Model):
+    DISCOUNT_TYPE_CHOICES = [
+        ('percentage', 'درصدی'),
+        ('fixed', 'مبلغ ثابت'),
+    ]
+
+    code = models.CharField(max_length=50, unique=True, verbose_name="کد تخفیف", db_index=True)
+    discount_type = models.CharField(max_length=20, choices=DISCOUNT_TYPE_CHOICES, verbose_name="نوع تخفیف")
+    value = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="مقدار تخفیف")
+    min_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="حداقل مبلغ سفارش")
+    max_uses = models.PositiveIntegerField(null=True, blank=True, verbose_name="حداکثر تعداد استفاده")
+    used_count = models.PositiveIntegerField(default=0, verbose_name="تعداد استفاده شده")
+    is_active = models.BooleanField(default=True, verbose_name="فعال")
+    is_welcome_offer = models.BooleanField(default=False, verbose_name="هدیه خوش‌آمدگویی")
+    valid_from = models.DateTimeField(default=timezone.now, verbose_name="اعتبار از")
+    valid_until = models.DateTimeField(verbose_name="اعتبار تا")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
+
+    class Meta:
+        verbose_name = "کوپن تخفیف"
+        verbose_name_plural = "کوپن‌های تخفیف"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.code
+
+    def is_valid(self, user=None, subtotal=None):
+        if not self.is_active:
+            return False, "کوپن غیرفعال است"
+        now = timezone.now()
+        if now < self.valid_from:
+            return False, "کوپن هنوز فعال نشده است"
+        if now > self.valid_until:
+            return False, "کوپن منقضی شده است"
+        if self.max_uses is not None and self.used_count >= self.max_uses:
+            return False, "تعداد استفاده از این کوپن به حداکثر رسیده است"
+        if user and CouponUsage.objects.filter(coupon=self, user=user).exists():
+            return False, "شما قبلاً از این کوپن استفاده کرده‌اید"
+        if subtotal is not None and self.min_amount is not None and subtotal < self.min_amount:
+            return False, f"حداقل مبلغ سفارش برای این کوپن {self.min_amount:,} تومان است"
+        return True, ""
+
+    def apply_discount(self, subtotal):
+        if self.discount_type == 'percentage':
+            amount = (subtotal * self.value) / Decimal('100')
+            if self.value > 100:
+                amount = subtotal
+            return min(amount, subtotal)
+        return min(self.value, subtotal)
+
+
+class CouponUsage(models.Model):
+    coupon = models.ForeignKey(Coupon, on_delete=models.CASCADE, related_name='usages', verbose_name="کوپن")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="کاربر")
+    used_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ استفاده")
+    order = models.ForeignKey('Order', on_delete=models.SET_NULL, null=True, blank=True, related_name='coupon_usages', verbose_name="سفارش")
+
+    class Meta:
+        verbose_name = "استفاده از کوپن"
+        verbose_name_plural = "استفاده‌های کوپن"
+        unique_together = ['coupon', 'user']
+        ordering = ['-used_at']
+
+    def __str__(self):
+        return f"{self.coupon.code} - {self.user.username}"
+
+
+class WelcomeClaim(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='welcome_claims', verbose_name="کاربر")
+    coupon = models.ForeignKey(Coupon, on_delete=models.CASCADE, related_name='welcome_claims', verbose_name="کوپن")
+    claimed_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ دریافت")
+
+    class Meta:
+        verbose_name = "دریافت هدیه خوش‌آمدگویی"
+        verbose_name_plural = "دریافت‌های هدیه خوش‌آمدگویی"
+        unique_together = ['user', 'coupon']
+        ordering = ['-claimed_at']
+
+    def __str__(self):
+        return f"{self.user.username} ← {self.coupon.code}"

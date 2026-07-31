@@ -206,10 +206,11 @@ class BannerSerializer(serializers.ModelSerializer):
 
 class StyleLookSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
+    products = ProductListSerializer(many=True, read_only=True)
 
     class Meta:
         model = StyleLook
-        fields = ['id', 'title', 'slug', 'description', 'image', 'link', 'order']
+        fields = ['id', 'title', 'slug', 'description', 'image', 'link', 'order', 'products']
 
     def get_image(self, obj):
         if obj.image:

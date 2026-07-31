@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import FAQ, ContactInfo, ContactMessage, LookbookItem, SiteSettings, Testimonial, SiteFeature
+from .models import FAQ, ContactInfo, ContactMessage, SiteSettings, Testimonial, SiteFeature
 
 
 class FAQSerializer(serializers.ModelSerializer):
@@ -19,23 +19,6 @@ class ContactMessageSerializer(serializers.ModelSerializer):
         model = ContactMessage
         fields = ['id', 'name', 'email', 'message', 'is_read', 'created_at']
         read_only_fields = ['id', 'is_read', 'created_at']
-
-
-class LookbookItemSerializer(serializers.ModelSerializer):
-    image = serializers.SerializerMethodField()
-
-    class Meta:
-        model = LookbookItem
-        fields = ['id', 'title', 'description', 'image', 'image_url', 'order']
-
-    def get_image(self, obj):
-        if obj.image:
-            request = self.context.get('request')
-            url = obj.image.url
-            if request:
-                return request.build_absolute_uri(url)
-            return url
-        return obj.image_url or ''
 
 
 class SiteSettingsSerializer(serializers.ModelSerializer):

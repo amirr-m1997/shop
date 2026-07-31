@@ -31,6 +31,7 @@ def _user_data(user):
         'last_name': user.last_name or profile.last_name,
         'phone': profile.phone,
         'date_of_birth': profile.date_of_birth,
+        'role': profile.role,
         'phone_verified': profile.phone_verified,
         'email_verified': profile.email_verified,
         'date_joined': user.date_joined,

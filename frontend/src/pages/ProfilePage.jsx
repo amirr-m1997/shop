@@ -76,22 +76,22 @@ const CompletionRing = ({ percent, size = 56, stroke = 4 }) => {
           </linearGradient>
         </defs>
       </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-black tabular-nums">
-        {percent.toLocaleString('fa-IR')}٪
-      </span>
+       <span className="absolute inset-0 flex items-center justify-center text-xs font-black tabular-nums">
+         {percent.toLocaleString('fa-IR')}٪
+       </span>
     </div>
   );
 };
 
 /* ─── Premium Field ─── */
 const Field = ({ label, icon: Icon, children, hint }) => (
-  <div className="group/field space-y-1.5">
-    <label className="flex items-center gap-1.5 text-sm font-semibold text-foreground/90">
-      {Icon && <Icon className="h-3.5 w-3.5 text-muted-foreground" />}
+  <div className="group/field space-y-2">
+    <label className="flex items-center gap-2 text-sm font-semibold text-foreground/90">
+      {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
       {label}
     </label>
     {children}
-    {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+    {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
   </div>
 );
 
@@ -112,7 +112,7 @@ const ErrorAlert = ({ children }) => (
 /* ─── Section Card shell ─── */
 const SectionCard = ({ children, className = '', delay = 0 }) => (
   <section
-    className={`overflow-hidden rounded-[1.5rem] border border-border/50 bg-card/80 shadow-sm shadow-black/[0.03] backdrop-blur-xl ring-1 ring-black/[0.02] transition-all duration-500 hover:shadow-lg hover:shadow-primary/[0.04] dark:ring-white/[0.03] animate-fade-in-up ${className}`}
+    className={`overflow-hidden rounded-3xl border border-border/50 bg-card/80 shadow-sm shadow-black/[0.03] backdrop-blur-xl ring-1 ring-black/[0.02] transition-all duration-500 hover:shadow-lg hover:shadow-primary/[0.04] dark:ring-white/[0.03] animate-fade-in-up ${className}`}
     style={{ animationDelay: `${delay}s` }}
   >
     {children}
@@ -350,7 +350,7 @@ const ProfilePage = () => {
       <div className="container relative mx-auto max-w-5xl px-4 py-6 sm:py-10">
 
         {/* ── Hero Header ── */}
-        <div className="relative mb-8 overflow-hidden rounded-[1.75rem] border border-border/50 bg-card/70 shadow-xl shadow-primary/[0.06] backdrop-blur-xl ring-1 ring-black/[0.02] dark:ring-white/[0.04] animate-fade-in-down">
+        <div className="relative mb-8 overflow-hidden rounded-3xl border border-border/50 bg-card/70 shadow-xl shadow-primary/[0.06] backdrop-blur-xl ring-1 ring-black/[0.02] dark:ring-white/[0.04] animate-fade-in-down">
           {/* Mesh gradient layer */}
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-bl from-primary/[0.12] via-violet-500/[0.05] to-transparent" />
           <div className="pointer-events-none absolute -left-16 -top-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
@@ -359,12 +359,12 @@ const ProfilePage = () => {
           <div className="relative flex flex-col items-center gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
             {/* Avatar */}
             <div className="relative group">
-              <div className="absolute -inset-1 rounded-[1.35rem] bg-gradient-to-br from-primary via-violet-500 to-blue-500 opacity-70 blur-[2px] transition-opacity duration-500 group-hover:opacity-100" />
-              <div className="relative flex h-24 w-24 items-center justify-center rounded-[1.25rem] bg-gradient-to-br from-primary via-primary to-primary/85 text-3xl font-black text-primary-foreground shadow-2xl shadow-primary/30 ring-4 ring-background sm:h-28 sm:w-28 sm:text-4xl transition-transform duration-500 group-hover:scale-[1.02]">
+              <div className="absolute -inset-1 rounded-3xl bg-gradient-to-br from-primary via-violet-500 to-blue-500 opacity-70 blur-[2px] transition-opacity duration-500 group-hover:opacity-100" />
+              <div className="relative flex h-24 w-24 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-primary to-primary/85 text-3xl font-black text-primary-foreground shadow-2xl shadow-primary/30 ring-4 ring-background sm:h-28 sm:w-28 sm:text-4xl transition-transform duration-500 group-hover:scale-[1.02]">
                 {initials}
               </div>
               {(user?.phone_verified || user?.email_verified) && (
-                <div className="absolute -bottom-1.5 -left-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg ring-4 ring-background">
+                <div className="absolute -bottom-1 -left-1 flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg ring-4 ring-background">
                   <BadgeCheck className="h-4 w-4" />
                 </div>
               )}
@@ -372,49 +372,49 @@ const ProfilePage = () => {
 
             {/* Info */}
             <div className="min-w-0 flex-1 text-center sm:text-right">
-              <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground">
-                {greeting} ✨
-              </p>
-              <h1 className="truncate text-2xl font-black tracking-tight sm:text-3xl">
-                {displayName}
-              </h1>
-              <p className="mt-1.5 text-sm text-muted-foreground" dir="ltr">
+              <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground">
+                 {greeting} ✨
+               </p>
+               <h1 className="truncate text-2xl font-black tracking-tight sm:text-3xl">
+                 {displayName}
+               </h1>
+               <p className="mt-2 text-sm text-muted-foreground" dir="ltr">
                 {user?.email}
               </p>
 
-              <div className="mt-3.5 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                {user?.phone && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-background/70 px-3 py-1 text-xs font-medium shadow-sm backdrop-blur-sm">
-                    <Phone className="h-3 w-3 text-primary/70" />
-                    <span dir="ltr">{user.phone}</span>
-                  </span>
-                )}
-                {user?.date_of_birth && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-background/70 px-3 py-1 text-xs font-medium shadow-sm backdrop-blur-sm">
-                    <Cake className="h-3 w-3 text-rose-500/80" />
-                    {toJalaliString(user.date_of_birth)}
-                  </span>
-                )}
-                {user?.date_joined && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-background/70 px-3 py-1 text-xs font-medium shadow-sm backdrop-blur-sm">
-                    <Calendar className="h-3 w-3 text-blue-500/80" />
-                    عضو از {formatDate(user.date_joined)}
-                  </span>
-                )}
-              </div>
+               <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                 {user?.phone && (
+                   <span className="inline-flex items-center gap-2 rounded-full border border-border/50 bg-background/70 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm">
+                     <Phone className="h-4 w-4 text-primary/70" />
+                     <span dir="ltr">{user.phone}</span>
+                   </span>
+                 )}
+                 {user?.date_of_birth && (
+                   <span className="inline-flex items-center gap-2 rounded-full border border-border/50 bg-background/70 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm">
+                     <Cake className="h-4 w-4 text-rose-500/80" />
+                     {toJalaliString(user.date_of_birth)}
+                   </span>
+                 )}
+                 {user?.date_joined && (
+                   <span className="inline-flex items-center gap-2 rounded-full border border-border/50 bg-background/70 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm">
+                     <Calendar className="h-4 w-4 text-blue-500/80" />
+                     عضو از {formatDate(user.date_joined)}
+                   </span>
+                 )}
+               </div>
             </div>
 
             {/* Completion + actions */}
             <div className="flex flex-col items-center gap-3 sm:items-end">
-              <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-background/60 px-3.5 py-2.5 shadow-sm backdrop-blur-md">
-                <CompletionRing percent={completionPercent} />
-                <div className="text-right">
-                  <p className="text-[11px] font-medium text-muted-foreground">تکمیل پروفایل</p>
-                  <p className="text-sm font-bold">
-                    {completionPercent === 100 ? 'کامل شد' : 'در حال تکمیل'}
-                  </p>
-                </div>
-              </div>
+               <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-background/60 px-4 py-3 shadow-sm backdrop-blur-md">
+                 <CompletionRing percent={completionPercent} />
+                 <div className="text-right">
+                   <p className="text-xs font-medium text-muted-foreground">تکمیل پروفایل</p>
+                   <p className="text-sm font-bold">
+                     {completionPercent === 100 ? 'کامل شد' : 'در حال تکمیل'}
+                   </p>
+                 </div>
+               </div>
 
               <div className="flex gap-2">
                 <Button
@@ -423,10 +423,10 @@ const ProfilePage = () => {
                   size="sm"
                   className="h-9 rounded-xl border-border/60 bg-background/60 shadow-sm backdrop-blur-sm transition-all hover:border-primary/30 hover:shadow-md"
                 >
-                  <Link to="/orders" className="flex items-center gap-1.5">
-                    <Package className="h-3.5 w-3.5" />
-                    سفارش‌ها
-                  </Link>
+                     <Link to="/orders" className="flex items-center gap-2">
+                       <Package className="h-4 w-4" />
+                       سفارش‌ها
+                     </Link>
                 </Button>
                 <Button
                   asChild
@@ -434,10 +434,10 @@ const ProfilePage = () => {
                   size="sm"
                   className="h-9 rounded-xl border-border/60 bg-background/60 shadow-sm backdrop-blur-sm transition-all hover:border-primary/30 hover:shadow-md"
                 >
-                  <Link to="/cart" className="flex items-center gap-1.5">
-                    <ShoppingCart className="h-3.5 w-3.5" />
-                    سبد ({(cart?.total_items || 0).toLocaleString('fa-IR')})
-                  </Link>
+                     <Link to="/cart" className="flex items-center gap-2">
+                       <ShoppingCart className="h-4 w-4" />
+                       سبد ({(cart?.total_items || 0).toLocaleString('fa-IR')})
+                     </Link>
                 </Button>
               </div>
             </div>
@@ -1210,7 +1210,7 @@ const ProfilePage = () => {
               onChange={(e) => setAddrForm({ ...addrForm, address_line2: e.target.value })}
               className={inputClass}
             />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Input
                 placeholder="شهر *"
                 value={addrForm.city}

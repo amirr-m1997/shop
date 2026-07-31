@@ -1,8 +1,17 @@
 from rest_framework import viewsets, filters, permissions
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
+from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
 from django_filters import rest_framework as django_filters
 from django.db.models import F
-from .models import Category, Brand, Size, Color, Fabric, Product, Review, SizeGuide, HomepageSection, Banner, StyleLook, Wishlist
+from django.db.models import Q
+from rest_framework.decorators import api_view, permission_classes
+from .models import (
+    Category, Brand, Size, Color, Fabric, Product, Review, SizeGuide,
+    HomepageSection, Banner, StyleLook, Wishlist, sizes_for_category,
+)
 from .serializers import (CategorySerializer, BrandSerializer, SizeSerializer, ColorSerializer,
                           FabricSerializer, ProductListSerializer, ProductDetailSerializer,
                           ReviewSerializer, SizeGuideSerializer, HomepageSectionSerializer,
@@ -103,8 +112,13 @@ class ProductFilter(django_filters.FilterSet):
         return queryset.filter(stock=0)
 
 
+class ProductPagination(PageNumberPagination):
+    page_size = 100
+
+
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Product.objects.filter(is_active=True)
+    pagination_class = ProductPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = ProductFilter
     search_fields = ['name', 'description', 'sku']
@@ -118,6 +132,15 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
         return ProductListSerializer
 
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def max_price_view(request):
+    """بیشترین قیمت محصولات"""
+    from django.db.models import Max
+    max_price = Product.objects.filter(is_active=True).aggregate(Max('price'))['price__max']
+    return Response({'max_price': int(max_price) if max_price else 5000000})
+
+
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
@@ -127,20 +150,25 @@ class ReviewViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        review = serializer.save(user=self.request.user)
+        review.product.update_rating()
 
     def perform_update(self, serializer):
         if serializer.instance.user != self.request.user:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("فقط نویسنده نظر می‌تواند آن را ویرایش کند.")
-        serializer.save()
+        review = serializer.save()
+        review.product.update_rating()
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         if instance.user != request.user:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("فقط نویسنده نظر می‌تواند آن را حذف کند.")
-        return super().destroy(request, *args, **kwargs)
+        product = instance.product
+        response = super().destroy(request, *args, **kwargs)
+        product.update_rating()
+        return response
 
 
 class SizeGuideViewSet(viewsets.ReadOnlyModelViewSet):
@@ -233,31 +261,93 @@ class RecommendationsView(APIView):
 
 
 class SizeRecommendationView(APIView):
-    """پیشنهاد سایز بر اساس اندازه‌های بدن کاربر"""
+    """
+    Product-driven size recommendation engine.
+    Accepts flexible measurements per category and returns:
+      - recommended size + confidence
+      - fit suggestion (based on fitPreference)
+      - alternative sizes
+      - human-readable reason
+    """
     permission_classes = [AllowAny]
 
+    # ── Weights: how much each measurement matters ────────────────
+    WEIGHTS = {
+        'height': 3,
+        'weight': 3,
+        'chest': 3,
+        'neck': 2,
+        'waist': 3,
+        'hip': 3,
+        'inseam': 3,
+        'shoulder': 2,
+        'sleeve': 2,
+        'footLength': 5,
+        'footWidth': 3,
+        'bust': 3,
+        'underBust': 3,
+        'thigh': 2,
+        'outseam': 2,
+        'headCircumference': 5,
+        'handLength': 3,
+        'palmCircumference': 3,
+        'waistCircumference': 5,
+        'calfCircumference': 2,
+        'desiredLength': 2,
+    }
+
+    # field name on SizeGuide model that maps to each measurement key
+    FIELD_MAP = {
+        'height_min': 'height_min',
+        'height_max': 'height_max',
+        'weight_min': 'weight_min',
+        'weight_max': 'weight_max',
+        'chest': 'chest',
+        'neck': None,  # no neck field on SizeGuide
+        'waist': 'waist',
+        'hip': 'hips',
+        'inseam': 'inseam',
+        'shoulder': 'shoulder',
+        'sleeve': 'sleeve',
+        'footLength': 'foot_length',
+        'footWidth': None,
+        'bust': 'chest',  # reuse chest for bra
+        'underBust': None,
+        'thigh': None,
+        'outseam': None,
+        'headCircumference': None,
+        'handLength': None,
+        'palmCircumference': None,
+        'waistCircumference': 'waist',
+        'calfCircumference': None,
+        'desiredLength': None,
+    }
+
     def post(self, request):
-        height = request.data.get('height')
-        weight = request.data.get('weight')
         gender = request.data.get('gender', 'unisex')
         product_type = request.data.get('product_type', 'clothing')
-        chest = request.data.get('chest')
-        waist = request.data.get('waist')
-        hips = request.data.get('hips')
+        fit_preference = request.data.get('fitPreference', 'regular')
+        measurements = request.data.get('measurements', {})
 
-        if not height or not weight:
+        # parse numeric measurements
+        parsed = {}
+        for k, v in measurements.items():
+            if v is not None and v != '':
+                try:
+                    parsed[k] = float(v)
+                except (ValueError, TypeError):
+                    pass
+
+        if not parsed:
             return Response(
-                {'error': 'قد و وزن الزامی است'},
+                {'error': 'حداقل یک اندازه الزامی است.'},
                 status=400
             )
 
-        height = int(height)
-        weight = int(weight)
-        chest = float(chest) if chest else None
-        waist = float(waist) if waist else None
-        hips = float(hips) if hips else None
+        height = parsed.get('height')
+        weight = parsed.get('weight')
 
-        # دریافت راهنمای سایزها بر اساس جنسیت و نوع محصول
+        # filter guides
         guides = SizeGuide.objects.filter(
             gender__in=[gender, 'unisex'],
             product_type=product_type,
@@ -266,163 +356,193 @@ class SizeRecommendationView(APIView):
         if not guides.exists():
             return Response({
                 'recommendations': [],
-                'message': 'راهنمای سایزی برای این دسته یافت نشد'
+                'message': 'راهنمای سایزی برای این دسته یافت نشد.',
             })
 
-        # گروه‌بندی بر اساس دسته‌بندی
-        categories = {}
+        # group by category
+        cat_groups = {}
         for guide in guides:
-            cat_id = guide.category.id
-            if cat_id not in categories:
-                categories[cat_id] = {
-                    'category_id': cat_id,
+            cid = guide.category.id
+            if cid not in cat_groups:
+                cat_groups[cid] = {
+                    'category_id': cid,
                     'category_name': guide.category.name,
-                    'sizes': []
+                    'guides': [],
                 }
-            categories[cat_id]['sizes'].append(guide)
+            cat_groups[cid]['guides'].append(guide)
 
-        recommendations = []
-        for cat_id, cat_data in categories.items():
-            best_size = self._find_best_size(
-                cat_data['sizes'], height, weight, chest, waist, hips
-            )
-            if best_size:
-                recommendations.append({
-                    'category_id': cat_data['category_id'],
-                    'category_name': cat_data['category_name'],
-                    'recommended_size': best_size['size'].name,
-                    'size_id': best_size['size'].id,
-                    'confidence': best_size['confidence'],
-                    'guide_id': best_size['guide'].id,
+        results = []
+        for cid, cdata in cat_groups.items():
+            scored = self._score_sizes(cdata['guides'], parsed, fit_preference)
+            if scored:
+                results.append({
+                    'category_id': cdata['category_id'],
+                    'category_name': cdata['category_name'],
+                    **scored,
                 })
 
         return Response({
-            'recommendations': recommendations,
-            'profile': {
-                'height': height,
-                'weight': weight,
-                'gender': gender,
-                'product_type': product_type,
-                'chest': chest,
-                'waist': waist,
-                'hips': hips,
-            }
+            'recommendations': results,
+            'profile': parsed,
+            'fit_preference': fit_preference,
         })
 
-    def _find_best_size(self, guides, height, weight, chest, waist, hips):
-        best = None
-        best_score = -1
+    # ── scoring ──────────────────────────────────────────────────
 
+    def _score_sizes(self, guides, user, fit_preference):
+        """Return best size info or None."""
+        scored = []
         for guide in guides:
-            score = 0
-            max_score = 0
-
-            # بر اساس قد
-            if guide.height_min and guide.height_max:
-                max_score += 3
-                if guide.height_min <= height <= guide.height_max:
-                    score += 3
-                elif height < guide.height_min:
-                    diff = guide.height_min - height
-                    if diff <= 5:
-                        score += 2
-                    elif diff <= 10:
-                        score += 1
-                else:
-                    diff = height - guide.height_max
-                    if diff <= 5:
-                        score += 2
-                    elif diff <= 10:
-                        score += 1
-
-            # بر اساس وزن
-            if guide.weight_min and guide.weight_max:
-                max_score += 3
-                if guide.weight_min <= weight <= guide.weight_max:
-                    score += 3
-                elif weight < guide.weight_min:
-                    diff = guide.weight_min - weight
-                    if diff <= 5:
-                        score += 2
-                    elif diff <= 10:
-                        score += 1
-                else:
-                    diff = weight - guide.weight_max
-                    if diff <= 5:
-                        score += 2
-                    elif diff <= 10:
-                        score += 1
-
-            # بر اساس سینه
-            if chest and guide.chest:
-                try:
-                    guide_chest = float(guide.chest)
-                    max_score += 2
-                    diff = abs(chest - guide_chest)
-                    if diff <= 2:
-                        score += 2
-                    elif diff <= 5:
-                        score += 1
-                except (ValueError, TypeError):
-                    pass
-
-            # بر اساس کمر
-            if waist and guide.waist:
-                try:
-                    guide_waist = float(guide.waist)
-                    max_score += 2
-                    diff = abs(waist - guide_waist)
-                    if diff <= 2:
-                        score += 2
-                    elif diff <= 5:
-                        score += 1
-                except (ValueError, TypeError):
-                    pass
-
-            # بر اساس باسن
-            if hips and guide.hips:
-                try:
-                    guide_hips = float(guide.hips)
-                    max_score += 2
-                    diff = abs(hips - guide_hips)
-                    if diff <= 2:
-                        score += 2
-                    elif diff <= 5:
-                        score += 1
-                except (ValueError, TypeError):
-                    pass
-
-            # امتیاز نهایی
-            if max_score > 0:
-                final_score = score / max_score
+            pts, max_pts, matched_fields, missed_fields = self._compare(guide, user)
+            if max_pts > 0:
+                conf = round(pts / max_pts * 100)
             else:
-                # اگر اندازه‌ای تعریف نشده بود، بر اساس وزن ساده
-                final_score = 0.5
+                conf = 50  # no data → default
+            conf = max(0, min(100, conf))
+            scored.append({
+                'guide': guide,
+                'size_name': guide.size.name,
+                'size_id': guide.size.id,
+                'confidence': conf,
+                'matched': matched_fields,
+                'missed': missed_fields,
+            })
 
-            if final_score > best_score:
-                best_score = final_score
-                confidence = int(final_score * 100)
-                best = {
-                    'guide': guide,
-                    'size': guide.size,
-                    'confidence': min(confidence, 100),
-                }
+        if not scored:
+            return None
 
-        return best
+        # sort by confidence desc
+        scored.sort(key=lambda x: x['confidence'], reverse=True)
+        best = scored[0]
+
+        # build alternatives (up to 2, confidence >= 60)
+        alts = []
+        for s in scored[1:4]:
+            if s['confidence'] >= 60 and len(alts) < 2:
+                alts.append({
+                    'size': s['size_name'],
+                    'confidence': s['confidence'],
+                })
+
+        # fit label
+        fit_map = {
+            'slim': 'چسبان (Slim Fit)',
+            'regular': 'نرمال (Regular Fit)',
+            'loose': 'آزاد (Loose Fit)',
+        }
+        fit_label = fit_map.get(fit_preference, 'نرمال')
+
+        # reason
+        used = [f for f in best['matched'] if f in self.WEIGHTS and self.WEIGHTS[f] >= 2]
+        if used:
+            field_labels = {
+                'height': 'قد', 'weight': 'وزن', 'chest': 'سینه',
+                'waist': 'کمر', 'hip': 'باسن', 'inseam': 'قد داخل پا',
+                'shoulder': 'شانه', 'sleeve': 'آستین', 'footLength': 'قد پا',
+                'neck': 'گردن', 'bust': 'سینه', 'underBust': 'زیر سینه',
+                'headCircumference': 'دور سر', 'waistCircumference': 'دور کمر',
+                'handLength': 'قد دست', 'palmCircumference': 'دور کف دست',
+                'thigh': 'ران', 'calfCircumference': 'دور ساق',
+            }
+            labels = [field_labels.get(f, f) for f in used[:3]]
+            reason = f'بر اساس {", ".join(labels)} شما.'
+        else:
+            reason = 'بر اساس اندازه‌های وارد شده.'
+
+        return {
+            'recommended_size': best['size_name'],
+            'size_id': best['size_id'],
+            'confidence': best['confidence'],
+            'fit': fit_label,
+            'alternatives': alts,
+            'reason': reason,
+            'guide_id': best['guide'].id,
+        }
+
+    def _compare(self, guide, user):
+        """
+        Compare a single SizeGuide row against user measurements.
+        Returns (points_earned, max_points, matched_fields, missed_fields).
+        """
+        pts = 0
+        max_pts = 0
+        matched = []
+        missed = []
+
+        # ── range fields (height, weight) ──
+        for dim, gmin_attr, gmax_attr, tol5, tol10 in [
+            ('height', 'height_min', 'height_max', 5, 10),
+            ('weight', 'weight_min', 'weight_max', 5, 10),
+        ]:
+            gmin = getattr(guide, gmin_attr, None)
+            gmax = getattr(guide, gmax_attr, None)
+            uval = user.get(dim)
+            if gmin is not None and gmax is not None and uval is not None:
+                w = self.WEIGHTS.get(dim, 2)
+                max_pts += w
+                if gmin <= uval <= gmax:
+                    pts += w
+                    matched.append(dim)
+                else:
+                    dist = min(abs(uval - gmin), abs(uval - gmax))
+                    if dist <= tol5:
+                        pts += w * 0.6
+                        matched.append(dim)
+                    elif dist <= tol10:
+                        pts += w * 0.3
+                        matched.append(dim)
+                    else:
+                        missed.append(dim)
+
+        # ── direct numeric fields (chest, waist, hips, etc.) ──
+        direct_fields = [
+            ('chest', 'chest'), ('waist', 'waist'), ('hip', 'hips'),
+            ('inseam', 'inseam'), ('shoulder', 'shoulder'), ('sleeve', 'sleeve'),
+            ('footLength', 'foot_length'), ('bust', 'chest'),
+        ]
+        for ukey, gattr in direct_fields:
+            gval_str = getattr(guide, gattr, None) if gattr else None
+            uval = user.get(ukey)
+            if gval_str and uval is not None:
+                try:
+                    gval = float(gval_str)
+                except (ValueError, TypeError):
+                    continue
+                w = self.WEIGHTS.get(ukey, 2)
+                max_pts += w
+                diff = abs(uval - gval)
+                if diff <= 1.5:
+                    pts += w
+                    matched.append(ukey)
+                elif diff <= 3:
+                    pts += w * 0.7
+                    matched.append(ukey)
+                elif diff <= 5:
+                    pts += w * 0.4
+                    matched.append(ukey)
+                else:
+                    missed.append(ukey)
+
+        return pts, max_pts, matched, missed
 
 
 class MeasurementGuideView(APIView):
-    """راهنمای اندازه‌گیری برای هر نوع محصول"""
+    """Size chart data for a given product type + gender."""
     permission_classes = [AllowAny]
 
     def get(self, request):
         product_type = request.query_params.get('product_type', 'clothing')
         gender = request.query_params.get('gender', 'unisex')
+        category_id = request.query_params.get('category_id')
 
-        guides = SizeGuide.objects.filter(
+        qs = SizeGuide.objects.filter(
             product_type=product_type,
             gender__in=[gender, 'unisex'],
-        ).values(
+        )
+        if category_id:
+            qs = qs.filter(category_id=category_id)
+
+        guides = qs.select_related('size', 'category').values(
             'category__id', 'category__name', 'size__name',
             'chest', 'waist', 'hips', 'length', 'shoulder', 'sleeve',
             'foot_length', 'inseam', 'height_min', 'height_max',
@@ -464,6 +584,38 @@ class MeasurementGuideView(APIView):
         })
 
 
+class InheritedSizesView(APIView):
+    """
+    سایزهای قابل استفاده برای یک دسته‌بندی (ارث‌بری از والدها).
+    برای فیلتر زنده dropdown سایز در ادمین محصول استفاده می‌شود.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        category_id = request.query_params.get('category')
+        category = None
+        if category_id and str(category_id).isdigit():
+            category = Category.objects.filter(pk=int(category_id)).select_related('parent').first()
+
+        sizes = sizes_for_category(category, fallback_all=True)
+        data = [
+            {
+                'id': s.id,
+                'name': s.name,
+                'category': s.category_id,
+                'category_name': s.category.name,
+                'label': f'{s.category.name} - {s.name}',
+            }
+            for s in sizes
+        ]
+        return Response({
+            'category_id': category.id if category else None,
+            'inherited': bool(category),
+            'count': len(data),
+            'sizes': data,
+        })
+
+
 class CategoriesByRootView(APIView):
     """دسته‌بندی‌ها بر اساس ریشه - برای فیلتر ادمین"""
     permission_classes = [AllowAny]
@@ -494,3 +646,27 @@ class CategoriesByRootView(APIView):
             return result
 
         return Response(serialize(root))
+
+
+class AdminProductSearchView(APIView):
+    """جستجوی سریع محصولات برای ادمین (با دیبانس ۱ ثانیه)"""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        q = request.query_params.get('q', '').strip()
+        if len(q) < 2:
+            return Response([])
+        products = Product.objects.filter(
+            Q(name__icontains=q) | Q(sku__icontains=q)
+        )[:10]
+        results = []
+        for p in products:
+            img = p.images.filter(is_primary=True).first()
+            results.append({
+                'id': p.pk,
+                'name': p.name,
+                'sku': p.sku or '',
+                'price': str(p.price),
+                'image': img.image.url if img and img.image else '',
+            })
+        return Response(results)

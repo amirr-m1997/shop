@@ -1,9 +1,12 @@
 from rest_framework import viewsets, permissions
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from .models import FAQ, ContactInfo, ContactMessage, LookbookItem, SiteSettings, Testimonial, SiteFeature
+from django.contrib.auth.models import User
+from products.models import Product, Brand
+from .models import FAQ, ContactInfo, ContactMessage, SiteSettings, Testimonial, SiteFeature, CustomerSatisfaction
 from .serializers import (
     FAQSerializer, ContactInfoSerializer, ContactMessageSerializer,
-    LookbookItemSerializer, SiteSettingsSerializer,
+    SiteSettingsSerializer,
     TestimonialReadSerializer, TestimonialWriteSerializer,
     SiteFeatureSerializer,
 )
@@ -38,13 +41,6 @@ class ContactMessageViewSet(viewsets.ModelViewSet):
             return ContactMessage.objects.all()
         return ContactMessage.objects.none()
 
-
-class LookbookItemViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = LookbookItemSerializer
-    permission_classes = [permissions.AllowAny]
-
-    def get_queryset(self):
-        return LookbookItem.objects.filter(is_active=True)
 
 
 class SiteSettingsView(viewsets.ReadOnlyModelViewSet):
@@ -82,3 +78,18 @@ class SiteFeatureViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return SiteFeature.objects.filter(is_active=True)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def about_stats(request):
+    """Public endpoint returning dynamic stats for the About page."""
+    sat = CustomerSatisfaction.load()
+    return Response({
+        'products_count': Product.objects.filter(is_active=True).count(),
+        'users_count': User.objects.filter(is_active=True).count(),
+        'brands_count': Brand.objects.count(),
+        'customer_satisfaction': sat.value,
+        'satisfaction_title': sat.title,
+        'satisfaction_description': sat.description,
+    })

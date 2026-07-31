@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils import timezone
-from .models import ShippingAddress, Order, OrderItem
+from .models import ShippingAddress, Order, OrderItem, Coupon, CouponUsage, WelcomeClaim
 
 try:
     import jdatetime
@@ -169,3 +169,104 @@ class OrderItemAdmin(admin.ModelAdmin):
     list_filter = ['order__status', 'order__created_at']
     search_fields = ['order__order_number', 'product__name']
     readonly_fields = ['total_price']
+
+
+# ──────────────── کوپن تخفیف ────────────────
+
+class CouponUsageInline(admin.TabularInline):
+    model = CouponUsage
+    extra = 0
+    readonly_fields = ['user', 'used_at', 'order']
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Coupon)
+class CouponAdmin(admin.ModelAdmin):
+    list_display = [
+        'code', 'discount_type', 'value_display', 'min_amount_display',
+        'is_welcome_offer_badge', 'is_active_badge', 'usage_progress',
+        'valid_from_jalali', 'valid_until_jalali'
+    ]
+    list_filter = ['is_active', 'is_welcome_offer', 'discount_type', 'valid_from', 'valid_until']
+    search_fields = ['code']
+    inlines = [CouponUsageInline]
+    fieldsets = (
+        ('کد تخفیف', {
+            'fields': ('code', 'discount_type', 'value')
+        }),
+        ('محدودیت‌ها', {
+            'fields': ('min_amount', 'max_uses', 'is_active', 'is_welcome_offer')
+        }),
+        ('مدت اعتبار', {
+            'fields': ('valid_from', 'valid_until')
+        }),
+    )
+
+    @admin.display(description='مقدار')
+    def value_display(self, obj):
+        if obj.discount_type == 'percentage':
+            return f"{obj.value:,.0f}٪"
+        return f"{obj.value:,.0f} تومان"
+
+    @admin.display(description='حداقل خرید')
+    def min_amount_display(self, obj):
+        return f"{obj.min_amount:,.0f} تومان" if obj.min_amount else '—'
+
+    @admin.display(description='خوش‌آمد', boolean=True)
+    def is_welcome_offer_badge(self, obj):
+        return obj.is_welcome_offer
+
+    @admin.display(description='وضعیت', boolean=True)
+    def is_active_badge(self, obj):
+        return obj.is_active
+
+    @admin.display(description='میزان استفاده')
+    def usage_progress(self, obj):
+        max_uses = obj.max_uses or '∞'
+        return f"{obj.used_count} / {max_uses}"
+
+    @admin.display(description='اعتبار از')
+    def valid_from_jalali(self, obj):
+        return to_jalali(obj.valid_from)
+
+    @admin.display(description='اعتبار تا')
+    def valid_until_jalali(self, obj):
+        return to_jalali(obj.valid_until)
+
+
+@admin.register(CouponUsage)
+class CouponUsageAdmin(admin.ModelAdmin):
+    list_display = ['coupon', 'user', 'used_at_jalali', 'order']
+    list_filter = ['used_at', 'coupon']
+    search_fields = ['coupon__code', 'user__username']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='تاریخ استفاده')
+    def used_at_jalali(self, obj):
+        return to_jalali(obj.used_at)
+
+
+@admin.register(WelcomeClaim)
+class WelcomeClaimAdmin(admin.ModelAdmin):
+    list_display = ['user', 'coupon', 'claimed_at_jalali']
+    list_filter = ['claimed_at', 'coupon']
+    search_fields = ['user__username', 'user__email', 'coupon__code']
+    readonly_fields = ['user', 'coupon', 'claimed_at']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    @admin.display(description='تاریخ دریافت')
+    def claimed_at_jalali(self, obj):
+        return to_jalali(obj.claimed_at)

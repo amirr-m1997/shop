@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Share2, MessageCircle, Send } from 'lucide-react';
 
-const ShareButton = ({ product, className = '' }) => {
+const ShareButton = ({ product, className = '', inline = false }) => {
   const [open, setOpen] = useState(false);
 
   const productUrl = `${window.location.origin}/product/${product.slug}`;
@@ -36,7 +36,11 @@ const ShareButton = ({ product, className = '' }) => {
           e.stopPropagation();
           setOpen(!open);
         }}
-        className="absolute bottom-2 right-2 z-10 h-8 w-8 rounded-full bg-white/80 dark:bg-black/60 backdrop-blur flex items-center justify-center transition-all hover:scale-110"
+        className={`${
+          inline
+            ? 'relative h-10 w-10'
+            : 'absolute bottom-2 right-2 z-10 h-8 w-8'
+        } rounded-full bg-white/80 dark:bg-black/60 backdrop-blur flex items-center justify-center transition-all hover:scale-110 shadow-sm`}
         title="اشتراک‌گذاری"
       >
         <Share2 className="h-4 w-4 text-gray-600 dark:text-gray-300" />

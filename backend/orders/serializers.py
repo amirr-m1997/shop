@@ -1,7 +1,21 @@
 from rest_framework import serializers
-from .models import ShippingAddress, Order, OrderItem
+from .models import ShippingAddress, Order, OrderItem, Coupon, WelcomeClaim
 from products.models import Product
 from products.serializers import ProductListSerializer
+from decimal import Decimal
+
+
+class WelcomeOfferSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    discount_type = serializers.CharField()
+    value = serializers.DecimalField(max_digits=10, decimal_places=2)
+    discount_display = serializers.SerializerMethodField()
+    claimed = serializers.BooleanField(read_only=True, default=False)
+
+    def get_discount_display(self, obj):
+        if obj['discount_type'] == 'percentage':
+            return f"{obj['value']:,.0f}٪"
+        return f"{obj['value']:,.0f} تومان"
 
 
 
@@ -51,7 +65,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'payment_method', 'subtotal', 'shipping_cost',
             'tax', 'discount', 'total', 'notes',
             'tracking_number', 'postal_tracking_code',
-            'items', 'created_at', 'updated_at'
+            'items', 'created_at', 'updated_at', 'expires_at',
         ]
         read_only_fields = [
             'order_number', 'user', 'status', 'payment_status',
@@ -69,9 +83,23 @@ class CreateOrderSerializer(serializers.Serializer):
         error_messages={'invalid_choice': 'روش پرداخت نامعتبر است.'}
     )
     notes = serializers.CharField(required=False, allow_blank=True, default='')
+    coupon_code = serializers.CharField(required=False, allow_blank=True, default='')
 
     def validate_shipping_address_id(self, value):
         user = self.context['request'].user
         if not ShippingAddress.objects.filter(id=value, user=user).exists():
             raise serializers.ValidationError("آدرس ارسال یافت نشد یا متعلق به شما نیست.")
+        return value
+
+    def validate_coupon_code(self, value):
+        if not value:
+            return value
+        try:
+            coupon = Coupon.objects.get(code=value, is_active=True)
+        except Coupon.DoesNotExist:
+            raise serializers.ValidationError("کد تخفیف نامعتبر است.")
+        user = self.context['request'].user
+        valid, msg = coupon.is_valid(user=user)
+        if not valid:
+            raise serializers.ValidationError(msg)
         return value

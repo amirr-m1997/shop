@@ -3,11 +3,19 @@ from django.db import models
 from django.contrib.auth.models import User
 
 class UserProfile(models.Model):
+    ROLE_CHOICES = [
+        ('user', 'کاربر عادی'),
+        ('moderator', 'ناظر'),
+        ('admin', 'مدیر'),
+        ('super_admin', 'مدیر اصلی'),
+    ]
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     first_name = models.CharField(max_length=100, blank=True, verbose_name="نام")
     last_name = models.CharField(max_length=100, blank=True, verbose_name="نام خانوادگی")
     phone = models.CharField(max_length=20, blank=True, verbose_name="شماره تلفن")
     date_of_birth = models.DateField(null=True, blank=True, verbose_name="تاریخ تولد")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='user', verbose_name="نقش")
     phone_verified = models.BooleanField(default=False, verbose_name="تلفن تأیید شده")
     email_verified = models.BooleanField(default=False, verbose_name="ایمیل تأیید شده")
     verification_code = models.CharField(max_length=6, blank=True, verbose_name="کد تأیید")
@@ -20,6 +28,18 @@ class UserProfile(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def is_admin_user(self):
+        return self.role in ('admin', 'super_admin')
+
+    @property
+    def is_super_admin(self):
+        return self.role == 'super_admin'
+
+    @property
+    def is_moderator(self):
+        return self.role == 'moderator'
 
     class Meta:
         verbose_name = "پروفایل کاربر"

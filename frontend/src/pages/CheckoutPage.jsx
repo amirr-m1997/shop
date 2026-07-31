@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CreditCard, Truck, Check, MapPin, Package, ShoppingBag,
   ArrowLeft, ArrowRight, ShieldCheck, Sparkles, Wallet,
-  Phone, Home, Plus, Loader2
+  Phone, Home, Plus, Loader2, Percent, X, CheckCircle2
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { useCart } from '../contexts/CartContext';
-import { ordersAPI, paymentsAPI } from '../services/api';
+import { ordersAPI, paymentsAPI, cartAPI } from '../services/api';
 import { formatPrice } from '../lib/formatPrice';
+import { PLACEHOLDER_IMG } from '../lib/placeholders';
 import { calcShipping, useShippingConfig } from '../lib/shipping';
 
 const STEPS = [
@@ -51,7 +52,7 @@ const Stepper = ({ step }) => (
           <React.Fragment key={s.id}>
             <div className="flex flex-col items-center gap-2 min-w-0 flex-1">
               <div
-                className={`relative h-11 w-11 sm:h-12 sm:w-12 rounded-2xl flex items-center justify-center border-2 transition-all duration-300 ${
+                className={`relative h-10 w-10 sm:h-11 sm:w-11 rounded-2xl flex items-center justify-center border-2 transition-all duration-300 ${
                   done
                     ? 'bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-500/25'
                     : active
@@ -59,10 +60,10 @@ const Stepper = ({ step }) => (
                       : 'bg-muted/50 border-border text-muted-foreground'
                 }`}
               >
-                {done ? <Check className="h-5 w-5" strokeWidth={2.5} /> : <Icon className="h-5 w-5" />}
+                {done ? <Check className="h-4 w-4" strokeWidth={2.5} /> : <Icon className="h-4 w-4" />}
               </div>
               <span
-                className={`text-[11px] sm:text-xs font-semibold text-center leading-tight ${
+                className={`text-xs sm:text-sm font-semibold text-center leading-tight ${
                   active || done ? 'text-foreground' : 'text-muted-foreground'
                 }`}
               >
@@ -86,43 +87,65 @@ const Stepper = ({ step }) => (
 );
 
 /* ─── Order Summary Sidebar ─── */
-const OrderSummary = ({ cart, subtotal, shipping, total }) => {
-  const shippingInfo = calcShipping(subtotal);
+const OrderSummary = ({ cart, subtotal, shipping, total, shippingConfig, coupon }) => {
+  const shippingInfo = calcShipping(subtotal, shippingConfig);
   const { isFree, remaining, threshold, progress } = shippingInfo;
   const itemCount = cart.total_items || cart.items.length;
+  const discount = coupon ? parseFloat(coupon.discount_amount) : 0;
+  const finalTotal = total - discount;
+  const [couponCode, setCouponCode] = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState(null);
+  const { applyCoupon, removeCoupon, couponError: ctxCouponError, couponLoading: ctxCouponLoading } = useCart();
+
+  const handleApply = async () => {
+    if (!couponCode.trim()) return;
+    try {
+      await applyCoupon(couponCode.trim());
+      setCouponError(null);
+    } catch {
+      // error handled by context
+    }
+  };
+
+  const handleRemove = () => {
+    removeCoupon();
+    setCouponCode('');
+    setCouponError(null);
+  };
 
   return (
-    <div className="lg:sticky lg:top-24 space-y-4 animate-fade-in-up" style={{ animationDelay: '0.08s' }}>
+    <div className="lg:sticky lg:top-24 space-y-5 animate-fade-in-up" style={{ animationDelay: '0.08s' }}>
       <Card className="overflow-hidden border-0 shadow-lg shadow-primary/5 ring-1 ring-border">
-        <div className="bg-gradient-to-l from-primary via-primary to-primary/90 text-primary-foreground px-5 py-4">
-          <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-lg bg-white/15 flex items-center justify-center">
+        <div className="bg-gradient-to-l from-primary via-primary to-primary/90 text-primary-foreground px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-white/15 flex items-center justify-center">
               <Package className="h-5 w-5" />
             </div>
             <div>
               <h2 className="font-bold text-base leading-none">خلاصه سفارش</h2>
-              <p className="text-xs opacity-80 mt-1">
+              <p className="text-xs opacity-80 mt-1.5">
                 {itemCount.toLocaleString('fa-IR')} کالا
               </p>
             </div>
           </div>
         </div>
 
-        <CardContent className="p-5 space-y-4">
+        <CardContent className="p-6 space-y-4">
           {/* Mini item list */}
-          <div className="space-y-2.5 max-h-48 overflow-y-auto scrollbar-hide">
+          <div className="space-y-2 max-h-48 overflow-y-auto scrollbar-hide">
             {cart.items.map((item) => (
               <div key={item.id} className="flex gap-3 items-center">
-                <div className="w-12 h-12 rounded-lg overflow-hidden bg-muted ring-1 ring-border/50 shrink-0">
+                <div className="w-11 h-11 rounded-xl overflow-hidden bg-muted ring-1 ring-border/50 shrink-0">
                   <img
-                    src={item.product.primary_image || 'https://via.placeholder.com/80'}
+                    src={item.product.primary_image || PLACEHOLDER_IMG}
                     alt={item.product.name}
                     className="h-full w-full object-cover"
                   />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium line-clamp-1">{item.product.name}</p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     × {item.quantity.toLocaleString('fa-IR')}
                   </p>
                 </div>
@@ -134,18 +157,18 @@ const OrderSummary = ({ cart, subtotal, shipping, total }) => {
           </div>
 
           {/* Free shipping mini bar */}
-          <div className={`rounded-xl p-3 text-xs ${
+          <div className={`rounded-2xl p-4 text-sm ${
             isFree
               ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
               : 'bg-amber-500/10 text-amber-800 dark:text-amber-200'
           }`}>
-            <div className="flex items-center gap-1.5 mb-1.5 font-semibold">
-              {isFree ? <Sparkles className="h-3.5 w-3.5" /> : <Truck className="h-3.5 w-3.5" />}
+            <div className="flex items-center gap-2 mb-2 font-semibold">
+              {isFree ? <Sparkles className="h-4 w-4" /> : <Truck className="h-4 w-4" />}
               {isFree
                 ? 'ارسال رایگان'
                 : `${formatPrice(remaining)} تا ارسال رایگان`}
             </div>
-            <div className="h-1.5 rounded-full bg-background/60 overflow-hidden">
+            <div className="h-2 rounded-full bg-background/60 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-700 ${
                   isFree ? 'bg-emerald-500' : 'bg-amber-500'
@@ -154,13 +177,58 @@ const OrderSummary = ({ cart, subtotal, shipping, total }) => {
               />
             </div>
             {!isFree && (
-              <p className="mt-1.5 opacity-80">
+              <p className="mt-2 opacity-80">
                 از {formatPrice(threshold)} به بالا رایگان
               </p>
             )}
           </div>
 
-          <div className="space-y-2.5 pt-1">
+          {/* Coupon input */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className={`relative flex-1 ${coupon ? 'opacity-50 pointer-events-none' : ''}`}>
+                <input
+                  type="text"
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleApply()}
+                  placeholder="کد تخفیف"
+                  className="w-full rounded-2xl border border-border/70 bg-background/80 px-4 py-3 pr-10 text-sm font-medium placeholder:text-muted-foreground/50 focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all"
+                />
+                <Percent className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
+              </div>
+              {coupon ? (
+                <button
+                  onClick={handleRemove}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-red-200 bg-red-50 text-red-500 transition-all hover:bg-red-100 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={handleApply}
+                  disabled={!couponCode.trim() || ctxCouponLoading}
+                  className="h-11 shrink-0 rounded-2xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25 disabled:opacity-40 disabled:pointer-events-none"
+                >
+                  {ctxCouponLoading ? '...' : 'اعمال'}
+                </button>
+              )}
+            </div>
+            {(couponError || ctxCouponError) && (
+              <p className="text-sm font-medium text-red-500 flex items-center gap-2 px-1">
+                <X className="h-4 w-4" />
+                {couponError || ctxCouponError}
+              </p>
+            )}
+            {coupon && (
+              <div className="flex items-center gap-2 rounded-2xl bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-700 ring-1 ring-emerald-500/20 dark:text-emerald-300">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <span>کد {coupon.code} · {coupon.discount_type === 'percentage' ? `${coupon.discount_value}٪` : `${Number(coupon.discount_value).toLocaleString('fa-IR')} تومان`} تخفیف</span>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-3 pt-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">جمع کالاها</span>
               <span className="font-medium tabular-nums">{formatPrice(subtotal)}</span>
@@ -171,22 +239,25 @@ const OrderSummary = ({ cart, subtotal, shipping, total }) => {
                 {isFree ? 'رایگان' : formatPrice(shipping)}
               </span>
             </div>
-            <div className="border-t pt-3 flex justify-between items-baseline">
-              <span className="font-bold">مبلغ قابل پرداخت</span>
-              <span className="font-black text-xl tabular-nums text-primary">
-                {formatPrice(total)}
-              </span>
+            {discount > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                  <Percent className="h-4 w-4" />
+                  تخفیف
+                </span>
+                <span className="font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
+                  -{formatPrice(discount)}
+                </span>
+              </div>
+            )}
+            <div className="h-px bg-border/50" />
+            <div className="flex justify-between text-sm font-bold">
+              <span>مبلغ نهایی</span>
+              <span className="text-primary tabular-nums">{formatPrice(finalTotal)}</span>
             </div>
           </div>
         </CardContent>
       </Card>
-
-      <div className="flex items-center gap-2.5 rounded-xl border bg-card/60 px-4 py-3">
-        <ShieldCheck className="h-5 w-5 text-primary/80 shrink-0" />
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          اطلاعات شما رمزنگاری شده و خرید امن است.
-        </p>
-      </div>
     </div>
   );
 };
@@ -194,12 +265,12 @@ const OrderSummary = ({ cart, subtotal, shipping, total }) => {
 /* ─── Empty Cart ─── */
 const EmptyCheckout = ({ navigate }) => (
   <div className="container mx-auto px-4 py-16 max-w-md text-center animate-fade-in-up">
-    <div className="mx-auto mb-6 w-28 h-28 rounded-full bg-gradient-to-br from-muted to-muted/40 border flex items-center justify-center">
+    <div className="mx-auto mb-6 w-28 h-28 rounded-2xl bg-gradient-to-br from-muted to-muted/40 border flex items-center justify-center">
       <ShoppingBag className="h-12 w-12 text-muted-foreground/70" strokeWidth={1.25} />
     </div>
     <h2 className="text-2xl font-bold mb-2">سبد خرید خالی است</h2>
     <p className="text-muted-foreground mb-6">برای تکمیل خرید ابتدا محصولی به سبد اضافه کنید.</p>
-    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+    <div className="flex flex-col sm:flex-row gap-4 justify-center">
       <Button onClick={() => navigate('/products')} className="rounded-full px-6">
         مشاهده محصولات
       </Button>
@@ -213,7 +284,8 @@ const EmptyCheckout = ({ navigate }) => (
 /* ─── Main ─── */
 const CheckoutPage = () => {
   const navigate = useNavigate();
-  const { cart, clearCart } = useCart();
+  const [searchParams] = useSearchParams();
+  const { cart, clearCart, coupon, removeCoupon, applyCoupon } = useCart();
   const { config: shippingConfig } = useShippingConfig();
 
   const [step, setStep] = useState(1);
@@ -237,6 +309,13 @@ const CheckoutPage = () => {
 
   useEffect(() => {
     fetchAddresses();
+  }, []);
+
+  useEffect(() => {
+    const code = searchParams.get('coupon');
+    if (code && !coupon) {
+      applyCoupon(code).catch(() => {});
+    }
   }, []);
 
   const fetchAddresses = async () => {
@@ -312,6 +391,7 @@ const CheckoutPage = () => {
         shipping_address_id: selectedAddress,
         payment_method: paymentMethod,
         notes: orderNotes,
+        coupon_code: coupon?.code || '',
       });
       const orderId = orderRes.data.id;
 
@@ -324,17 +404,36 @@ const CheckoutPage = () => {
           }
         } catch (payErr) {
           console.error('Payment initiation error:', payErr);
-          setError(payErr.response?.data?.error || 'خطا در اتصال به درگاه پرداخت. سفارش ثبت شد و می‌توانید از پنل کاربری پرداخت کنید.');
+          setError(payErr.response?.data?.error || payErr.response?.data?.detail || 'خطا در اتصال به درگاه پرداخت. سفارش ثبت شد و می‌توانید از پنل کاربری پرداخت کنید.');
           setLoading(false);
           return;
         }
       }
 
       await clearCart();
-      navigate('/order-success');
+      removeCoupon();
+      const expiresAt = orderRes.data.expires_at || '';
+      navigate(`/order-success?order_number=${orderRes.data.order_number}&expires_at=${encodeURIComponent(expiresAt)}`);
     } catch (err) {
       console.error('Error placing order:', err);
-      setError(err.response?.data?.error || 'خطا در ثبت سفارش. لطفاً دوباره تلاش کنید.');
+      const data = err.response?.data;
+      let msg = 'خطا در ثبت سفارش. لطفاً دوباره تلاش کنید.';
+      if (typeof data === 'string') {
+        msg = data;
+      } else if (data?.error) {
+        msg = data.error;
+      } else if (data?.detail) {
+        msg = data.detail;
+      } else if (data && typeof data === 'object') {
+        const firstKey = Object.keys(data)[0];
+        const firstVal = data[firstKey];
+        if (Array.isArray(firstVal)) {
+          msg = firstVal[0] || msg;
+        } else if (typeof firstVal === 'string') {
+          msg = firstVal;
+        }
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -351,6 +450,8 @@ const CheckoutPage = () => {
   const subtotal = parseFloat(cart.total_price) || 0;
   const shippingInfo = calcShipping(subtotal, shippingConfig);
   const total = subtotal + shippingInfo.shipping;
+  const discount = coupon ? parseFloat(coupon.discount_amount) : 0;
+  const finalTotal = total - discount;
   const selectedAddrObj = shippingAddresses.find((a) => a.id === selectedAddress);
 
   return (
@@ -404,7 +505,7 @@ const CheckoutPage = () => {
                       >
                         <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-muted ring-1 ring-border/50 shrink-0">
                           <img
-                            src={item.product.primary_image || 'https://via.placeholder.com/120'}
+                            src={item.product.primary_image || PLACEHOLDER_IMG}
                             alt={item.product.name}
                             className="h-full w-full object-cover"
                           />
@@ -737,7 +838,7 @@ const CheckoutPage = () => {
                   <div className="mt-5 rounded-2xl border border-primary/20 bg-primary/5 p-4 flex items-center justify-between">
                     <span className="text-sm font-medium text-muted-foreground">مبلغ نهایی</span>
                     <span className="text-xl font-black tabular-nums text-primary">
-                      {formatPrice(total)}
+                      {formatPrice(finalTotal > 0 ? finalTotal : 0)}
                     </span>
                   </div>
 
@@ -781,6 +882,8 @@ const CheckoutPage = () => {
             subtotal={subtotal}
             shipping={shippingInfo.shipping}
             total={total}
+            shippingConfig={shippingConfig}
+            coupon={coupon}
           />
         </div>
       </div>

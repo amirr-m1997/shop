@@ -27,7 +27,7 @@ const HomeBlogSection = ({ posts = [] }) => {
           {posts.slice(0, 3).map((post) => (
             <Link
               key={post.id}
-              to="/blog"
+              to={`/blog/${post.slug}`}
               className="group block bg-background rounded-2xl overflow-hidden border shadow-sm hover:shadow-md transition-shadow"
             >
               <div className="relative h-44 overflow-hidden bg-muted">

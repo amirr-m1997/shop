@@ -1,19 +1,33 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, ChevronLeft, ArrowLeft, Sparkles, MousePointer2 } from 'lucide-react';
+import {
+  ChevronRight,
+  ChevronLeft,
+  ArrowLeft,
+  Sparkles,
+  Truck,
+  Shield,
+  RotateCcw,
+  Headphones,
+} from 'lucide-react';
 import { Button } from './ui/Button';
 
+const DEFAULT_FEATURE_ICONS = {
+  Truck,
+  Shield,
+  RotateCcw,
+  Headphones,
+};
+
 /**
- * Cinematic hero slider — preserves all banner data & links.
- * Layered depth, glass CTAs, progress dots, scroll cue.
+ * Premium hero banner — large rounded card with glass feature strip.
+ * Looks polished in both light and dark modes.
  */
-const BannerSlider = ({ banners = [] }) => {
+const BannerSlider = ({ banners = [], features = [] }) => {
   const slides = banners;
   const [current, setCurrent] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [mouse, setMouse] = useState({ x: 0.5, y: 0.5 });
   const timerRef = useRef(null);
-  const sectionRef = useRef(null);
 
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -49,206 +63,209 @@ const BannerSlider = ({ banners = [] }) => {
     go(() => idx);
   };
 
-  const handleMouseMove = (e) => {
-    if (!sectionRef.current) return;
-    const rect = sectionRef.current.getBoundingClientRect();
-    setMouse({
-      x: (e.clientX - rect.left) / rect.width,
-      y: (e.clientY - rect.top) / rect.height,
-    });
-  };
-
   if (!slides.length) return null;
 
   const active = slides[current];
 
+  const stripFeatures =
+    features.length > 0
+      ? features.slice(0, 4)
+      : [
+          { id: 1, icon: 'Truck', title: 'ارسال رایگان', description: 'برای سفارش‌های بالای ۲ میلیون' },
+          { id: 2, icon: 'RotateCcw', title: 'بازگشت آسان', description: 'تا ۳۰ روز ضمانت بازگشت' },
+          { id: 3, icon: 'Shield', title: 'پرداخت امن', description: 'با درگاه‌های معتبر' },
+        ];
+
   return (
     <section
-      ref={sectionRef}
-      onMouseMove={handleMouseMove}
+      className="relative pt-4 sm:pt-6"
+      aria-roledescription="carousel"
+      aria-label="بنرهای اصلی"
       onMouseEnter={() => {
         if (timerRef.current) clearInterval(timerRef.current);
       }}
       onMouseLeave={startTimer}
-      className="relative h-[min(92vh,780px)] min-h-[480px] overflow-hidden bg-neutral-950"
-      aria-roledescription="carousel"
-      aria-label="بنرهای اصلی"
     >
-      {/* Ambient parallax orbs (mouse-reactive) */}
-      <div
-        className="pointer-events-none absolute inset-0 z-[5] overflow-hidden"
-        aria-hidden
-      >
-        <div
-          className="absolute h-[40rem] w-[40rem] rounded-full bg-violet-500/20 blur-[100px] transition-transform duration-700 ease-out"
-          style={{
-            top: `${-10 + mouse.y * 12}%`,
-            right: `${-15 + mouse.x * 10}%`,
-            transform: `translate(${(mouse.x - 0.5) * 40}px, ${(mouse.y - 0.5) * 30}px)`,
-          }}
-        />
-        <div
-          className="absolute h-[28rem] w-[28rem] rounded-full bg-blue-500/15 blur-[90px] transition-transform duration-700 ease-out"
-          style={{
-            bottom: `${-5 + (1 - mouse.y) * 10}%`,
-            left: `${-10 + (1 - mouse.x) * 12}%`,
-            transform: `translate(${(mouse.x - 0.5) * -30}px, ${(mouse.y - 0.5) * -20}px)`,
-          }}
-        />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.45)_100%)]" />
-      </div>
-
-      {/* Slides */}
-      {slides.map((banner, index) => {
-        const isActive = index === current;
-        return (
-          <div
-            key={banner.id ?? index}
-            className={`absolute inset-0 transition-all duration-1000 ease-out ${
-              isActive ? 'z-10 opacity-100 scale-100' : 'z-0 opacity-0 scale-105'
-            }`}
-            aria-hidden={!isActive}
-          >
-            {/* Ken Burns image */}
-            <img
-              src={banner.image}
-              alt=""
-              className={`absolute inset-0 h-full w-full object-cover transition-transform ease-out ${
-                isActive ? 'scale-110' : 'scale-100'
-              }`}
-              style={{ transitionDuration: '8s' }}
-              onError={(e) => {
-                e.target.style.display = 'none';
-              }}
-            />
-            {/* Multi-stop cinematic gradient */}
-            <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/90 via-black/45 to-black/25" />
-            <div className="absolute inset-0 z-[1] bg-gradient-to-l from-black/50 via-transparent to-black/40" />
-          </div>
-        );
-      })}
-
-      {/* Content */}
-      <div className="relative z-20 flex h-full items-end pb-20 sm:items-center sm:pb-0">
-        <div className="container mx-auto px-4 sm:px-6">
-          <div
-            key={current}
-            className="max-w-2xl animate-fade-in-up"
-          >
-            {/* Eyebrow */}
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-white/90 shadow-lg backdrop-blur-md sm:mb-5">
-              <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-              <span className="tracking-wide">
-                {slides.length > 1
-                  ? `${(current + 1).toLocaleString('fa-IR')} / ${slides.length.toLocaleString('fa-IR')}`
-                  : 'مجموعه ویژه'}
-              </span>
-            </div>
-
-            <h1 className="mb-4 text-4xl font-black leading-[1.1] tracking-tight text-white drop-shadow-sm sm:mb-5 sm:text-5xl md:text-6xl lg:text-7xl">
-              {active.title}
-            </h1>
-
-            {active.subtitle && (
-              <p className="mb-7 max-w-lg text-base leading-relaxed text-white/80 sm:mb-9 sm:text-lg md:text-xl">
-                {active.subtitle}
-              </p>
-            )}
-
-            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-              {active.link && (
-                <Button
-                  asChild
-                  size="lg"
-                  className="group h-12 rounded-2xl bg-white px-7 text-base font-bold text-neutral-900 shadow-xl shadow-black/30 transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/95 hover:shadow-2xl sm:h-13 sm:px-8"
-                >
-                  <Link to={active.link} className="flex items-center gap-2">
-                    {active.button_text || 'خرید کنید'}
-                    <ArrowLeft className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-1" />
-                  </Link>
-                </Button>
-              )}
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="h-12 rounded-2xl border-white/25 bg-white/10 px-7 text-base font-bold text-white shadow-lg backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/20 hover:text-white sm:h-13 sm:px-8"
-              >
-                <Link to="/new-arrivals">جدیدترین‌ها</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Nav arrows */}
-      {slides.length > 1 && (
-        <>
-          <button
-            type="button"
-            onClick={prev}
-            className="group absolute right-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white shadow-lg backdrop-blur-md transition-all duration-300 hover:bg-white/20 sm:right-6 sm:h-12 sm:w-12"
-            aria-label="اسلاید قبلی"
-          >
-            <ChevronRight className="h-5 w-5 transition-transform group-hover:scale-110" />
-          </button>
-          <button
-            type="button"
-            onClick={next}
-            className="group absolute left-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-white shadow-lg backdrop-blur-md transition-all duration-300 hover:bg-white/20 sm:left-6 sm:h-12 sm:w-12"
-            aria-label="اسلاید بعدی"
-          >
-            <ChevronLeft className="h-5 w-5 transition-transform group-hover:scale-110" />
-          </button>
-
-          {/* Progress indicators */}
-          <div className="absolute bottom-8 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 sm:bottom-10">
-            {slides.map((_, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => goTo(idx)}
-                className="group relative h-2 overflow-hidden rounded-full transition-all duration-500"
-                style={{ width: idx === current ? 36 : 8 }}
-                aria-label={`اسلاید ${idx + 1}`}
-                aria-current={idx === current}
-              >
-                <span
-                  className={`absolute inset-0 rounded-full transition-colors ${
-                    idx === current ? 'bg-white' : 'bg-white/40 group-hover:bg-white/70'
+      <div className="container mx-auto px-4 sm:px-6">
+        <div className="relative overflow-hidden rounded-[1.75rem] sm:rounded-[2rem] border border-border/40 bg-stone-100 shadow-2xl shadow-black/[0.06] dark:border-white/[0.08] dark:bg-neutral-900 dark:shadow-black/40">
+          {/* Slide media + content */}
+          <div className="relative min-h-[420px] sm:min-h-[480px] lg:min-h-[560px]">
+            {slides.map((banner, index) => {
+              const isActive = index === current;
+              return (
+                <div
+                  key={banner.id ?? index}
+                  className={`absolute inset-0 transition-all duration-1000 ease-out ${
+                    isActive ? 'z-10 opacity-100' : 'z-0 opacity-0'
                   }`}
-                />
-                {idx === current && (
-                  <span className="absolute inset-y-0 right-0 w-full origin-right animate-[heroProgress_6s_linear] rounded-full bg-white/40" />
-                )}
-              </button>
-            ))}
+                  aria-hidden={!isActive}
+                >
+                  <img
+                    src={banner.image}
+                    alt=""
+                    className={`absolute inset-0 h-full w-full object-cover transition-transform ease-out ${
+                      isActive ? 'scale-105' : 'scale-100'
+                    }`}
+                    style={{ transitionDuration: '8s' }}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                  {/* Soft light wash (premium lifestyle look) */}
+                  <div className="absolute inset-0 z-[1] bg-gradient-to-l from-transparent via-stone-100/40 to-stone-100/95 dark:via-neutral-950/50 dark:to-neutral-950/95" />
+                  <div className="absolute inset-0 z-[1] bg-gradient-to-t from-stone-100/80 via-transparent to-stone-100/20 dark:from-neutral-950/90 dark:to-transparent" />
+                </div>
+              );
+            })}
+
+            {/* Content */}
+            <div className="relative z-20 flex h-full min-h-[420px] items-center sm:min-h-[480px] lg:min-h-[560px]">
+              <div className="w-full p-6 pb-28 sm:p-10 sm:pb-32 lg:p-14 lg:pb-36">
+                <div key={current} className="max-w-xl animate-fade-in-up">
+                  {/* ✅ Wrapper والد - همه محتوا 20px جلوتر می‌آیند */}
+                  <div
+                    style={{
+                      transform: 'translateX(-20px)',
+                      willChange: 'transform',
+                    }}
+                  >
+                    {/* Badge شماره اسلاید */}
+                    <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-black/5 bg-white/70 px-3.5 py-1.5 text-xs font-semibold text-foreground shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-white/10 dark:text-white sm:mb-5">
+                      <Sparkles className="h-3.5 w-3.5 text-amber-500 dark:text-amber-300" />
+                      <span className="tracking-wide">
+                        {slides.length > 1
+                          ? `${(current + 1).toLocaleString('fa-IR')} / ${slides.length.toLocaleString('fa-IR')}`
+                          : 'کالکشن ویژه'}
+                      </span>
+                    </div>
+
+                    {/* عنوان */}
+                    <h1 className="mb-4 text-3xl font-black leading-[1.15] tracking-tight text-foreground dark:text-white sm:mb-5 sm:text-4xl md:text-5xl lg:text-6xl">
+                      {active.title}
+                    </h1>
+
+                    {/* subtitle - ✅ transform حذف شد */}
+                    {active.subtitle && (
+                      <div className="mb-7 sm:mb-9">
+                        <div className="inline-flex items-center gap-2 rounded-2xl border border-black/5 bg-white/70 px-4 py-2 text-sm font-semibold text-neutral-900 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-white/10 dark:text-white">
+                          <Sparkles className="h-4 w-4 text-amber-500 dark:text-amber-300" />
+                          <span className="leading-relaxed">{active.subtitle}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* دکمه‌ها */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      {active.link && (
+                        <Button
+                          asChild
+                          size="lg"
+                          className="group h-11 rounded-2xl bg-neutral-900 px-6 text-sm font-bold text-white shadow-lg transition-all duration-300 hover:-translate-y-0.5 hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-white/95 sm:h-12 sm:px-7 sm:text-base"
+                        >
+                          <Link to={active.link} className="flex items-center gap-2">
+                            {active.button_text || 'مشاهده محصولات'}
+                            <ArrowLeft className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-1" />
+                          </Link>
+                        </Button>
+                      )}
+                      <Button
+                        asChild
+                        size="lg"
+                        variant="outline"
+                        className="h-11 rounded-2xl border-border/60 bg-white/60 px-6 text-sm font-bold backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/90 dark:border-white/20 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 sm:h-12 sm:px-7 sm:text-base"
+                      >
+                        <Link to="/new-arrivals">کالکشن جدید</Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Nav arrows */}
+            {slides.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={prev}
+                  className="group absolute right-3 top-1/2 z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-2xl border border-black/5 bg-white/70 text-foreground shadow-lg backdrop-blur-md transition-all duration-300 hover:bg-white dark:border-white/10 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 sm:right-5 sm:h-11 sm:w-11"
+                  aria-label="اسلاید قبلی"
+                >
+                  <ChevronRight className="h-5 w-5 transition-transform group-hover:scale-110" />
+                </button>
+                <button
+                  type="button"
+                  onClick={next}
+                  className="group absolute left-3 top-1/2 z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-2xl border border-black/5 bg-white/70 text-foreground shadow-lg backdrop-blur-md transition-all duration-300 hover:bg-white dark:border-white/10 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 sm:left-5 sm:h-11 sm:w-11"
+                  aria-label="اسلاید بعدی"
+                >
+                  <ChevronLeft className="h-5 w-5 transition-transform group-hover:scale-110" />
+                </button>
+
+                <div className="absolute bottom-[5.5rem] left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 sm:bottom-28">
+                  {slides.map((_, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => goTo(idx)}
+                      className="group relative h-1.5 overflow-hidden rounded-full transition-all duration-500"
+                      style={{ width: idx === current ? 28 : 7 }}
+                      aria-label={`اسلاید ${idx + 1}`}
+                      aria-current={idx === current}
+                    >
+                      <span
+                        className={`absolute inset-0 rounded-full transition-colors ${
+                          idx === current
+                            ? 'bg-neutral-900 dark:bg-white'
+                            : 'bg-neutral-900/25 group-hover:bg-neutral-900/50 dark:bg-white/35 dark:group-hover:bg-white/60'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
-        </>
-      )}
 
-      {/* Scroll indicator */}
-      <button
-        type="button"
-        onClick={() => {
-          const h = sectionRef.current?.offsetHeight;
-          if (h) window.scrollTo({ top: h, behavior: 'smooth' });
-        }}
-        className="absolute bottom-8 right-6 z-30 hidden flex-col items-center gap-2 text-white/50 transition-colors hover:text-white/80 sm:flex"
-        aria-label="اسکرول به پایین"
-      >
-        <span className="text-[10px] font-medium tracking-widest [writing-mode:vertical-rl]">
-          اسکرول
-        </span>
-        <div className="flex h-10 w-6 items-start justify-center rounded-full border border-white/25 p-1.5">
-          <div className="h-2 w-1 animate-bounce rounded-full bg-white/70" />
+          {/* Glassmorphism feature strip — bottom of banner card */}
+          <div className="absolute inset-x-2 bottom-2 z-30 sm:inset-x-5 sm:bottom-4 lg:inset-x-6">
+            <div className="overflow-hidden rounded-xl sm:rounded-2xl border border-white/60 bg-white/80 shadow-lg shadow-black/[0.04] backdrop-blur-2xl dark:border-white/15 dark:bg-neutral-900/80 dark:shadow-black/30">
+              {/* Mobile: compact 2x2 grid | Desktop: 4-column row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-neutral-200/70 dark:divide-white/10">
+                {stripFeatures.map((f) => {
+                  const IconComp =
+                    DEFAULT_FEATURE_ICONS[f.icon] || Truck;
+                  return (
+                    <div
+                      key={f.id}
+                      className="flex items-center gap-2 px-2.5 py-2.5 sm:justify-center sm:gap-3 sm:px-5 sm:py-4"
+                    >
+                      <div
+                        className={`flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg sm:rounded-xl ${
+                          f.bg_color || 'bg-neutral-900/10 dark:bg-white/10'
+                        }`}
+                      >
+                        <IconComp
+                          className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${
+                            f.color || 'text-neutral-700 dark:text-white'
+                          }`}
+                        />
+                      </div>
+                      <div className="min-w-0 text-right sm:text-center">
+                        <p className="truncate text-xs sm:text-sm font-bold tracking-tight text-neutral-900 dark:text-white">
+                          {f.title}
+                        </p>
+                        <p className="mt-0.5 truncate text-[10px] sm:text-[11px] text-neutral-900 dark:text-white/70">
+                          {f.description}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
-      </button>
-
-      {/* Decorative corner mark */}
-      <div className="pointer-events-none absolute left-6 top-6 z-20 hidden items-center gap-2 text-white/40 sm:flex" aria-hidden>
-        <MousePointer2 className="h-3.5 w-3.5" />
-        <span className="text-[10px] font-medium tracking-wider">تجربه تعاملی</span>
       </div>
     </section>
   );

@@ -61,6 +61,7 @@ export const productsAPI = {
   getStyles: () => api.get('/products/styles/'),
   getStyle: (slug) => api.get(`/products/styles/${slug}/`),
   getRecommendations: (params) => api.get('/products/recommendations/', { params }),
+  getMaxPrice: () => api.get('/products/max-price/'),
   // Wishlist
   getWishlist: () => api.get('/products/wishlist/'),
   addToWishlist: (productId) => api.post('/products/wishlist/', { product_id: productId }),
@@ -76,6 +77,7 @@ export const pagesAPI = {
   getTestimonials: () => api.get('/pages/testimonials/'),
   submitTestimonial: (data) => api.post('/pages/testimonials/', data),
   getFeatures: () => api.get('/pages/features/'),
+  getAboutStats: () => api.get('/pages/about-stats/'),
 };
 
 // Cart API
@@ -85,6 +87,7 @@ export const cartAPI = {
   updateCartItem: (data) => api.put('/cart/update_item/', data),
   removeCartItem: (itemId) => api.delete('/cart/remove_item/', { params: { item_id: itemId } }),
   clearCart: () => api.delete('/cart/clear/'),
+  applyCoupon: (code) => api.post('/cart/apply_coupon/', { code }),
 };
 
 // Orders API
@@ -101,11 +104,15 @@ export const ordersAPI = {
 // Blog API
 export const blogAPI = {
   getPosts: (params) => api.get('/blog/posts/', { params }),
-  getPost: (id) => api.get(`/blog/posts/${id}/`),
+  getPost: (slug) => api.get(`/blog/posts/${encodeURIComponent(slug)}/`),
   getCategories: () => api.get('/blog/categories/'),
 };
 
-// Payments API
+// Welcome Offer API
+export const welcomeOfferAPI = {
+  getOffer: () => api.get('/orders/welcome-offer/'),
+  claimOffer: () => api.post('/orders/welcome-offer/claim/'),
+};
 export const paymentsAPI = {
   initiate: (data) => api.post('/payments/initiate/', data),
   getStatus: (paymentId) => api.get(`/payments/${paymentId}/status/`),

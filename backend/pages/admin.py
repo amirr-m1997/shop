@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import FAQ, ContactInfo, ContactMessage, LookbookItem, SiteSettings, Testimonial, SiteFeature
+from .models import FAQ, ContactInfo, ContactMessage, SiteSettings, Testimonial, SiteFeature
 
 
 @admin.register(FAQ)
@@ -21,17 +21,6 @@ class ContactMessageAdmin(admin.ModelAdmin):
     list_filter = ['is_read', 'created_at']
     list_editable = ['is_read']
 
-
-@admin.register(LookbookItem)
-class LookbookItemAdmin(admin.ModelAdmin):
-    list_display = ['title', 'order', 'is_active', 'has_image']
-    list_editable = ['order', 'is_active']
-    list_filter = ['is_active']
-    fields = ['title', 'description', 'image', 'image_url', 'order', 'is_active']
-
-    @admin.display(description='تصویر', boolean=True)
-    def has_image(self, obj):
-        return bool(obj.image or obj.image_url)
 
 
 @admin.register(SiteSettings)

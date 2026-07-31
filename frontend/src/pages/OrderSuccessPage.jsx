@@ -1,13 +1,15 @@
 import React from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CheckCircle, ArrowLeft, Hash, Copy } from 'lucide-react';
+import { CheckCircle, ArrowLeft, Hash, Copy, Clock } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
+import CountdownTimer from '../components/CountdownTimer';
 
 const OrderSuccessPage = () => {
   const [searchParams] = useSearchParams();
   const refId = searchParams.get('ref_id');
   const orderNumber = searchParams.get('order_number');
+  const expiresAt = searchParams.get('expires_at');
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text).catch(() => {});
@@ -52,16 +54,29 @@ const OrderSuccessPage = () => {
             </div>
           )}
 
+          {expiresAt && (
+            <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+              <p className="text-sm text-muted-foreground mb-2">زمان رزرو محصولات</p>
+              <div className="flex items-center justify-center gap-2">
+                <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <CountdownTimer expiresAt={expiresAt} />
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                لطفاً هرچه سریع‌تر نسبت به پرداخت اقدام کنید. پس از اتمام این زمان، سفارش شما به‌صورت خودکار لغو می‌شود.
+              </p>
+            </div>
+          )}
+
           <p className="text-muted-foreground mt-4 mb-8 text-sm">
             یک ایمیل تایید به آدرس ایمیل شما ارسال خواهد شد.
           </p>
-          <div className="flex gap-4 justify-center">
-            <Button asChild>
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
+            <Button asChild className="w-full sm:w-auto">
               <Link to="/orders">
                 مشاهده سفارشات <ArrowLeft className="h-4 w-4 mr-2" />
               </Link>
             </Button>
-            <Button asChild variant="outline">
+            <Button asChild variant="outline" className="w-full sm:w-auto">
               <Link to="/products">ادامه خرید</Link>
             </Button>
           </div>

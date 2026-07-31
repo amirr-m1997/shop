@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Instagram, Mail, Phone, MapPin, Send, CheckCircle, ChevronLeft } from 'lucide-react';
+import { Instagram, Mail, Phone, MapPin, Send, CheckCircle, ChevronLeft, ChevronDown } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { pagesAPI } from '../services/api';
@@ -16,6 +16,37 @@ const Twitter = ({ className }) => (
     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
   </svg>
 );
+
+/* ── Accordion Section for Mobile ── */
+const FooterAccordion = ({ title, defaultOpen = false, children }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border-b border-border last:border-b-0 lg:border-b-0">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between py-4 text-right lg:hidden"
+        aria-expanded={open}
+      >
+        <span className="text-base font-bold">{title}</span>
+        <ChevronDown
+          className={`h-4 w-4 text-muted-foreground transition-transform duration-300 ${
+            open ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+      {/* Desktop: always visible title */}
+      <h4 className="hidden lg:block font-bold mb-4 text-lg">{title}</h4>
+      {/* Mobile: collapsible | Desktop: always visible */}
+      <div
+        className={`overflow-hidden transition-all duration-300 ease-in-out lg:!max-h-none lg:!opacity-100 ${
+          open ? 'max-h-[500px] opacity-100 pb-4' : 'max-h-0 opacity-0'
+        }`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+};
 
 const Footer = () => {
   const [email, setEmail] = useState('');
@@ -61,27 +92,44 @@ const Footer = () => {
   const telegramUrl = contactInfo?.telegram_url || '#';
   const twitterUrl = contactInfo?.twitter_url || '#';
 
+  const quickLinks = [
+    { to: '/', label: 'خانه' },
+    { to: '/products', label: 'فروشگاه' },
+    { to: '/new-arrivals', label: 'جدیدترین‌ها' },
+    { to: '/sale', label: 'تخفیف‌ها' },
+    { to: '/size-finder', label: 'راهنمای سایز' },
+    { to: '/blog', label: 'مجله مد' },
+  ];
+
+  const serviceLinks = [
+    { to: '/contact', label: 'تماس با ما' },
+    { to: '/shipping', label: 'اطلاعات ارسال' },
+    { to: '/returns', label: 'بازگشت کالا' },
+    { to: '/faq', label: 'سوالات متداول' },
+    { to: '/about', label: 'درباره ما' },
+  ];
+
   return (
     <footer className="bg-background text-foreground border-t border-border">
       {/* Newsletter Banner */}
       <div className="border-b border-border">
-        <div className="container mx-auto px-4 py-10">
+        <div className="container mx-auto px-4 py-8 sm:py-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div>
-              <h3 className="text-xl font-bold mb-1">عضویت در خبرنامه</h3>
+            <div className="text-center md:text-right">
+              <h3 className="text-lg sm:text-xl font-bold mb-1">عضویت در خبرنامه</h3>
               <p className="text-sm text-muted-foreground">برای دریافت آخرین اخبار و پیشنهادات ویژه</p>
             </div>
-            <form onSubmit={handleSubscribe} className="flex gap-2 w-full md:w-auto">
+            <form onSubmit={handleSubscribe} className="flex gap-2 w-full md:w-auto max-w-md md:max-w-none">
               <Input
                 type="email"
                 placeholder="ایمیل خود را وارد کنید"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-muted border-border text-foreground placeholder:text-muted-foreground focus:border-primary md:w-72"
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground focus:border-primary flex-1 md:w-72"
               />
               <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold shrink-0">
                 {subscribed ? <CheckCircle className="h-4 w-4" /> : <Send className="h-4 w-4 ml-1" />}
-                {subscribed ? 'عضو شدید!' : 'عضویت'}
+                <span className="hidden sm:inline">{subscribed ? 'عضو شدید!' : 'عضویت'}</span>
               </Button>
             </form>
           </div>
@@ -89,12 +137,12 @@ const Footer = () => {
       </div>
 
       {/* Main Footer */}
-      <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {/* Brand */}
-          <div>
-            <h3 className="text-2xl font-black mb-4">{siteName}</h3>
-            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+      <div className="container mx-auto px-4 py-8 sm:py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-0 lg:gap-8">
+          {/* Brand — always visible */}
+          <div className="pb-6 lg:pb-0">
+            <h3 className="text-xl sm:text-2xl font-black mb-3 lg:mb-4">{siteName}</h3>
+            <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
               {siteDesc}
             </p>
             <div className="flex gap-3">
@@ -119,53 +167,37 @@ const Footer = () => {
             </div>
           </div>
 
-          {/* Quick Links */}
-          <div>
-            <h4 className="font-bold mb-4 text-lg">دسترسی سریع</h4>
-            <ul className="space-y-3">
-              {[
-                { to: '/', label: 'خانه' },
-                { to: '/products', label: 'فروشگاه' },
-                { to: '/new-arrivals', label: 'جدیدترین‌ها' },
-                { to: '/sale', label: 'تخفیف‌ها' },
-                { to: '/size-finder', label: 'راهنمای سایز' },
-                { to: '/blog', label: 'مجله مد' },
-              ].map((link, i) => (
+          {/* Quick Links — accordion on mobile */}
+          <FooterAccordion title="دسترسی سریع">
+            <ul className="space-y-2.5 lg:space-y-3">
+              {quickLinks.map((link, i) => (
                 <li key={i}>
-                  <Link to={link.to} className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2 group">
+                  <Link to={link.to} className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2 group py-1">
                     <ChevronLeft className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                     {link.label}
                   </Link>
                 </li>
               ))}
             </ul>
-          </div>
+          </FooterAccordion>
 
-          {/* Customer Service */}
-          <div>
-            <h4 className="font-bold mb-4 text-lg">خدمات مشتریان</h4>
-            <ul className="space-y-3">
-              {[
-                { to: '/contact', label: 'تماس با ما' },
-                { to: '/shipping', label: 'اطلاعات ارسال' },
-                { to: '/returns', label: 'بازگشت کالا' },
-                { to: '/faq', label: 'سوالات متداول' },
-                { to: '/about', label: 'درباره ما' },
-              ].map((link, i) => (
+          {/* Customer Service — accordion on mobile */}
+          <FooterAccordion title="خدمات مشتریان">
+            <ul className="space-y-2.5 lg:space-y-3">
+              {serviceLinks.map((link, i) => (
                 <li key={i}>
-                  <Link to={link.to} className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2 group">
+                  <Link to={link.to} className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2 group py-1">
                     <ChevronLeft className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                     {link.label}
                   </Link>
                 </li>
               ))}
             </ul>
-          </div>
+          </FooterAccordion>
 
-          {/* Contact */}
-          <div>
-            <h4 className="font-bold mb-4 text-lg">تماس با ما</h4>
-            <ul className="space-y-4">
+          {/* Contact — accordion on mobile */}
+          <FooterAccordion title="تماس با ما">
+            <ul className="space-y-3.5 lg:space-y-4">
               <li className="flex items-start gap-3">
                 <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center shrink-0 mt-0.5">
                   <Phone className="h-4 w-4" />
@@ -194,14 +226,14 @@ const Footer = () => {
                 </div>
               </li>
             </ul>
-          </div>
+          </FooterAccordion>
         </div>
       </div>
 
       {/* Copyright */}
       <div className="border-t border-border">
         <div className="container mx-auto px-4 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground text-center sm:text-right">
             &copy; {currentYearJalali.toLocaleString('fa-IR')} {siteName}. تمامی حقوق محفوظ است.
           </p>
           <div className="flex items-center gap-4 text-sm text-muted-foreground">

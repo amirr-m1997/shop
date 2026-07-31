@@ -17,6 +17,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { productsAPI } from '../services/api';
+import CartDrawer from './CartDrawer';
 
 const Header = () => {
   const { theme, toggleTheme } = useTheme();
@@ -30,8 +31,10 @@ const Header = () => {
   const [navCategories, setNavCategories] = useState([]);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [mobileExpandedCat, setMobileExpandedCat] = useState(null);
+  const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const searchInputRef = useRef(null);
   const dropdownRef = useRef(null);
+  const searchDebounceRef = useRef(null);
 
   const cartItemsCount = cart?.total_items || 0;
 
@@ -69,6 +72,18 @@ const Header = () => {
       navigate(`/products?search=${encodeURIComponent(q)}`);
       setSearchOpen(false);
       setSearchQuery('');
+    }
+  };
+
+  const handleSearchChange = (e) => {
+    const q = e.target.value;
+    setSearchQuery(q);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (q.trim().length >= 2) {
+      searchDebounceRef.current = setTimeout(() => {
+        navigate(`/products?search=${encodeURIComponent(q.trim())}`);
+        setSearchQuery('');
+      }, 1000);
     }
   };
 
@@ -148,7 +163,7 @@ const Header = () => {
                   type="text"
                   placeholder="جستجوی محصولات..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={handleSearchChange}
                   className="w-36 lg:w-56 h-9 ps-9 text-sm"
                 />
                 <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -166,16 +181,18 @@ const Header = () => {
             </Button>
 
             {/* Cart */}
-            <Link to="/cart">
-              <Button variant="ghost" size="icon" className="relative">
-                <ShoppingCart className="h-5 w-5" />
-                {cartItemsCount > 0 && (
-                  <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0">
-                    {cartItemsCount}
-                  </Badge>
-                )}
-              </Button>
-            </Link>
+            <button
+              onClick={() => setCartDrawerOpen(true)}
+              data-cart-icon
+              className="relative p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
+              <ShoppingCart className="h-5 w-5" />
+              {cartItemsCount > 0 && (
+                <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0">
+                  {cartItemsCount}
+                </Badge>
+              )}
+            </button>
 
             {/* User Dropdown Menu */}
             {isAuthenticated ? (
@@ -254,7 +271,7 @@ const Header = () => {
                   type="text"
                   placeholder="جستجوی محصولات..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={handleSearchChange}
                   className="w-full h-10 ps-9 text-sm"
                 />
                 <Search className="absolute start-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -364,6 +381,9 @@ const Header = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Cart Drawer */}
+      <CartDrawer isOpen={cartDrawerOpen} onClose={() => setCartDrawerOpen(false)} />
     </header>
   );
 };

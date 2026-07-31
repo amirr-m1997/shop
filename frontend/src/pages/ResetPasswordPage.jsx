@@ -59,11 +59,11 @@ const ResetPasswordPage = () => {
     return (
       <AuthLayout>
         <div className="text-center py-8">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-green-500/10">
-            <CheckCircle className="h-8 w-8 text-green-400" />
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
+            <CheckCircle className="h-8 w-8 text-emerald-500" />
           </div>
-          <h2 className="mt-4 text-2xl font-bold text-slate-100">رمز عبور با موفقیت تغییر کرد</h2>
-          <p className="mt-2 text-sm text-slate-400">در حال انتقال به صفحه اصلی...</p>
+          <h2 className="mt-5 text-xl font-black text-foreground">رمز عبور با موفقیت تغییر کرد</h2>
+          <p className="mt-2 text-sm text-muted-foreground">در حال انتقال به صفحه اصلی...</p>
         </div>
       </AuthLayout>
     );
@@ -75,9 +75,9 @@ const ResetPasswordPage = () => {
       subtitle="رمز عبور جدید خود را وارد کنید"
       showBack
     >
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
-          <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+          <div className="rounded-2xl bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive backdrop-blur-sm">
             {error}
           </div>
         )}
@@ -94,7 +94,7 @@ const ResetPasswordPage = () => {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="text-slate-500 hover:text-slate-300 transition-colors"
+              className="text-muted-foreground/50 hover:text-foreground transition-colors"
               tabIndex={-1}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -115,18 +115,18 @@ const ResetPasswordPage = () => {
         <button
           type="submit"
           disabled={loading}
-          className="relative w-full rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 py-3 px-4 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-indigo-700 hover:shadow-xl hover:shadow-blue-500/30 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="relative w-full rounded-2xl bg-neutral-900 py-3.5 px-4 text-sm font-bold text-white shadow-lg shadow-neutral-900/15 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-neutral-900/20 hover:bg-neutral-800 disabled:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed dark:bg-white dark:text-neutral-900 dark:shadow-white/10 dark:hover:bg-white/95 dark:hover:shadow-white/20"
         >
           {loading && (
             <div className="absolute left-4 top-1/2 -translate-y-1/2">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white dark:border-neutral-900/30 dark:border-t-neutral-900" />
             </div>
           )}
           {loading ? 'در حال بازیابی...' : 'بازیابی رمز عبور'}
         </button>
 
-        <p className="text-center text-sm text-slate-400">
-          <Link to="/login" className="text-blue-400 hover:text-blue-300 transition-colors">
+        <p className="text-center text-sm text-muted-foreground">
+          <Link to="/login" className="text-primary/80 hover:text-primary font-medium transition-colors">
             بازگشت به صفحه ورود
           </Link>
         </p>

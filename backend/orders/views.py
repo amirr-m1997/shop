@@ -3,14 +3,17 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.db import transaction
+from django.utils import timezone
 from decimal import Decimal
+from datetime import timedelta
 from django.db.models import F
 
-from .models import ShippingAddress, Order, OrderItem
+from .models import ShippingAddress, Order, OrderItem, Coupon, CouponUsage, WelcomeClaim
 from .serializers import (
     ShippingAddressSerializer,
     OrderSerializer,
     CreateOrderSerializer,
+    WelcomeOfferSerializer,
 )
 from cart.models import Cart, CartItem
 from pages.models import SiteSettings
@@ -54,6 +57,16 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        # auto-cancel expired unpaid orders
+        expired = Order.objects.filter(
+            user=self.request.user,
+            expires_at__lt=timezone.now(),
+            status__in=['pending', 'processing'],
+            payment_status='unpaid',
+        )
+        for order in expired:
+            order.cancel_if_expired()
+
         return Order.objects.filter(user=self.request.user).prefetch_related(
             'items__product'
         )
@@ -115,10 +128,25 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
 
         site_settings = SiteSettings.load()
         shipping_cost = site_settings.calculate_shipping(subtotal)
-        total = subtotal + shipping_cost
+        discount = Decimal('0')
+
+        # اعمال کوپن تخفیف
+        coupon_code = serializer.validated_data.get('coupon_code', '')
+        coupon = None
+        if coupon_code:
+            try:
+                coupon = Coupon.objects.get(code=coupon_code, is_active=True)
+                valid, msg = coupon.is_valid(user=request.user)
+                if valid:
+                    discount = coupon.apply_discount(subtotal)
+            except Coupon.DoesNotExist:
+                pass
+
+        total = subtotal + shipping_cost - discount
+        if total < 0:
+            total = Decimal('0')
 
         with transaction.atomic():
-            # ایجاد سفارش
             order = Order.objects.create(
                 user=request.user,
                 shipping_address=shipping_address,
@@ -126,24 +154,25 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
                 subtotal=subtotal,
                 shipping_cost=shipping_cost,
                 tax=0,
-                discount=0,
+                discount=discount,
                 total=total,
                 notes=serializer.validated_data.get('notes', ''),
+                expires_at=timezone.now() + timedelta(hours=24),
             )
 
-            # ایجاد آیتم‌های سفارش
             for item_data in order_items_data:
                 OrderItem.objects.create(order=order, **item_data)
-                # کاهش موجودی (اتمیک)
                 product = item_data['product']
                 Product.objects.filter(id=product.id).update(stock=F('stock') - item_data['quantity'])
 
-            # کاهش موجودی واریانت‌ها
             for item in cart_items:
                 if item.variant:
                     ProductVariant.objects.filter(id=item.variant.id).update(stock=F('stock') - item.quantity)
 
-            # خالی کردن سبد خرید
+            if coupon:
+                CouponUsage.objects.create(coupon=coupon, user=request.user, order=order)
+                Coupon.objects.filter(id=coupon.id).update(used_count=F('used_count') + 1)
+
             cart_items.delete()
 
         return Response(
@@ -177,3 +206,65 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             {'message': 'سفارش با موفقیت لغو شد.', 'order': OrderSerializer(order).data},
             status=status.HTTP_200_OK
         )
+
+
+class WelcomeOfferViewSet(viewsets.ViewSet):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def list(self, request):
+        """بررسی وجود هدیه خوش‌آمدگویی برای کاربر"""
+        coupon = Coupon.objects.filter(
+            is_welcome_offer=True,
+            is_active=True,
+            valid_from__lte=timezone.now(),
+            valid_until__gte=timezone.now(),
+        ).first()
+
+        if not coupon:
+            return Response({'available': False, 'offer': None})
+
+        already_claimed = WelcomeClaim.objects.filter(user=request.user, coupon=coupon).exists()
+
+        if already_claimed:
+            return Response({'available': False, 'offer': None})
+
+        return Response({
+            'available': True,
+            'offer': {
+                'code': coupon.code,
+                'discount_type': coupon.discount_type,
+                'value': str(coupon.value),
+                'discount_display': f"{coupon.value:,.0f}٪" if coupon.discount_type == 'percentage' else f"{coupon.value:,.0f} تومان",
+                'claimed': False,
+            }
+        })
+
+    @action(detail=False, methods=['post'])
+    def claim(self, request):
+        """ثبت دریافت هدیه خوش‌آمدگویی"""
+        coupon = Coupon.objects.filter(
+            is_welcome_offer=True,
+            is_active=True,
+            valid_from__lte=timezone.now(),
+            valid_until__gte=timezone.now(),
+        ).first()
+
+        if not coupon:
+            return Response(
+                {'error': 'هدیه خوش‌آمدگویی در حال حاضر موجود نیست.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if WelcomeClaim.objects.filter(user=request.user, coupon=coupon).exists():
+            return Response(
+                {'error': 'شما قبلاً این هدیه را دریافت کرده‌اید.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        WelcomeClaim.objects.create(user=request.user, coupon=coupon)
+
+        return Response({
+            'success': True,
+            'message': 'هدیه خوش‌آمدگویی با موفقیت دریافت شد.',
+            'code': coupon.code,
+        })

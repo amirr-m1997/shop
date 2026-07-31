@@ -39,29 +39,29 @@ const ForgotPasswordPage = () => {
       subtitle="ایمیل خود را وارد کنید تا لینک بازیابی برایتان ارسال شود"
       showBack
     >
-      <div className="space-y-6">
+      <div className="space-y-5">
         {error && (
-          <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+          <div className="rounded-2xl bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive backdrop-blur-sm">
             {error}
           </div>
         )}
 
         {message && (
           <div className="space-y-4">
-            <div className="rounded-xl bg-green-500/10 border border-green-500/20 px-4 py-3 text-sm text-green-400 flex items-center gap-3">
+            <div className="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-3 backdrop-blur-sm">
               <CheckCircle className="h-5 w-5 flex-shrink-0" />
               {message}
             </div>
 
             {resetToken && (
-              <div className="rounded-xl bg-slate-800/50 border border-slate-700 p-4">
-                <p className="text-sm font-medium text-slate-300 mb-2">توکن بازیابی (برای تست):</p>
-                <code className="text-xs break-all block p-2 bg-slate-900 rounded-lg border border-slate-700 text-blue-300" dir="ltr">
+              <div className="rounded-2xl border border-border/60 bg-background/60 p-5 backdrop-blur-sm dark:border-white/[0.08]">
+                <p className="text-sm font-bold text-foreground mb-2">توکن بازیابی (برای تست):</p>
+                <code className="text-xs break-all block p-3 rounded-xl bg-muted/60 border border-border/40 text-primary font-mono" dir="ltr">
                   {resetToken}
                 </code>
                 <button
                   onClick={() => navigate('/reset-password', { state: { token: resetToken } })}
-                  className="mt-3 w-full rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 py-2.5 px-4 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-indigo-700"
+                  className="mt-4 w-full rounded-2xl bg-neutral-900 py-3 px-4 text-sm font-bold text-white shadow-lg shadow-neutral-900/15 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:shadow-white/10 dark:hover:bg-white/95"
                 >
                   بازیابی رمز عبور
                   <ArrowRight className="h-4 w-4 mr-1 inline-block" />
@@ -70,7 +70,7 @@ const ForgotPasswordPage = () => {
             )}
 
             <Link to="/login">
-              <button className="w-full rounded-xl border border-slate-700 py-2.5 px-4 text-sm font-medium text-slate-300 transition-all duration-200 hover:bg-slate-800/50">
+              <button className="w-full rounded-2xl border border-border/60 bg-background/60 py-3 px-4 text-sm font-medium text-foreground transition-all duration-300 hover:bg-muted/40 backdrop-blur-sm dark:border-white/[0.08]">
                 بازگشت به صفحه ورود
               </button>
             </Link>
@@ -78,7 +78,7 @@ const ForgotPasswordPage = () => {
         )}
 
         {!message && (
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <AuthInput
               label="ایمیل"
               icon={Mail}
@@ -92,18 +92,18 @@ const ForgotPasswordPage = () => {
             <button
               type="submit"
               disabled={loading}
-              className="relative w-full rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 py-3 px-4 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-indigo-700 hover:shadow-xl hover:shadow-blue-500/30 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="relative w-full rounded-2xl bg-neutral-900 py-3.5 px-4 text-sm font-bold text-white shadow-lg shadow-neutral-900/15 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-neutral-900/20 hover:bg-neutral-800 disabled:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed dark:bg-white dark:text-neutral-900 dark:shadow-white/10 dark:hover:bg-white/95 dark:hover:shadow-white/20"
             >
               {loading && (
                 <div className="absolute left-4 top-1/2 -translate-y-1/2">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white dark:border-neutral-900/30 dark:border-t-neutral-900" />
                 </div>
               )}
               {loading ? 'در حال ارسال...' : 'ارسال لینک بازیابی'}
             </button>
 
-            <p className="text-center text-sm text-slate-400">
-              <Link to="/login" className="text-blue-400 hover:text-blue-300 transition-colors">
+            <p className="text-center text-sm text-muted-foreground">
+              <Link to="/login" className="text-primary/80 hover:text-primary font-medium transition-colors">
                 بازگشت به صفحه ورود
               </Link>
             </p>

@@ -82,27 +82,6 @@ class ContactMessage(models.Model):
         return f"{self.name} - {self.email}"
 
 
-class LookbookItem(models.Model):
-    title = models.CharField(max_length=200, verbose_name="عنوان")
-    description = models.TextField(verbose_name="توضیحات")
-    image = models.ImageField(upload_to='lookbook/', null=True, blank=True, verbose_name="تصویر")
-    image_url = models.URLField(blank=True, verbose_name="آدرس تصویر (جایگزین)")
-    order = models.PositiveIntegerField(default=0, verbose_name="ترتیب")
-    is_active = models.BooleanField(default=True, verbose_name="فعال")
-
-    class Meta:
-        verbose_name = "آیتم کتاب استایل"
-        verbose_name_plural = "آیتم‌های کتاب استایل"
-        ordering = ['order']
-
-    def __str__(self):
-        return self.title
-
-    @property
-    def display_image(self):
-        if self.image:
-            return self.image.url
-        return self.image_url or ''
 
 
 class SiteSettings(models.Model):
@@ -193,3 +172,26 @@ class SiteFeature(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class CustomerSatisfaction(models.Model):
+    value = models.PositiveIntegerField(default=98, verbose_name="درصد رضایت")
+    title = models.CharField(max_length=200, default="رضایت مشتریان", verbose_name="عنوان")
+    description = models.TextField(blank=True, default="بر اساس نظرات و امتیازات ثبت شده توسط مشتریان", verbose_name="توضیحات")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="تاریخ بروزرسانی")
+
+    class Meta:
+        verbose_name = "رضایت مشتری"
+        verbose_name_plural = "رضایت مشتریان"
+
+    def __str__(self):
+        return f"{self.title}: {self.value}%"
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

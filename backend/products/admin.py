@@ -1,10 +1,12 @@
 from django.contrib import admin
+from django.contrib.admin import widgets as admin_widgets
 from django import forms
 from django.conf import settings
 from django.utils.html import format_html
 from .models import (
     Category, Brand, Size, Color, Fabric, Product, ProductImage,
     ProductVariant, Review, SizeGuide, HomepageSection, Banner, StyleLook, Wishlist,
+    sizes_for_category,
 )
 
 try:
@@ -27,12 +29,53 @@ class ProductImageInline(admin.TabularInline):
     verbose_name_plural = "تصاویر محصول"
 
 
+class ProductVariantForm(forms.ModelForm):
+    class Meta:
+        model = ProductVariant
+        fields = '__all__'
+
+
 class ProductVariantInline(admin.TabularInline):
     model = ProductVariant
+    form = ProductVariantForm
     extra = 1
     verbose_name = "واریانت محصول"
     verbose_name_plural = "واریانت‌های محصول"
     fields = ['size', 'color', 'stock', 'price_adjustment', 'sku']
+
+    def get_formset(self, request, obj=None, **kwargs):
+        """
+        Filter size choices by product category inheritance:
+        sizes on the product category or any parent (root) category.
+        Always keep the currently selected size visible, and fall back to all
+        sizes if the category lineage has none defined.
+        """
+        category = obj.category if obj and getattr(obj, 'category_id', None) else None
+
+        class BoundVariantForm(ProductVariantForm):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                extra_ids = []
+                if self.instance and self.instance.pk and self.instance.size_id:
+                    extra_ids.append(self.instance.size_id)
+                # POST redisplay: keep submitted size even if category just changed
+                if self.data:
+                    prefix = self.prefix
+                    raw = self.data.get(f'{prefix}-size') if prefix else self.data.get('size')
+                    if raw and str(raw).isdigit():
+                        extra_ids.append(int(raw))
+                self.fields['size'].queryset = sizes_for_category(
+                    category,
+                    extra_size_ids=extra_ids,
+                    fallback_all=True,
+                )
+                self.fields['size'].help_text = (
+                    'سایزها از دسته‌بندی محصول و والدهای آن ارث‌بری می‌شوند. '
+                    'اگر برای این دسته سایزی تعریف نشده باشد، همه سایزها نمایش داده می‌شوند.'
+                )
+
+        kwargs['form'] = BoundVariantForm
+        return super().get_formset(request, obj, **kwargs)
 
 
 @admin.register(Category)
@@ -70,16 +113,30 @@ class FabricAdmin(admin.ModelAdmin):
 
 
 class ProductAdminForm(forms.ModelForm):
+    style_looks = forms.ModelMultipleChoiceField(
+        queryset=StyleLook.objects.all(),
+        required=False,
+        label='استایل‌ها',
+        widget=admin_widgets.FilteredSelectMultiple('استایل‌ها', is_stacked=False)
+    )
+
     class Meta:
         model = Product
         fields = '__all__'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Let JS handle category filtering dynamically via API.
-        # Server-side queryset must include all categories so validation
-        # doesn't fail when JS rebuilds the dropdown with different options.
         self.fields['category'].queryset = Category.objects.all()
+        if self.instance.pk:
+            self.fields['style_looks'].initial = self.instance.style_looks.all()
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if commit:
+            instance.save()
+        if instance.pk:
+            instance.style_looks.set(self.cleaned_data['style_looks'])
+        return instance
 
 
 @admin.register(Product)
@@ -126,8 +183,7 @@ class ProductAdmin(admin.ModelAdmin):
 
     @admin.display(description='نام محصول')
     def product_name_link(self, obj):
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-        url = f'{frontend_url}/product/{obj.slug}'
+        url = f'{settings.FRONTEND_URL}/product/{obj.slug}'
         return format_html('<a href="{}" target="_blank">{}</a>', url, obj.name)
 
     @admin.display(description='قیمت اصلی / تخفیف')
@@ -179,7 +235,12 @@ class ProductAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
     class Media:
-        js = ('admin/js/auto_main_category.js', 'admin/js/product-hover.js',)
+        js = (
+            'admin/js/auto_main_category.js',
+            'admin/js/variant_size_filter.js',
+            'admin/js/product-hover.js',
+            'admin/js/product-search.js',
+        )
         css = {'all': ('admin/css/product-hover.css',)}
 
 
@@ -197,6 +258,18 @@ class SizeGuideAdmin(admin.ModelAdmin):
                     'height_min', 'height_max', 'weight_min', 'weight_max']
     list_filter = ['category', 'gender', 'product_type']
     search_fields = ['category__name', 'size__name']
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        # On change form, prefer sizes inherited from the selected guide category
+        if db_field.name == 'size':
+            object_id = request.resolver_match.kwargs.get('object_id') if request.resolver_match else None
+            if object_id:
+                try:
+                    guide = SizeGuide.objects.select_related('category').get(pk=object_id)
+                    kwargs['queryset'] = sizes_for_category(guide.category, extra_size_ids=[guide.size_id])
+                except SizeGuide.DoesNotExist:
+                    pass
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
 @admin.register(HomepageSection)
@@ -218,11 +291,17 @@ class BannerAdmin(admin.ModelAdmin):
 
 @admin.register(StyleLook)
 class StyleLookAdmin(admin.ModelAdmin):
-    list_display = ['title', 'link', 'order', 'is_active']
+    list_display = ['title', 'link', 'order', 'is_active', 'product_count']
     list_filter = ['is_active']
     list_editable = ['order', 'is_active']
     search_fields = ['title', 'description']
     ordering = ['order']
+    filter_horizontal = ['products']
+    readonly_fields = ['product_count']
+
+    @admin.display(description='تعداد محصولات')
+    def product_count(self, obj):
+        return obj.products.count()
 
 
 @admin.register(Wishlist)

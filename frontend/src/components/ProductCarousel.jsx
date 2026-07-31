@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, ArrowLeft, Star } from 'lucide-react';
-import { formatPrice } from '../lib/formatPrice';
-import WishlistButton from './WishlistButton';
-import ShareButton from './ShareButton';
+import { ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react';
+import ProductCard from './ProductCard';
 
 /* Map filter-type tokens → real CSS colors */
 const ACCENT_MAP = {
@@ -18,74 +16,6 @@ const ACCENT_MAP = {
 };
 
 const resolveAccent = (accent) => ACCENT_MAP[accent] || accent || 'hsl(var(--primary))';
-
-/* ─── Premium Product Card ─── */
-const ProductCard = ({ product }) => {
-  const imageUrl =
-    product.primary_image ||
-    product.images?.[0]?.image ||
-    'https://via.placeholder.com/400x500?text=No+Image';
-
-  return (
-    <Link
-      to={`/product/${product.slug}`}
-      className="group relative flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-border/50 bg-card/80 shadow-sm shadow-black/[0.03] backdrop-blur-sm transition-all duration-500 hover:-translate-y-1.5 hover:border-primary/20 hover:shadow-2xl hover:shadow-primary/[0.07]"
-    >
-      {/* Image */}
-      <div className="relative aspect-[3/4] overflow-hidden bg-muted">
-        <img
-          src={imageUrl}
-          alt={product.name}
-          className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
-          loading="lazy"
-          onError={(e) => {
-            e.target.src = 'https://via.placeholder.com/400x500?text=No+Image';
-          }}
-        />
-        {/* Soft bottom fade */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-        {/* Shine sweep */}
-        <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
-
-        {product.discount_percentage > 0 && (
-          <span className="absolute left-3 top-3 z-10 rounded-xl bg-destructive px-2.5 py-1 text-[11px] font-black text-destructive-foreground shadow-lg shadow-destructive/30">
-            −{product.discount_percentage}٪
-          </span>
-        )}
-
-        <div className="absolute right-2.5 top-2.5 z-10 flex flex-col gap-1.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-          <WishlistButton productId={product.id} />
-          <ShareButton product={product} />
-        </div>
-      </div>
-
-      {/* Meta */}
-      <div className="flex flex-1 flex-col p-3.5 sm:p-4">
-        <h3 className="line-clamp-1 text-sm font-bold leading-snug tracking-tight transition-colors group-hover:text-primary">
-          {product.name}
-        </h3>
-
-        <div className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
-          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-          <span className="font-semibold tabular-nums">
-            {product.rating || '0.00'}
-          </span>
-        </div>
-
-        <div className="mt-auto flex flex-wrap items-baseline gap-2 pt-2.5">
-          <span className="text-sm font-black tabular-nums tracking-tight">
-            {formatPrice(product.price)}
-          </span>
-          {product.compare_price && (
-            <span className="text-xs font-medium text-red-500/80 line-through tabular-nums">
-              {formatPrice(product.compare_price)}
-            </span>
-          )}
-        </div>
-      </div>
-    </Link>
-  );
-};
 
 /* ─── Carousel ─── */
 const ProductCarousel = ({
@@ -224,7 +154,7 @@ const ProductCarousel = ({
           </div>
         </div>
 
-        {/* Progress dots (mobile-friendly) */}
+        {/* Progress dots */}
         {maxSlide > 0 && (
           <div className="mt-6 flex items-center justify-center gap-1.5">
             {Array.from({ length: maxSlide + 1 }).map((_, idx) => (

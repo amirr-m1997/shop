@@ -3,7 +3,8 @@ from django.db.models import F, ExpressionWrapper, DecimalField, Sum, IntegerFie
 from django.db.models.functions import Coalesce
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
-
+from django.utils.text import slugify
+import uuid
 
 class Category(models.Model):
     name = models.CharField(max_length=100, verbose_name="نام دسته‌بندی")
@@ -68,6 +69,42 @@ class Size(models.Model):
 
     def __str__(self):
         return f"{self.category.name} - {self.name}"
+
+
+def get_category_ancestor_ids(category):
+    """Return [self, parent, ..., root] category ids for inheritance walks."""
+    ids = []
+    cat = category
+    while cat is not None:
+        ids.append(cat.id)
+        cat = cat.parent
+    return ids
+
+
+def sizes_for_category(category, extra_size_ids=None, fallback_all=True):
+    """
+    Sizes inherited by a product category.
+
+    A size defined on a parent category (e.g. مردانه) is available to all
+    child categories (e.g. تی شرت). If nothing is defined on the lineage and
+    fallback_all is True, return every size so admin is never empty.
+    """
+    extra_size_ids = [sid for sid in (extra_size_ids or []) if sid]
+
+    if category is None:
+        qs = Size.objects.all()
+    else:
+        lineage_ids = get_category_ancestor_ids(category)
+        qs = Size.objects.filter(category_id__in=lineage_ids)
+        if fallback_all and not qs.exists():
+            qs = Size.objects.all()
+
+    if extra_size_ids:
+        qs = Size.objects.filter(
+            Q(pk__in=qs.values_list('pk', flat=True)) | Q(pk__in=extra_size_ids)
+        )
+
+    return qs.select_related('category').order_by('category__name', 'name')
 
 
 class Color(models.Model):
@@ -173,6 +210,13 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+
+    def update_rating(self):
+        from django.db.models import Avg, Count
+        stats = self.reviews.aggregate(avg=Avg('rating'), count=Count('id'))
+        self.rating = round(stats['avg'] or 0, 2)
+        self.review_count = stats['count']
+        self.save(update_fields=['rating', 'review_count'])
 
     @property
     def discount_percentage(self):
@@ -431,10 +475,18 @@ class Banner(models.Model):
 class StyleLook(models.Model):
     """استایل‌های روز / لوک‌بوک صفحه اصلی"""
     title = models.CharField(max_length=150, verbose_name="عنوان")
-    slug = models.SlugField(max_length=150, unique=True, blank=True, verbose_name="اسلاگ")
+    slug = models.SlugField(max_length=150, unique=True, blank=True, allow_unicode=True, verbose_name="اسلاگ")
     description = models.CharField(max_length=300, blank=True, verbose_name="توضیح کوتاه")
     image = models.ImageField(upload_to='styles/', null=True, blank=True, verbose_name="تصویر")
     image_url = models.URLField(blank=True, verbose_name="آدرس تصویر (جایگزین)")
+
+    products = models.ManyToManyField(
+        'Product',  # اسم مدل محصولت رو دقیق بنویس
+        blank=True,
+        related_name='style_looks',
+        verbose_name="محصولات این استایل"
+    )
+
     link = models.CharField(max_length=300, blank=True, default='/products', verbose_name="لینک")
     order = models.PositiveIntegerField(default=0, verbose_name="ترتیب نمایش")
     is_active = models.BooleanField(default=True, verbose_name="فعال")
@@ -450,8 +502,21 @@ class StyleLook(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            import uuid
-            self.slug = f"style-{uuid.uuid4().hex[:8]}"
+            # اول سعی می‌کنه از عنوان اسلاگ بسازه
+            base_slug = slugify(self.title, allow_unicode=True)
+
+            if not base_slug:  # اگر عنوان فقط فارسی بود و اسلاگ خالی شد
+                base_slug = f"style-{uuid.uuid4().hex[:8]}"
+
+            # چک می‌کنه تکراری نباشه
+            slug = base_slug
+            counter = 1
+            while StyleLook.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+
+            self.slug = slug
+
         super().save(*args, **kwargs)
 
     @property
@@ -459,8 +524,6 @@ class StyleLook(models.Model):
         if self.image:
             return self.image.url
         return self.image_url or ''
-
-
 class Wishlist(models.Model):
     """علاقه‌مندی‌های کاربر"""
     user = models.ForeignKey(

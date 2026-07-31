@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { Filter, X, ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
+import { Filter, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { Card, CardContent } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import {
@@ -15,57 +14,13 @@ import {
 import { Slider } from '../components/ui/Slider';
 import { productsAPI } from '../services/api';
 import { formatPrice } from '../lib/formatPrice';
-import WishlistButton from '../components/WishlistButton';
-import ShareButton from '../components/ShareButton';
-
-/* ─── Product Card ─── */
-const ProductCard = ({ product, navigate }) => {
-  const imageUrl = product.primary_image || product.images?.[0]?.image || 'https://via.placeholder.com/400x500?text=No+Image';
-
-  return (
-    <Card
-      className="group cursor-pointer overflow-hidden transition-all hover:shadow-lg"
-      onClick={() => navigate(`/product/${product.slug}`)}
-    >
-      <CardContent className="p-0">
-        <div className="relative aspect-[3/4] overflow-hidden bg-muted">
-          <img
-            src={imageUrl}
-            alt={product.name}
-            className="h-full w-full object-cover transition-transform group-hover:scale-105"
-            onError={(e) => {
-              e.target.src = 'https://via.placeholder.com/400x500?text=No+Image';
-            }}
-          />
-          {product.discount_percentage > 0 && (
-            <Badge className="absolute left-2 top-2 bg-destructive">
-              -{product.discount_percentage}%
-            </Badge>
-          )}
-          <WishlistButton productId={product.id} />
-          <ShareButton product={product} />
-        </div>
-        <div className="p-4">
-          <h3 className="font-semibold truncate">{product.name}</h3>
-          <div className="mt-2 flex items-center gap-2">
-            <span className="font-bold">{formatPrice(product.price)}</span>
-            {product.compare_price && (
-              <span className="text-sm text-red-500 line-through font-medium">
-                {formatPrice(product.compare_price)}
-              </span>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
+import ProductCard from '../components/ProductCard';
 
 /* ─── Collapsible Filter Section ─── */
 const FilterSection = ({ title, defaultOpen = true, children }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border-b border-border pb-4 last:border-b-0 last:pb-0 overflow-visible">
+    <div className="border-b border-white/20 dark:border-white/10 pb-4 last:border-b-0 last:pb-0 overflow-visible">
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -94,6 +49,9 @@ const ProductListingPage = () => {
   /* ── State ── */
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [filterOpen, setFilterOpen] = useState(false);
 
   const [filters, setFilters] = useState({
@@ -114,19 +72,24 @@ const ProductListingPage = () => {
   const [allCategories, setAllCategories] = useState([]);
   const [sortOrder, setSortOrder] = useState('-created_at');
 
+  const [maxPrice, setMaxPrice] = useState(5000000);
   const [priceRange, setPriceRange] = useState([0, 5000000]);
 
   /* ── Load filter options ── */
   useEffect(() => {
     const loadFilterOptions = async () => {
       try {
-        const [sizesRes, colorsRes, brandsRes, fabricsRes, catsRes] = await Promise.all([
+        const [sizesRes, colorsRes, brandsRes, fabricsRes, catsRes, maxPriceRes] = await Promise.all([
           productsAPI.getSizes(),
           productsAPI.getColors(),
           productsAPI.getBrands(),
           productsAPI.getFabrics(),
           productsAPI.getCategories(),
+          productsAPI.getMaxPrice(),
         ]);
+        const dbMaxPrice = maxPriceRes.data?.max_price || 5000000;
+        setMaxPrice(dbMaxPrice);
+        setPriceRange([0, dbMaxPrice]);
         setAvailableSizes(sizesRes.data.results || sizesRes.data || []);
         setAvailableColors(colorsRes.data.results || colorsRes.data || []);
         setAvailableBrands(brandsRes.data.results || brandsRes.data || []);
@@ -156,7 +119,7 @@ const ProductListingPage = () => {
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const params = { ordering: sortOrder };
+      const params = { ordering: sortOrder, page };
 
       if (filters.category_slug) params.category_slug = filters.category_slug;
       if (filters.min_price) params.min_price = filters.min_price;
@@ -172,14 +135,26 @@ const ProductListingPage = () => {
       if (isTrendingPage) params.is_trending = 'true';
       if (searchQuery) params.search = searchQuery;
 
+      params.page = page;
+
       const response = await productsAPI.getProducts(params);
       setProducts(response.data.results || response.data);
+      if (response.data.count) {
+        setTotalCount(response.data.count);
+        setTotalPages(Math.ceil(response.data.count / (response.data.results?.length || 1)));
+      }
     } catch (error) {
       console.error('Error fetching products:', error);
     } finally {
       setLoading(false);
     }
-  }, [category, filters, searchQuery, sortOrder, isSalePage, isNewArrivalsPage, isTrendingPage]);
+  }, [category, filters, searchQuery, sortOrder, isSalePage, isNewArrivalsPage, isTrendingPage, page]);
+
+  /* ── Reset page when filters change ── */
+  const filterKey = JSON.stringify({ category, filters, searchQuery, sortOrder, isSalePage, isNewArrivalsPage, isTrendingPage });
+  useEffect(() => {
+    setPage(1);
+  }, [filterKey]);
 
   useEffect(() => {
     if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
@@ -217,13 +192,13 @@ const ProductListingPage = () => {
       min_rating: '',
     });
     setSortOrder('-created_at');
-    setPriceRange([0, 5000000]);
+    setPriceRange([0, maxPrice]);
   };
 
   const handlePriceSliderChange = (value) => {
     setPriceRange(value);
     handleFilterChange('min_price', value[0] || '');
-    handleFilterChange('max_price', value[1] < 5000000 ? value[1] : '');
+    handleFilterChange('max_price', value[1] < maxPrice ? value[1] : '');
   };
 
   /* ── Count active filters ── */
@@ -247,7 +222,7 @@ const ProductListingPage = () => {
     if (key === 'sort') {
       setSortOrder('-created_at');
     } else if (key === 'price') {
-      setPriceRange([0, 5000000]);
+      setPriceRange([0, maxPrice]);
       setFilters(prev => ({ ...prev, min_price: '', max_price: '' }));
     } else if (Array.isArray(filters[key])) {
       setFilters(prev => ({ ...prev, [key]: [] }));
@@ -375,7 +350,7 @@ const ProductListingPage = () => {
             </div>
           </div>
 
-          <Card className="p-4 space-y-5 overflow-visible">
+          <div className="p-4 space-y-5 overflow-visible rounded-2xl bg-white/20 dark:bg-white/5 backdrop-blur-xl border border-white/30 dark:border-white/10 shadow-xl shadow-black/5">
             {/* ── Sorting ── */}
             <FilterSection title="مرتب‌سازی" defaultOpen={true}>
               <Select value={sortOrder} onValueChange={(v) => setSortOrder(v)}>
@@ -398,10 +373,11 @@ const ProductListingPage = () => {
               <div className="space-y-3">
                 <Slider
                   min={0}
-                  max={5000000}
-                  step={50000}
+                  max={maxPrice}
+                  step={Math.max(1000, Math.floor(maxPrice / 100))}
                   value={priceRange}
                   onValueChange={handlePriceSliderChange}
+                  dir="rtl"
                 />
                 <div className="flex items-center gap-2">
                   <Input
@@ -421,7 +397,7 @@ const ProductListingPage = () => {
                     value={filters.max_price}
                     onChange={(e) => {
                       handleFilterChange('max_price', e.target.value);
-                      setPriceRange([priceRange[0], parseInt(e.target.value) || 5000000]);
+                      setPriceRange([priceRange[0], parseInt(e.target.value) || maxPrice]);
                     }}
                     className="text-center text-sm"
                   />
@@ -620,7 +596,7 @@ const ProductListingPage = () => {
                 ))}
               </div>
             </FilterSection>
-          </Card>
+          </div>
         </aside>
 
         {/* ── Products Grid ── */}
@@ -657,8 +633,47 @@ const ProductListingPage = () => {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {products.map(product => (
-                <ProductCard key={product.id} product={product} navigate={navigate} />
+                <ProductCard key={product.id} product={product} size="large" onNavigate={(path) => navigate(path)} />
               ))}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-10 flex items-center justify-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-background/60 text-sm font-bold transition-all hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+                .map((p, idx, arr) => (
+                  <React.Fragment key={p}>
+                    {idx > 0 && arr[idx - 1] !== p - 1 && (
+                      <span className="px-1 text-muted-foreground/50">...</span>
+                    )}
+                    <button
+                      onClick={() => setPage(p)}
+                      className={`flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold transition-all ${
+                        p === page
+                          ? 'bg-neutral-900 text-white shadow-md dark:bg-white dark:text-neutral-900'
+                          : 'border border-border/60 bg-background/60 hover:bg-muted'
+                      }`}
+                    >
+                      {p.toLocaleString('fa-IR')}
+                    </button>
+                  </React.Fragment>
+                ))}
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-background/60 text-sm font-bold transition-all hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
             </div>
           )}
         </div>
