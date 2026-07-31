@@ -1,0 +1,621 @@
+PROMPT
+
+You are a Senior Software Architect, Fashion Sizing Expert, UX Designer, and AI Recommendation Engineer.
+
+The current Size Finder implementation must be redesigned from scratch.
+
+The current implementation is based on gender and shows almost the same fields for every product.
+
+This architecture is wrong.
+
+The new implementation must be completely Product-Driven.
+
+Every product category defines its own required measurements.
+
+The frontend should render forms dynamically based on configuration rather than hardcoded components.
+
+Goal
+
+Build a world-class Size Recommendation System comparable to:
+
+Nike
+Adidas
+ASOS
+Zara
+H&M
+Uniqlo
+Decathlon
+
+The system must follow ISO 8559 anthropometric principles and modern apparel sizing practices.
+
+Architecture
+
+The system must never contain hundreds of if statements.
+
+Instead create a configuration like:
+
+ProductCategory
+
+↓
+
+Measurement Rules
+
+↓
+
+Dynamic Form Renderer
+
+↓
+
+Validation Engine
+
+↓
+
+Recommendation Engine
+
+Every category should only define:
+
+required measurements
+optional measurements
+validation rules
+illustrations
+recommendation strategy
+
+The UI must automatically render from this configuration.
+
+Flow
+
+Step 1
+
+Select Gender
+
+Male
+Female
+Kids
+Unisex
+
+↓
+
+Step 2
+
+Select Product Category
+
+↓
+
+System loads measurement rules
+
+↓
+
+Dynamic form is generated
+
+↓
+
+Recommendation
+
+Product Categories
+Clothing
+T-Shirt
+Polo
+Shirt
+Hoodie
+Sweatshirt
+Jacket
+Coat
+Suit
+Vest
+Bottom Wear
+Jeans
+Pants
+Shorts
+Jogger
+Leggings
+Skirt
+Footwear
+Sneakers
+Running Shoes
+Boots
+Sandals
+Slippers
+Socks
+Underwear
+Underwear
+Bra
+Boxer
+Accessories
+Belt
+Hat
+Cap
+Gloves
+Backpack
+Dynamic Measurement Rules
+T-Shirt
+
+Required
+
+Height
+Weight
+Chest
+
+Optional
+
+Shoulder Width
+Waist
+Hip
+Shirt
+
+Required
+
+Height
+Weight
+Chest
+Neck
+
+Optional
+
+Sleeve Length
+Shoulder Width
+Jacket
+
+Required
+
+Height
+Weight
+Chest
+
+Optional
+
+Sleeve
+Shoulder
+Waist
+Suit
+
+Required
+
+Height
+Weight
+Chest
+Waist
+Hip
+
+Optional
+
+Sleeve
+Shoulder
+Inseam
+Neck
+Jeans
+
+Required
+
+Waist
+Hip
+Inseam
+
+Optional
+
+Thigh
+Height
+Weight
+Pants
+
+Required
+
+Waist
+Hip
+Inseam
+
+Optional
+
+Outseam
+Shorts
+
+Required
+
+Waist
+Hip
+
+Optional
+
+Height
+Leggings
+
+Required
+
+Waist
+Hip
+Height
+Skirt
+
+Required
+
+Waist
+Hip
+Desired Length
+Shoes
+
+Never ask
+
+❌ Chest
+
+❌ Waist
+
+❌ Hip
+
+Required
+
+Foot Length
+
+Optional
+
+Foot Width
+Preferred Fit
+
+If user doesn't know Foot Length
+
+Show visual guide
+
+Measure from heel to longest toe.
+
+Running Shoes
+
+Required
+
+Foot Length
+
+Optional
+
+Foot Width
+Arch Type
+Running Style
+Boots
+
+Required
+
+Foot Length
+Foot Width
+
+Optional
+
+Calf Circumference
+Socks
+
+Only ask
+
+Foot Length
+
+OR
+
+EU Shoe Size
+
+Nothing else.
+
+Belt
+
+Required
+
+Waist Circumference
+Gloves
+
+Required
+
+Hand Length
+Palm Circumference
+Hat
+
+Only ask
+
+Head Circumference
+Bra
+
+Required
+
+Bust
+Under Bust
+
+Optional
+
+Height
+Boxer
+
+Required
+
+Waist
+Hip
+Kids Logic
+
+Never use adult sizing.
+
+First ask
+
+Age
+Gender
+Height
+Weight
+
+Then
+
+Load product-specific measurements.
+
+Example
+
+Kids Shoes
+
+Age
+
+Foot Length
+
+Kids Shirt
+
+Age
+
+Height
+
+Weight
+
+Chest
+
+Kids Pants
+
+Age
+
+Height
+
+Weight
+
+Waist
+
+Age Based Rules
+
+Baby
+
+0–24 Months
+
+Use
+
+Age
+
+Height
+
+Weight
+
+Toddler
+
+2–5 Years
+
+Use
+
+Age
+
+Height
+
+Weight
+
+Child
+
+6–12 Years
+
+Height
+
+Weight
+
+Chest (if upper wear)
+
+Waist (if pants)
+
+Teen
+
+13–16 Years
+
+Same as adults.
+
+Validation
+
+Every measurement has
+
+Minimum
+
+Maximum
+
+Unit
+
+Example
+
+Height
+
+80 cm
+
+250 cm
+
+Weight
+
+5 kg
+
+250 kg
+
+Foot Length
+
+10 cm
+
+35 cm
+
+Head Circumference
+
+40 cm
+
+70 cm
+
+Measurement Guide
+
+Every field must contain
+
+Illustration
+
+Tooltip
+
+Animation
+
+Description
+
+Example
+
+Chest
+
+Wrap tape around the fullest part of your chest.
+
+Foot Length
+
+Stand against a wall.
+
+Measure heel to longest toe.
+
+Confidence System
+
+Every measurement has a weight.
+
+Example
+
+Shoes
+
+Foot Length
+
+100%
+
+Foot Width
+
+70%
+
+Preferred Fit
+
+20%
+
+Recommendation confidence should be calculated automatically.
+
+Recommendation Engine
+
+Instead of returning only
+
+XL
+
+Return
+
+Recommended Size
+
+XL
+
+Confidence
+
+96%
+
+Fit
+
+Regular
+
+Alternative
+
+L Slim Fit
+
+Reason
+
+Based on your chest, height and weight.
+
+If confidence
+
+<70%
+
+Ask for another measurement.
+
+Example
+
+Please measure your shoulder width.
+
+Product Availability
+
+Never say
+
+"No size found"
+
+Instead
+
+"We couldn't find a perfect match."
+
+Then
+
+Show
+
+Closest Size
+
+Estimated Fit
+
+Difference
+
+Stretchability
+
+Example
+
+Recommended
+
+XL Tall
+
+Available
+
+XL Regular
+
+Estimated Accuracy
+
+91%
+
+Product Database Support
+
+Every product in database must have
+
+{
+  "gender":"male",
+  "category":"shirt",
+  "fit":"regular",
+  "stretch":"medium",
+  "size_chart":"EU",
+  "sizes":{
+      "S":{},
+      "M":{},
+      "L":{},
+      "XL":{}
+  }
+}
+
+The recommendation engine must compare user measurements with this data instead of relying only on predefined S/M/L labels.
+
+UI
+
+Modern minimal premium design.
+
+Rounded cards.
+
+Smooth transitions.
+
+Illustrated body measurements.
+
+Progress indicator.
+
+Auto save.
+
+Back
+
+Next
+
+Skip Optional
+
+Estimated completion time.
+
+Extensibility
+
+The architecture must support adding new product categories without changing existing code.
+
+Adding a new category should only require adding one configuration object.
+
+No modifications should be needed in the form renderer or recommendation engine.
+
+Code Quality
+Use TypeScript types/interfaces for measurement schemas.
+Separate the configuration layer, validation layer, UI layer, and recommendation engine.
+Avoid hardcoded measurement fields.
+Use reusable components and configuration-driven rendering.
+Keep the system modular, scalable, and maintainable for future product categories and international size charts (EU, US, UK, JP, CM).

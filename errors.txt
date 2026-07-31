@@ -1,0 +1,1 @@
+کد پذیرنده (merchant_id) معتبر نیست. در حالت تست یک UUID واقعی در فایل .env قرار دهید (مثلاً از uuidgenerator.net). مقدار xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx معتبر نیست.

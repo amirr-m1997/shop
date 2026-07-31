@@ -1,0 +1,185 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block content %}
+<div class="admin-login-wrapper">
+    <div class="admin-login-card">
+        <div class="admin-login-header">
+            <div class="admin-login-logo">◈</div>
+            <h1 class="admin-login-title">ورود به پنل مدیریت</h1>
+            <p class="admin-login-subtitle">برای ادامه وارد حساب کاربری خود شوید</p>
+        </div>
+
+        {% if form.errors and not table %}
+            <div class="admin-login-error">
+                <p>نام کاربری یا رمز عبور اشتباه است. لطفاً دوباره تلاش کنید.</p>
+            </div>
+        {% endif %}
+
+        {% if not table %}
+            <form method="post" action="{% url 'admin:login' %}" class="admin-login-form">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ next }}">
+                <div class="admin-form-group">
+                    <label for="id_username" class="admin-form-label">نام کاربری</label>
+                    <input type="text" name="username" id="id_username" class="admin-form-input" autofocus maxlength="254" required autofocus>
+                </div>
+                <div class="admin-form-group">
+                    <label for="id_password" class="admin-form-label">رمز عبور</label>
+                    <input type="password" name="password" id="id_password" class="admin-form-input" autocomplete="current-password" required>
+                </div>
+                <div class="admin-form-group admin-form-checkbox">
+                    <label for="id_remember" class="admin-form-checkbox-label">
+                        <input type="checkbox" name="remember" id="id_remember" class="admin-form-checkbox-input">
+                        <span class="admin-form-checkbox-text">مرا به خاطر بسپار</span>
+                    </label>
+                </div>
+                <button type="submit" class="admin-login-btn">ورود</button>
+            </form>
+        {% else %}
+            {% for row in table.rows %}
+                <tr{% if row.has_buttons %} class="has-buttons"{% endif %}>
+                    {% for cell in row.cells %}
+                        <td{% if not cell.first %} class="first"{% endif %}{% if not cell.last %} class="last"{% endif %}>
+                            {% if cell.is_link %}<a href="{{ cell.url_primary }}"{% if cell.url_anchor %} id="{{ cell.url_anchor }}"{% endif %}{% if cell.url_name %} name="{{ cell.url_name }}"{% endif %}{% if cell.url_name %} name="{{ cell.url_name }}"{% endif %}{% if cell.url_name %} name="{{ cell.url_name }}"{% endif %}>{% endif %}
+                            {{ cell.content }}
+                            {% if cell.is_link %}</a>{% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.admin-login-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 120px);
+    padding: 20px;
+}
+
+.admin-login-card {
+    width: 100%;
+    max-width: 400px;
+    background: #141c2e;
+    border: 1px solid #2a3d5a;
+    border-radius: 16px;
+    padding: 36px;
+    box-shadow: 0 12px 40px rgba(2, 6, 23, .45);
+}
+
+.admin-login-header {
+    text-align: center;
+    margin-bottom: 28px;
+}
+
+.admin-login-logo {
+    font-size: 32px;
+    margin-bottom: 12px;
+    color: #3b82f6;
+}
+
+.admin-login-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin: 0 0 6px;
+}
+
+.admin-login-subtitle {
+    font-size: 13px;
+    color: #8896aa;
+    margin: 0;
+}
+
+.admin-login-error {
+    background: rgba(220, 38, 38, .12);
+    border: 1px solid rgba(220, 38, 38, .3);
+    color: #fca5a5;
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    text-align: center;
+}
+
+.admin-form-group {
+    margin-bottom: 20px;
+}
+
+.admin-form-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #cbd5e1;
+    margin-bottom: 6px;
+}
+
+.admin-form-input {
+    width: 100%;
+    padding: 10px 12px;
+    background: #0c1222;
+    border: 1px solid #2a3d5a;
+    border-radius: 10px;
+    color: #f1f5f9;
+    font-size: 14px;
+    font-family: 'Vazirmatn', 'Tahoma', sans-serif;
+    transition: all .18s ease;
+}
+
+.admin-form-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    background: #0e1a2e;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, .12);
+}
+
+.admin-form-input::placeholder {
+    color: #5a6a80;
+}
+
+.admin-form-checkbox {
+    display: flex;
+    align-items: center;
+}
+
+.admin-form-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #cbd5e1;
+}
+
+.admin-form-checkbox-input {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.admin-login-btn {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, #1e40af, #2563eb);
+    color: #e0e7ff;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: 'Vazirmatn', 'Tahoma', sans-serif;
+    cursor: pointer;
+    transition: all .18s ease;
+    box-shadow: 0 4px 14px rgba(30, 64, 175, .25);
+}
+
+.admin-login-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(37, 99, 235, .3);
+    filter: brightness(1.1);
+}
+</style>
+{% endblock %}

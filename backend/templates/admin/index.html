@@ -1,0 +1,24 @@
+{% extends "admin/index.html" %}
+
+{% block content %}
+<section class="admin-dashboard" aria-label="خلاصهٔ فضای کاری">
+    <div class="admin-dashboard-intro">
+        <div>
+            <p class="admin-eyebrow">فضای کاری مدیریت</p>
+            <h2>مدیریت سریع و متمرکز</h2>
+            <p>مدل‌های پرکاربرد، نشان‌شده‌ها و آخرین بخش‌های بازشده در یک نگاه.</p>
+        </div>
+        <button type="button" class="admin-dashboard-search" data-dashboard-search>⌕ جستجو در بخش‌ها</button>
+    </div>
+    <div class="admin-stat-grid">
+        <article class="admin-stat-card"><span>مدل‌های قابل مدیریت</span><strong data-dashboard-stat="models">—</strong></article>
+        <article class="admin-stat-card"><span>مدل‌های نشان‌شده</span><strong data-dashboard-stat="favorites">—</strong></article>
+        <article class="admin-stat-card"><span>مدل‌های اخیراً بازشده</span><strong data-dashboard-stat="recent">—</strong></article>
+    </div>
+    <div class="admin-dashboard-panels">
+        <section class="admin-dashboard-panel"><h3>میانبرهای من</h3><div data-dashboard-favorites></div></section>
+        <section class="admin-dashboard-panel"><h3>آخرین بخش‌ها</h3><div data-dashboard-recent></div></section>
+    </div>
+</section>
+{{ block.super }}
+{% endblock %}

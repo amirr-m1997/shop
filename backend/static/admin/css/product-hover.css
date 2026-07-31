@@ -1,0 +1,33 @@
+.product-thumb-cell {
+    position: relative;
+}
+
+.product-thumb {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+.product-thumb:hover {
+    transform: scale(1.1);
+}
+
+.product-thumb-preview {
+    display: none;
+    position: fixed;
+    z-index: 99999;
+    border: 3px solid #fff;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+    max-width: 350px;
+    max-height: 350px;
+    pointer-events: none;
+}
+
+.product-thumb:hover + .product-thumb-preview,
+.product-thumb-preview:hover {
+    display: block;
+}

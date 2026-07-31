@@ -1,0 +1,138 @@
+Please fix the scroll restoration issue only in specific sections of the website.
+
+## Problem:
+
+The scroll position issue does NOT happen everywhere.
+
+It only happens in these sections:
+
+1. Daily Trends section
+2. Categories section
+3. The two middle graphic/product cards on the homepage
+
+When a user scrolls in these sections, clicks on a product card, enters the product detail page, and then comes back using the browser Back button, the user is returned to the top of the page instead of the exact previous position.
+
+Example:
+
+User is on homepage:
+
+```
+/
+```
+
+User scrolls down to:
+
+```
+Daily Trends section
+scroll position: 1800px
+```
+
+User clicks a product:
+
+```
+/product/product-name
+```
+
+User clicks Back.
+
+Expected:
+
+* Return to homepage
+* Restore exactly the previous scroll position
+* User should see the same product card area where they left
+
+Current:
+
+* Homepage loads from the top
+* User loses their browsing position
+
+---
+
+## Requirements:
+
+### 1. Fix only affected sections:
+
+Do NOT change global routing behavior unless necessary.
+
+Only investigate and fix:
+
+* Daily Trends component
+* Categories component
+* The two middle graphic cards/components
+
+Other pages and sections are already working correctly.
+
+---
+
+### 2. Find the real cause:
+
+Analyze these components and check for:
+
+* Incorrect Link/navigation implementation
+* Component remounting
+* Data fetching causing re-render
+* Missing React keys
+* useEffect resetting state
+* Images/content loading changing layout height
+* Any `window.scrollTo(0,0)` calls
+* Router navigation behavior
+
+---
+
+### 3. Preserve user position:
+
+When the user returns using:
+
+* Browser Back button
+* Browser Forward button
+
+Restore the exact previous scroll position.
+
+The user should not lose their place while browsing products.
+
+---
+
+### 4. Keep normal navigation behavior:
+
+Important:
+
+* Clicking a product from these sections should work normally.
+* Opening a completely new page from menu should still start from the top.
+* Do not introduce unwanted scroll restoration across the whole website.
+
+---
+
+### 5. Improve loading behavior:
+
+Prevent visible jumps caused by:
+
+* Product images loading late
+* Dynamic content rendering
+* API fetching delays
+
+Use proper techniques if needed:
+
+* Reserve image dimensions
+* Restore scroll after content rendering
+* Maintain component height during loading
+
+---
+
+### 6. Code quality:
+
+* Keep the fix clean and localized.
+* Avoid adding duplicate scroll logic everywhere.
+* Reuse existing routing structure.
+* Do not break Dark/Light theme.
+* Do not affect other working pages.
+
+Before changing code:
+
+1. Inspect these specific components.
+2. Identify why their scroll position is lost.
+3. Apply the smallest production-ready fix.
+4. Test:
+
+   * Daily Trends → Product → Back
+   * Categories → Product → Back
+   * Middle card → Product → Back
