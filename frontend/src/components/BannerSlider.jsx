@@ -255,7 +255,7 @@ const BannerSlider = ({ banners = [], features = [] }) => {
                         <p className="truncate text-xs sm:text-sm font-bold tracking-tight text-neutral-900 dark:text-white">
                           {f.title}
                         </p>
-                        <p className="mt-0.5 truncate text-[10px] sm:text-[11px] text-neutral-900 dark:text-white/70">
+                        <p className="mt-0.5 truncate text-xs sm:text-xs text-neutral-900 dark:text-white/70">
                           {f.description}
                         </p>
                       </div>

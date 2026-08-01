@@ -15,7 +15,7 @@ const MobileCheckoutBar = ({ total, itemCount, discount, coupon }) => (
             -{formatPrice(discount)} تخفیف
           </p>
         )}
-        <p className="truncate text-base font-black tabular-nums tracking-tight">
+        <p className="truncate text-base font-bold tabular-nums tracking-tight">
           {formatPrice(Math.max(total - discount, 0))}
         </p>
       </div>

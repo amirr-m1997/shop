@@ -103,7 +103,7 @@ const Footer = () => {
 
   const serviceLinks = [
     { to: '/contact', label: 'تماس با ما' },
-    { to: '/shipping', label: 'اطلاعات ارسال' },
+    { to: '/shipping', label: 'ارسال و تحویل' },
     { to: '/returns', label: 'بازگشت کالا' },
     { to: '/faq', label: 'سوالات متداول' },
     { to: '/about', label: 'درباره ما' },
@@ -116,20 +116,20 @@ const Footer = () => {
         <div className="container mx-auto px-4 py-8 sm:py-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="text-center md:text-right">
-              <h3 className="text-lg sm:text-xl font-bold mb-1">عضویت در خبرنامه</h3>
-              <p className="text-sm text-muted-foreground">برای دریافت آخرین اخبار و پیشنهادات ویژه</p>
+              <h3 className="text-lg sm:text-xl font-bold mb-1">در جریان مد بمانید</h3>
+              <p className="text-sm text-muted-foreground">کالکشن‌های جدید و پیشنهادهای اختصاصی، مستقیم برای شما.</p>
             </div>
             <form onSubmit={handleSubscribe} className="flex gap-2 w-full md:w-auto max-w-md md:max-w-none">
               <Input
                 type="email"
-                placeholder="ایمیل خود را وارد کنید"
+                placeholder="نشانی ایمیل شما"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground focus:border-primary flex-1 md:w-72"
               />
               <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold shrink-0">
                 {subscribed ? <CheckCircle className="h-4 w-4" /> : <Send className="h-4 w-4 ml-1" />}
-                <span className="hidden sm:inline">{subscribed ? 'عضو شدید!' : 'عضویت'}</span>
+                <span className="hidden sm:inline">{subscribed ? 'عضویت شما ثبت شد' : 'عضویت'}</span>
               </Button>
             </form>
           </div>
@@ -141,7 +141,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-0 lg:gap-8">
           {/* Brand — always visible */}
           <div className="pb-6 lg:pb-0">
-            <h3 className="text-xl sm:text-2xl font-black mb-3 lg:mb-4">{siteName}</h3>
+            <h3 className="text-xl sm:text-2xl font-bold mb-3 lg:mb-4">{siteName}</h3>
             <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
               {siteDesc}
             </p>

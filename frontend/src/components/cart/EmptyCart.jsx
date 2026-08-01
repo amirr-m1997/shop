@@ -24,10 +24,10 @@ const EmptyCart = () => (
         </div>
       </div>
 
-      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">
         سبد خرید
       </p>
-      <h2 className="mb-3 text-3xl font-black tracking-tight sm:text-4xl">
+      <h2 className="mb-3 text-3xl font-bold tracking-tight sm:text-4xl">
         هنوز چیزی اینجا نیست
       </h2>
       <p className="mx-auto mb-10 max-w-sm text-sm leading-relaxed text-muted-foreground sm:text-base">
@@ -68,7 +68,7 @@ const EmptyCart = () => (
             <div className={`mx-auto mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl ${tone}`}>
               <Icon className="h-4.5 w-4.5 h-[18px] w-[18px]" />
             </div>
-            <p className="text-[11px] font-semibold text-muted-foreground sm:text-xs">{label}</p>
+            <p className="text-xs font-semibold text-muted-foreground sm:text-xs">{label}</p>
           </div>
         ))}
       </div>

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { ArrowRight, ArrowLeft, SkipForward } from 'lucide-react'
+import { ArrowRight, ArrowLeft, SkipForward, Loader2 } from 'lucide-react'
 import ProgressBar from './ProgressBar'
 import GenderStep from './GenderStep'
 import CategoryStep from './CategoryStep'
@@ -157,7 +157,7 @@ export default function SizeFinderWizard() {
       {loading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/50 backdrop-blur-xl">
           <div className="flex flex-col items-center gap-4 rounded-2xl border border-white/20 bg-white/10 px-8 py-6 shadow-2xl backdrop-blur-2xl">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
             <span className="text-sm font-medium text-foreground">
               در حال پردازش اندازه‌ها...
             </span>

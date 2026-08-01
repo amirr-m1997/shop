@@ -22,7 +22,7 @@ class BlogPostViewSet(viewsets.ReadOnlyModelViewSet):
         return BlogPostListSerializer
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = super().get_queryset().select_related('category', 'author')
         category = self.request.query_params.get('category')
         search = self.request.query_params.get('search')
         if category:

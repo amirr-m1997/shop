@@ -48,12 +48,12 @@ const ProductGallery = ({
 
         <div className="absolute left-4 top-4 z-10 flex flex-col gap-2">
           {product.discount_percentage > 0 && (
-            <span className="rounded-xl bg-destructive px-3 py-1.5 text-xs font-black text-destructive-foreground shadow-lg">
+            <span className="rounded-xl bg-destructive px-3 py-1.5 text-xs font-bold text-destructive-foreground shadow-lg">
               −{product.discount_percentage}٪
             </span>
           )}
           {product.is_new_arrival && (
-            <span className="rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-black text-white shadow-lg">
+            <span className="rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white shadow-lg">
               جدید
             </span>
           )}

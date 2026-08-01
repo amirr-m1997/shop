@@ -21,17 +21,17 @@ const PromoBanners = () => (
             <div className="absolute left-4 top-1/2 hidden h-36 w-36 -translate-y-1/2 rounded-full bg-gradient-to-br from-amber-200/50 to-stone-200/30 blur-2xl sm:block dark:from-amber-500/20 dark:to-neutral-700/20" />
             <div className="relative z-10 flex w-full items-center justify-between gap-4 p-6 sm:p-8">
               <div className="min-w-0">
-                <span className="mb-2 inline-block text-[11px] font-bold uppercase tracking-[0.15em] text-amber-700/80 dark:text-amber-400/80">
-                  فروش ویژه تابستانه
+                <span className="mb-2 inline-block text-xs font-bold uppercase tracking-widest text-amber-700/80 dark:text-amber-400/80">
+                  تخفیف تابستانه
                 </span>
-                <h3 className="text-2xl font-black tracking-tight sm:text-3xl">
+                <h3 className="text-2xl font-bold tracking-tight sm:text-3xl">
                   تا ۵۰٪ تخفیف
                 </h3>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                  روی منتخب محصولات
+                  روی منتخبی از کالکشن
                 </p>
                 <span className="mt-4 inline-flex h-10 items-center gap-1.5 rounded-2xl bg-neutral-900 px-5 text-sm font-bold text-white transition-transform group-hover:-translate-x-0.5 dark:bg-white dark:text-neutral-900">
-                  خرید کنید
+                  مشاهده کالکشن
                   <ArrowLeft className="h-3.5 w-3.5" />
                 </span>
               </div>
@@ -51,14 +51,14 @@ const PromoBanners = () => (
             <div className="absolute left-4 top-1/2 hidden h-36 w-36 -translate-y-1/2 rounded-full bg-gradient-to-br from-sky-200/40 to-violet-200/20 blur-2xl sm:block dark:from-sky-500/15 dark:to-violet-500/10" />
             <div className="relative z-10 flex w-full items-center justify-between gap-4 p-6 sm:p-8">
               <div className="min-w-0">
-                <span className="mb-2 inline-block text-[11px] font-bold uppercase tracking-[0.15em] text-sky-700/80 dark:text-sky-400/80">
-                  محصولات جدید
+                <span className="mb-2 inline-block text-xs font-bold uppercase tracking-widest text-sky-700/80 dark:text-sky-400/80">
+                  تازه‌های مد
                 </span>
-                <h3 className="text-2xl font-black tracking-tight sm:text-3xl">
+                <h3 className="text-2xl font-bold tracking-tight sm:text-3xl">
                   جدیدترین ترندها
                 </h3>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                  رو کشف کن
+                  استایل تازه‌ات را کشف کن
                 </p>
                 <span className="mt-4 inline-flex h-10 items-center gap-1.5 rounded-2xl border border-border/60 bg-white/80 px-5 text-sm font-bold transition-all group-hover:-translate-x-0.5 dark:border-white/15 dark:bg-white/10">
                   مشاهده

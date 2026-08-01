@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.db.models import Subquery, OuterRef, CharField
 from .models import (
     Category, Brand, Size, Color, Fabric, Product, ProductImage,
     ProductVariant, Review, SizeGuide, HomepageSection, Banner, StyleLook, Wishlist,
@@ -95,6 +96,18 @@ class ProductListSerializer(serializers.ModelSerializer):
         return obj.brand.name if obj.brand else None
 
     def get_primary_image(self, obj):
+        # Prefetched images are available if prefetch_related('images') is used on the queryset.
+        # Fallback to annotation if available (annotated queryset).
+        if hasattr(obj, '_prefetched_images'):
+            primary = next((img for img in obj._prefetched_images if img.is_primary), None)
+            if primary:
+                return primary.image.url
+            first = next(iter(obj._prefetched_images), None)
+            return first.image.url if first else None
+        # Try annotation (for admin/bulk views that annotate instead of prefetch)
+        if hasattr(obj, 'primary_image_url'):
+            return obj.primary_image_url or None
+        # Fallback: direct query (last resort, causes N+1)
         primary = obj.images.filter(is_primary=True).first()
         if primary:
             return primary.image.url
@@ -131,7 +144,6 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         return obj.fabric.name if obj.fabric else None
 
     def get_available_sizes(self, obj):
-        # âœ… ط§ط³طھظپط§ط¯ظ‡ ط§ط² dictionary ط¨ط±ط§غŒ ط¬ظ„ظˆع¯غŒط±غŒ ط§ط² طھع©ط±ط§ط±غŒ ط¨ظˆط¯ظ†
         sizes_dict = {}
         for variant in obj.variants.all():
             sizes_dict[variant.size.id] = {
@@ -141,7 +153,6 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         return list(sizes_dict.values())
 
     def get_available_colors(self, obj):
-        # âœ… ط§ط³طھظپط§ط¯ظ‡ ط§ط² dictionary ط¨ط±ط§غŒ ط¬ظ„ظˆع¯غŒط±غŒ ط§ط² طھع©ط±ط§ط±غŒ ط¨ظˆط¯ظ†
         colors_dict = {}
 
         for variant in obj.variants.all():
@@ -183,7 +194,7 @@ class HomepageSectionSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'filter_type', 'filter_type_display', 'filter_value', 'order', 'products']
 
     def get_products(self, obj):
-        products = obj.get_products()
+        products = getattr(obj, '_optimized_products', None) or obj.get_products()
         return ProductListSerializer(products, many=True).data
 
 

@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Disallow: /login
+Disallow: /register
+Disallow: /profile
+Disallow: /orders
+Disallow: /checkout
+Disallow: /cart
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /payment/callback
+Disallow: /order-success
+Disallow: /order-failed
+
+Sitemap: https://fashionshop.ir/sitemap.xml

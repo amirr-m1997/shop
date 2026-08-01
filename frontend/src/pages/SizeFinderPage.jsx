@@ -1,10 +1,16 @@
 import { Ruler, Shirt, ChevronLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import SizeFinderWizard from '../components/sizefinder/SizeFinderWizard'
+import { SEO } from '../lib/seo'
 
 export default function SizeFinderPage() {
   return (
     <div className="relative min-h-screen overflow-hidden pb-16">
+      <SEO
+        title="راهنمای سایز"
+        description="پیدا کردن سایز مناسب لباس | با وارد کردن اندازه‌های بدن خود، بهترین سایز را پیشنهاد بگیرید"
+        url="https://fashionshop.ir/size-finder"
+      />
       {/* Background decorations */}
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute -left-40 top-20 h-80 w-80 rounded-full bg-violet-500/10 blur-3xl" />
@@ -30,7 +36,7 @@ export default function SizeFinderPage() {
             </div>
           </div>
           <div className="text-center">
-            <h1 className="text-3xl font-black tracking-tight sm:text-4xl">پیدا کردن سایز مناسب</h1>
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">پیدا کردن سایز مناسب</h1>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground/80 sm:text-base">
               با وارد کردن اندازه‌های بدن خود، بهترین سایز را پیشنهاد بگیرید. همه اندازه‌ها بر حسب سانتی‌متر هستند.
             </p>

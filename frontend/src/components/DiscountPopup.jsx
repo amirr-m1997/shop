@@ -95,7 +95,7 @@ const DiscountPopup = () => {
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm">
               <Gift className="h-7 w-7" />
             </div>
-            <h2 className="text-2xl font-black tracking-tight">هدیه خوش‌آمدگویی</h2>
+            <h2 className="text-2xl font-bold tracking-tight">هدیه خوش‌آمدگویی</h2>
             <p className="mt-2 text-sm text-white/80">
               اولین خریدتان را با تخفیف ویژه شروع کنید
             </p>
@@ -115,7 +115,7 @@ const DiscountPopup = () => {
           <div className="mb-5 rounded-2xl border-2 border-dashed border-primary/30 bg-primary/5 p-4">
             <p className="mb-2 text-xs font-medium text-muted-foreground">کد تخفیف شما</p>
             <div className="flex items-center justify-center gap-3">
-              <span className="text-2xl font-black tracking-[0.15em] text-primary" dir="ltr">
+              <span className="text-2xl font-bold tracking-widest text-primary" dir="ltr">
                 {offer.code}
               </span>
               <button
@@ -144,7 +144,7 @@ const DiscountPopup = () => {
             شروع خرید
           </button>
 
-          <p className="mt-3 text-[11px] text-muted-foreground">
+          <p className="mt-3 text-xs text-muted-foreground">
             این کد فقط یک بار قابل استفاده است
           </p>
         </div>

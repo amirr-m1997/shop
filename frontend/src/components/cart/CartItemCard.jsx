@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2, Plus, Minus } from 'lucide-react';
 import { formatPrice, formatPriceNumber } from '../../lib/formatPrice';
+import { PLACEHOLDER_IMG } from '../../lib/placeholders';
 
 const CartItemCard = ({ item, onQuantityChange, onRemove, updating, index }) => {
   const [removing, setRemoving] = useState(false);
@@ -31,9 +32,10 @@ const CartItemCard = ({ item, onQuantityChange, onRemove, updating, index }) => 
           className="relative h-28 w-24 shrink-0 overflow-hidden rounded-2xl bg-muted ring-1 ring-border/50 transition-all duration-500 group-hover:ring-primary/30 sm:h-36 sm:w-32"
         >
           <img
-            src={item.product.primary_image || 'https://via.placeholder.com/200x200?text=Product'}
+            src={item.product.primary_image || PLACEHOLDER_IMG}
             alt={item.product.name}
             className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+            onError={(e) => { e.target.src = PLACEHOLDER_IMG; }}
           />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
           <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
@@ -67,7 +69,7 @@ const CartItemCard = ({ item, onQuantityChange, onRemove, updating, index }) => 
                     {item.variant.color_name}
                   </span>
                   {item.variant.sku && (
-                    <span className="rounded-md bg-muted/80 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                    <span className="rounded-md bg-muted/80 px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
                       {item.variant.sku}
                     </span>
                   )}
@@ -99,7 +101,7 @@ const CartItemCard = ({ item, onQuantityChange, onRemove, updating, index }) => 
               >
                 <Minus className="h-3.5 w-3.5" />
               </button>
-              <span className="min-w-[2.25rem] select-none text-center text-sm font-black tabular-nums">
+              <span className="min-w-[2.25rem] select-none text-center text-sm font-bold tabular-nums">
                 {item.quantity.toLocaleString('fa-IR')}
               </span>
               <button
@@ -114,11 +116,11 @@ const CartItemCard = ({ item, onQuantityChange, onRemove, updating, index }) => 
             </div>
 
             <div className="text-left">
-              <p className="text-base font-black tracking-tight sm:text-lg">
+              <p className="text-base font-bold tracking-tight sm:text-lg">
                 {formatPrice(item.total_price)}
               </p>
               {item.quantity > 1 && (
-                <p className="mt-1 text-[11px] tabular-nums text-muted-foreground">
+                <p className="mt-1 text-xs tabular-nums text-muted-foreground">
                   {formatPriceNumber(unitPrice)} × {item.quantity.toLocaleString('fa-IR')}
                 </p>
               )}

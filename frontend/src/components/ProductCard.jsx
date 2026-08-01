@@ -32,7 +32,7 @@ const ProductCard = ({ product, onNavigate, className = '', size = 'default' }) 
       <div className={`relative overflow-hidden bg-muted/60 ${isLarge ? 'aspect-[3/5.4]' : 'aspect-[3/4.7]'}`}>
         <img
           src={imageUrl}
-          alt={product.name}
+          alt={`${product.name} - فروشگاه مد`}
           className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
           loading="lazy"
           onError={(e) => {
@@ -45,12 +45,12 @@ const ProductCard = ({ product, onNavigate, className = '', size = 'default' }) 
         {/* Badges */}
         <div className="absolute left-3 top-3 z-10 flex flex-col gap-1.5">
           {hasDiscount && (
-            <span className="rounded-xl bg-destructive px-2.5 py-1 text-[11px] font-black text-destructive-foreground shadow-lg shadow-destructive/25">
+            <span className="rounded-xl bg-destructive px-2.5 py-1 text-xs font-bold text-destructive-foreground shadow-lg shadow-destructive/25">
               −{product.discount_percentage}٪
             </span>
           )}
           {isNew && (
-            <span className="rounded-xl bg-emerald-500 px-2.5 py-1 text-[11px] font-black text-white shadow-lg shadow-emerald-500/25">
+            <span className="rounded-xl bg-emerald-500 px-2.5 py-1 text-xs font-bold text-white shadow-lg shadow-emerald-500/25">
               جدید
             </span>
           )}
@@ -81,7 +81,7 @@ const ProductCard = ({ product, onNavigate, className = '', size = 'default' }) 
             </div>
 
             <div className="relative mt-2 flex flex items-center gap-2 items-baseline gap-2">
-              <span className="text-sm font-black tabular-nums tracking-tight">
+              <span className="text-sm font-bold tabular-nums tracking-tight">
                 {formatPrice(product.price)}
               </span>
               {product.compare_price && (

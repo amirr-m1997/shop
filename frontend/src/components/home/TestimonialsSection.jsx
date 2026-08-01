@@ -25,9 +25,9 @@ const TestimonialsSection = ({
         <div className="mb-10 text-center">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-4 py-1.5">
             <Quote className="h-3.5 w-3.5 text-primary" />
-            <span className="text-xs font-bold text-primary">نظرات مشتریان</span>
+            <span className="text-xs font-bold text-primary">تجربه مشتریان</span>
           </div>
-          <h2 className="text-2xl font-black tracking-tight sm:text-3xl md:text-4xl">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl">
             مشتریان ما چه می‌گویند؟
           </h2>
           <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
@@ -59,7 +59,7 @@ const TestimonialsSection = ({
               </p>
 
               <div className="flex items-center gap-3.5">
-                <div className="flex h-13 w-13 h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-lg font-black text-primary-foreground shadow-lg shadow-primary/25">
+                <div className="flex h-13 w-13 h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-lg font-bold text-primary-foreground shadow-lg shadow-primary/25">
                   {t.name[0]}
                 </div>
                 <div>
@@ -107,9 +107,9 @@ const TestimonialsSection = ({
                     <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10">
                       <CheckCircle className="h-8 w-8 text-emerald-500" />
                     </div>
-                    <p className="text-lg font-black">نظر شما با موفقیت ارسال شد!</p>
+                    <p className="text-lg font-bold">نظر شما ثبت شد</p>
                     <p className="text-sm text-muted-foreground">
-                      پس از تایید ادمین، نظر شما نمایش داده خواهد شد.
+                      پس از تأیید، در این بخش منتشر می‌شود.
                     </p>
                   </div>
                 ) : (
@@ -191,7 +191,7 @@ const TestimonialsSection = ({
                         className="h-11 rounded-xl px-6 font-bold shadow-md shadow-primary/15"
                       >
                         <Send className="ml-2 h-4 w-4" />
-                        {testimonialSubmitting ? 'در حال ارسال...' : 'ارسال نظر'}
+                        {testimonialSubmitting ? 'در حال ثبت...' : 'ثبت نظر'}
                       </Button>
                     </div>
                   </form>

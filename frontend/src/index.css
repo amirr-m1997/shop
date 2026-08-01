@@ -59,8 +59,18 @@
     @apply bg-background text-foreground;
     direction: rtl;
     font-family: 'Vazirmatn', 'Tahoma', sans-serif;
+    font-size: 0.875rem;
+    line-height: 1.75;
+    font-weight: 400;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
   }
 }
 
@@ -169,6 +179,77 @@
 .stagger-children > *:nth-child(7) { animation-delay: 0.35s; }
 .stagger-children > *:nth-child(8) { animation-delay: 0.4s; }
 
+/* ── Premium skeleton shimmer ───────────────────────── */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: hsl(var(--muted));
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(var(--foreground) / 0.05) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
+.dark .skeleton::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(var(--foreground) / 0.08) 50%,
+    transparent 100%
+  );
+}
+
+.skeleton-fade-in {
+  animation: fadeIn 0.5s ease-out both;
+}
+
+/* ── Anti-flicker: delay skeleton display by 300ms ─── */
+@keyframes delayedFadeIn {
+  0%, 15% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.skeleton-delay {
+  animation: delayedFadeIn 0.4s ease-out 0.3s both;
+}
+
+/* ── Content fade-in: smooth transition when data arrives ─── */
+@keyframes contentReveal {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.content-fade-in {
+  animation: contentReveal 0.4s ease-out both;
+}
+
+/* ── Page transition wrapper ─── */
+.page-transition-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-transition-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.35s ease-out, transform 0.35s ease-out;
+}
+
 /* Gradient text */
 .gradient-text {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -220,8 +301,8 @@
 .blog-html h2 {
   margin-top: 1.75rem;
   margin-bottom: 0.75rem;
-  font-size: 1.35rem;
-  font-weight: 900;
+  font-size: 1.5rem;
+  font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.3;
 }
@@ -229,8 +310,8 @@
 .blog-html h3 {
   margin-top: 1.35rem;
   margin-bottom: 0.5rem;
-  font-size: 1.1rem;
-  font-weight: 800;
+  font-size: 1.25rem;
+  font-weight: 700;
 }
 .blog-prose p,
 .blog-html p {

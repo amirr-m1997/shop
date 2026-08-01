@@ -29,6 +29,7 @@ class CartSerializer(serializers.ModelSerializer):
             'free_shipping_threshold', 'shipping_cost', 'shipping_fee',
             'created_at', 'updated_at',
         ]
+        read_only_fields = ['user']
 
     def _site_settings(self):
         if not hasattr(self, '_cached_site_settings'):

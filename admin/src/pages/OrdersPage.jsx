@@ -22,8 +22,6 @@ const PAYMENT_STATUS_CHOICES = [
 
 const PAYMENT_METHOD_LABELS = {
   online: 'پرداخت آنلاین',
-  cash_on_delivery: 'پرداخت در محل',
-  card: 'کارت به کارت',
 };
 
 export default function OrdersPage() {

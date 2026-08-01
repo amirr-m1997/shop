@@ -1,57 +1,71 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { CheckCircle, Package, ArrowLeft, Loader2, Hash, Copy } from 'lucide-react';
+import { CheckCircle, Package, ArrowLeft, Copy, XCircle, Ban, AlertTriangle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
+import EmptyState from '../components/ui/EmptyState';
+import { SEO } from '../lib/seo';
+import PaymentCallbackSkeleton from '../components/skeletons/PaymentCallbackSkeleton';
 
 const PaymentCallbackPage = () => {
   const [searchParams] = useSearchParams();
   const refId = searchParams.get('ref_id');
+  const error = searchParams.get('error');
+  const orderNumber = searchParams.get('order_number');
   const [status, setStatus] = useState('loading');
   const [paymentData, setPaymentData] = useState(null);
 
   useEffect(() => {
     if (refId) {
       setStatus('success');
-      setPaymentData({ ref_id: refId });
-    } else {
+      setPaymentData({ ref_id: refId, order_number: orderNumber });
+    } else if (error) {
       setStatus('failed');
+    } else {
+      setStatus('loading');
     }
-  }, [refId]);
+  }, [refId, error, orderNumber]);
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text).catch(() => {});
   };
 
   if (status === 'loading') {
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <PaymentCallbackSkeleton />;
   }
 
   if (status === 'failed') {
+    const isExpired = error === 'order_expired';
     return (
-      <div className="min-h-[70vh] flex items-center justify-center">
-        <Card className="max-w-md w-full mx-4">
-          <CardContent className="p-8 text-center">
-            <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-              <span className="text-2xl">❌</span>
-            </div>
-            <h1 className="text-xl font-bold mb-2">پرداخت ناموفق</h1>
-            <p className="text-muted-foreground mb-6">پرداخت شما تأیید نشد. لطفاً دوباره تلاش کنید.</p>
-            <Button asChild>
-              <Link to="/orders">مشاهده سفارشات</Link>
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="flex min-h-[70vh] items-center justify-center px-4">
+        <SEO title="نتیجه پرداخت" noIndex />
+        <div className="w-full max-w-lg">
+          <EmptyState
+            icon={isExpired ? Ban : XCircle}
+            badge={isExpired ? 'منقضی شده' : 'پرداخت'}
+            title={isExpired ? 'سفارش منقضی شده است' : 'پرداخت تأیید نشد'}
+            description={
+              isExpired
+                ? 'زمان رزرو این سفارش تمام شده و موجودی آزاد شده است. لطفاً سفارش جدیدی ثبت کنید.'
+                : 'پرداخت شما کامل نشد. نگران نباشید — می‌توانید از سفارش‌ها دوباره تلاش کنید یا با پشتیبانی در تماس باشید.'
+            }
+            primaryLabel={isExpired ? 'مشاهده محصولات' : 'مشاهده سفارش‌ها'}
+            primaryTo={isExpired ? '/products' : '/orders'}
+            secondaryLabel={isExpired ? undefined : 'بازگشت به سبد خرید'}
+            secondaryTo={isExpired ? undefined : '/cart'}
+            accent={isExpired
+              ? 'from-gray-500/15 via-slate-500/10 to-gray-500/10'
+              : 'from-red-500/15 via-rose-500/10 to-orange-500/10'
+            }
+          />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center bg-gradient-to-b from-emerald-50/50 via-background to-background">
+      <SEO title="نتیجه پرداخت" noIndex />
       <Card className="max-w-md w-full mx-4 overflow-hidden">
         <div className="bg-gradient-to-l from-emerald-500 to-green-400 p-6 text-center">
           <div className="mx-auto mb-3 h-16 w-16 rounded-full bg-white/20 flex items-center justify-center">
@@ -63,7 +77,7 @@ const PaymentCallbackPage = () => {
           <div className="text-center">
             <p className="text-muted-foreground mb-1">کد پیگیری پرداخت</p>
             <div className="flex items-center justify-center gap-2">
-              <p className="text-2xl font-black tabular-nums tracking-wider">{paymentData?.ref_id}</p>
+              <p className="text-2xl font-bold tabular-nums tracking-wider">{paymentData?.ref_id}</p>
               <button
                 onClick={() => copyToClipboard(paymentData?.ref_id)}
                 className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"

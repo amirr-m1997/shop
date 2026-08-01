@@ -4,6 +4,7 @@ import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { pagesAPI } from '../services/api';
+import { SEO } from '../lib/seo';
 
 const ContactPage = () => {
   const [formData, setFormData] = useState({ name: '', email: '', message: '' });
@@ -28,6 +29,11 @@ const ContactPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-16 max-w-3xl">
+      <SEO
+        title="تماس با ما"
+        description="اطلاعات تماس فروشگاه مد | تلفن، ایمیل، آدرس و ساعات کاری"
+        url="https://fashionshop.ir/contact"
+      />
       <h1 className="text-3xl font-bold mb-8 text-center">تماس با ما</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
         <Card><CardContent className="p-6"><div className="flex items-center gap-3 mb-4"><Phone className="h-5 w-5 text-primary" /><h3 className="font-semibold">تلفن</h3></div><p className="text-muted-foreground" dir="ltr">{contactInfo?.phone1 || '۰۲۱-۱۲۳۴۵۶۷۸'}</p>{contactInfo?.phone2 && <p className="text-muted-foreground" dir="ltr">{contactInfo.phone2}</p>}</CardContent></Card>

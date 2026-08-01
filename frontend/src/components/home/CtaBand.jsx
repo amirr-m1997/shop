@@ -11,14 +11,14 @@ const CtaBand = () => (
 
         <div className="relative flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
           <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] opacity-70">
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest opacity-70">
               تجربه خرید لوکس
             </p>
-            <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
               آماده‌اید استایل‌تان را متحول کنید؟
             </h2>
             <p className="mt-2 max-w-md text-sm opacity-80">
-              جدیدترین‌ها، تخفیف‌های ویژه و پیشنهادهای شخصی‌سازی‌شده در انتظار شماست.
+              کالکشن‌های جدید، پیشنهادهای اختصاصی و تخفیف‌های ویژه — در انتظار شما.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">

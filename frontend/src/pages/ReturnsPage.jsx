@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/Card';
 import { pagesAPI } from '../services/api';
+import { SEO } from '../lib/seo';
 
 const ReturnsPage = () => {
   const [settings, setSettings] = useState({});
@@ -12,6 +13,11 @@ const ReturnsPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-16 max-w-3xl">
+      <SEO
+        title="بازگشت کالا"
+        description="شرایط بازگشت و مرجوعی کالا | ضمانت بازگشت ۳۰ روزه فروشگاه مد"
+        url="https://fashionshop.ir/returns"
+      />
       <h1 className="text-3xl font-bold mb-8 text-center">{settings.returns_title || 'بازگشت کالا'}</h1>
       <div className="space-y-6">
         <Card>

@@ -37,12 +37,12 @@ const FreeShippingBar = ({ shippingInfo }) => {
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <p
-              className={`text-sm font-bold sm:text-[15px] ${
+              className={`text-sm font-bold sm:text-base ${
                 isFree ? 'text-emerald-700 dark:text-emerald-300' : 'text-foreground'
               }`}
             >
               {isFree ? (
-                'تبریک! ارسال این سفارش رایگان است'
+                'ارسال این سفارش رایگان است'
               ) : (
                 <>
                   فقط{' '}
@@ -53,14 +53,14 @@ const FreeShippingBar = ({ shippingInfo }) => {
                 </>
               )}
             </p>
-            <span className="rounded-full bg-background/70 px-2.5 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground ring-1 ring-border/50 backdrop-blur-sm">
+            <span className="rounded-full bg-background/70 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-muted-foreground ring-1 ring-border/50 backdrop-blur-sm">
               {Math.round(progress).toLocaleString('fa-IR')}٪
             </span>
           </div>
 
           {!isFree && (
             <p className="mb-3 text-xs text-muted-foreground">
-              با خرید بالای {formatPrice(threshold)}، هزینه ارسال رایگان می‌شود
+              با خرید بالای {formatPrice(threshold)}، ارسال رایگان می‌شود
             </p>
           )}
 

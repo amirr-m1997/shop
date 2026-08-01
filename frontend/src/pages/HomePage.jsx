@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { productsAPI, pagesAPI } from '../services/api';
+import { homeAPI, pagesAPI } from '../services/api';
 import ProductCarousel from '../components/ProductCarousel';
 import BannerSlider from '../components/BannerSlider';
 import AmbientMesh from '../components/home/AmbientMesh';
@@ -11,6 +11,7 @@ import CtaBand from '../components/home/CtaBand';
 import TestimonialsSection from '../components/home/TestimonialsSection';
 import HomeSkeleton from '../components/home/HomeSkeleton';
 import { ACCENT_COLORS, SECTION_LINKS } from '../components/home/constants';
+import { SEO } from '../lib/seo';
 
 /* ═══════════════════════════════════════
    Main Homepage
@@ -39,32 +40,15 @@ const HomePage = () => {
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [
-          sectionsRes,
-          catsRes,
-          settingsRes,
-          stylesRes,
-          bannersRes,
-          testimonialsRes,
-          featuresRes,
-        ] = await Promise.all([
-          productsAPI.getHomepageSections(),
-          productsAPI.getCategories(),
-          pagesAPI.getSettings(),
-          productsAPI.getStyles(),
-          productsAPI.getBanners(),
-          pagesAPI.getTestimonials(),
-          pagesAPI.getFeatures(),
-        ]);
-        setSections(sectionsRes.data);
-        const allCats = catsRes.data.results || catsRes.data || [];
-        setCategories(allCats.filter((c) => !c.parent));
-        setSettings(settingsRes.data);
-        setStyles(stylesRes.data || []);
-        setBanners(bannersRes.data);
-        const tData = testimonialsRes.data.results || testimonialsRes.data || [];
-        setTestimonials(tData);
-        setFeatures(featuresRes.data.results || featuresRes.data || []);
+        const res = await homeAPI.getHomeData();
+        const data = res.data;
+        setBanners(data.banners || []);
+        setCategories(data.categories || []);
+        setSettings(data.settings || {});
+        setStyles(data.styles || []);
+        setSections(data.sections || []);
+        setTestimonials(data.testimonials || []);
+        setFeatures(data.features || []);
       } catch (error) {
         console.error('Error fetching homepage data:', error);
       } finally {
@@ -111,6 +95,28 @@ const HomePage = () => {
 
   return (
     <div className="min-h-screen">
+      <SEO
+        title="فروشگاه آنلاین پوشاک مردانه و زنانه"
+        description="فروشگاه آنلاین پوشاک مردانه و زنانه | جدیدترین مدل‌های روز با بهترین قیمت و کیفیت | ارسال رایگان برای سفارش‌های بالای ۵۰۰ هزار تومان"
+        type="website"
+      >
+        <script type="application/ld+json">
+          {JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'WebSite',
+            name: 'فروشگاه مد',
+            url: 'https://fashionshop.ir',
+            potentialAction: {
+              '@type': 'SearchAction',
+              target: {
+                '@type': 'EntryPoint',
+                urlTemplate: 'https://fashionshop.ir/products?search={search_term_string}',
+              },
+              'query-input': 'required name=search_term_string',
+            },
+          })}
+        </script>
+      </SEO>
       {/* ═══ HERO (rounded card + glass strip) ═══ */}
       {banners.length > 0 ? (
         <BannerSlider banners={banners} features={features} />

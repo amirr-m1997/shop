@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تأیید سفارش {{ order.order_number }}</title>
+  <style>
+    body { margin: 0; padding: 0; background: #f4f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #212529; }
+    .wrapper { width: 100%; background: #f4f5f7; padding: 40px 0; }
+    .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .header { background: #1a1a2e; padding: 32px; text-align: center; }
+    .header h1 { color: #ffffff; margin: 0; font-size: 22px; font-weight: 700; }
+    .header p { color: #adb5bd; margin: 8px 0 0; font-size: 13px; }
+    .body { padding: 32px; }
+    .greeting { font-size: 15px; color: #495057; margin-bottom: 24px; line-height: 1.7; }
+    .section-title { font-size: 14px; font-weight: 700; color: #1a1a2e; border-bottom: 2px solid #e94560; padding-bottom: 8px; margin: 24px 0 16px; }
+    .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f1f3f5; font-size: 13px; }
+    .info-label { color: #868e96; }
+    .info-value { color: #212529; font-weight: 600; }
+    .product-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+    .product-table th { background: #1a1a2e; color: #ffffff; padding: 10px 12px; text-align: right; font-weight: 600; }
+    .product-table td { padding: 10px 12px; border-bottom: 1px solid #f1f3f5; }
+    .product-table tr:nth-child(even) { background: #f8f9fa; }
+    .totals { margin: 20px 0; }
+    .totals-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+    .totals-row.total { border-top: 2px solid #1a1a2e; margin-top: 8px; padding-top: 10px; font-size: 16px; font-weight: 700; color: #e94560; }
+    .status-badge { display: inline-block; background: #fff3cd; color: #856404; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .footer { background: #f8f9fa; padding: 24px 32px; text-align: center; font-size: 12px; color: #868e96; border-top: 1px solid #e9ecef; }
+    .footer a { color: #e94560; text-decoration: none; }
+    @media only screen and (max-width: 600px) {
+      .container { margin: 0 16px; }
+      .body { padding: 24px 16px; }
+      .product-table { font-size: 12px; }
+      .product-table th, .product-table td { padding: 8px 6px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="header">
+        <h1>{{ store_name }}</h1>
+        <p>تأیید سفارش</p>
+      </div>
+      <div class="body">
+        <div class="greeting">
+          سلام {{ user.get_full_name|default:user.username }}،<br>
+          سفارش شما با موفقیت ثبت شد. جزئیات را در زیر مشاهده کنید.
+        </div>
+
+        <div class="section-title">اطلاعات سفارش</div>
+        <div class="info-row"><span class="info-label">شماره سفارش</span><span class="info-value">{{ order.order_number }}</span></div>
+        <div class="info-row"><span class="info-label">تاریخ ثبت</span><span class="info-value">{{ order_date }}</span></div>
+        <div class="info-row"><span class="info-label">وضعیت</span><span class="info-value"><span class="status-badge">{{ status_label }}</span></span></div>
+        <div class="info-row"><span class="info-label">روش پرداخت</span><span class="info-value">{{ payment_method_label }}</span></div>
+
+        <div class="section-title">محصولات سفارش</div>
+        <table class="product-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>محصول</th>
+              <th>تعداد</th>
+              <th>قیمت واحد</th>
+              <th>جمع</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in items %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td>
+                {{ item.product.name }}
+                {% if item.variant %}<br><small style="color:#868e96">{% if item.variant.size %}سایز: {{ item.variant.size.name }}{% endif %}{% if item.variant.color %} | رنگ: {{ item.variant.color.name }}{% endif %}</small>{% endif %}
+              </td>
+              <td>{{ item.quantity }}</td>
+              <td>{{ item.price|floatformat:0 }} تومان</td>
+              <td><strong>{{ item.total_price|floatformat:0 }} تومان</strong></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+
+        <div class="totals">
+          <div class="totals-row"><span>جمع کل</span><span>{{ order.subtotal|floatformat:0 }} تومان</span></div>
+          <div class="totals-row"><span>هزینه ارسال</span><span>{% if order.shipping_cost %}{{ order.shipping_cost|floatformat:0 }} تومان{% else %}رایگان{% endif %}</span></div>
+          {% if order.discount > 0 %}
+          <div class="totals-row"><span>تخفیف</span><span style="color:#e94560">-{{ order.discount|floatformat:0 }} تومان</span></div>
+          {% endif %}
+          {% if order.tax > 0 %}
+          <div class="totals-row"><span>مالیات</span><span>{{ order.tax|floatformat:0 }} تومان</span></div>
+          {% endif %}
+          <div class="totals-row total"><span>مبلغ قابل پرداخت</span><span>{{ order.total|floatformat:0 }} تومان</span></div>
+        </div>
+
+        {% if shipping %}
+        <div class="section-title">آدرس ارسال</div>
+        <div style="font-size:13px;color:#495057;line-height:1.8">
+          <strong>{{ shipping.full_name }}</strong><br>
+          {{ shipping.address_line1 }}{% if shipping.address_line2 %}<br>{{ shipping.address_line2 }}{% endif %}<br>
+          {{ shipping.city }}، {{ shipping.state }}<br>
+          کد پستی: {{ shipping.postal_code }}<br>
+          تلفن: {{ shipping.phone }}
+        </div>
+        {% endif %}
+
+        {% if order.notes %}
+        <div class="section-title">یادداشت</div>
+        <div style="font-size:13px;color:#495057">{{ order.notes }}</div>
+        {% endif %}
+      </div>
+      <div class="footer">
+        <p>با تشکر از خرید شما</p>
+        <p><a href="{{ frontend_url }}">{{ store_name }}</a></p>
+        {% if store_phone %}<p>تلفن: {{ store_phone }}</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

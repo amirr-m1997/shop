@@ -5,11 +5,12 @@ import {
   Package, LogOut, Calendar, Eye, EyeOff, AlertTriangle,
   CheckCircle, Pencil, Shield, Cake, ShoppingCart, Heart,
   ChevronLeft, X, BadgeCheck, AlertCircle, Sparkles,
-  ShieldCheck, Star, History, Monitor, Globe
+  ShieldCheck, Star, History, Monitor, Globe, HeartOff, MapPinOff
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
+import EmptyState from '../components/ui/EmptyState';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogFooter, DialogDescription
@@ -19,8 +20,11 @@ import { useCart } from '../contexts/CartContext';
 import { useWishlist } from '../contexts/WishlistContext';
 import { authAPI } from '../services/api';
 import { formatPrice } from '../lib/formatPrice';
+import { SEO } from '../lib/seo';
 import { formatDate } from '../lib/formatDate';
 import { JalaliDatePicker, toJalaliString } from '../components/ui/JalaliDatePicker';
+import Skeleton from '../components/ui/Skeleton';
+import { PLACEHOLDER_IMG } from '../lib/placeholders';
 
 /* ─── Ambient Background ─── */
 const AmbientBg = () => (
@@ -76,7 +80,7 @@ const CompletionRing = ({ percent, size = 56, stroke = 4 }) => {
           </linearGradient>
         </defs>
       </svg>
-       <span className="absolute inset-0 flex items-center justify-center text-xs font-black tabular-nums">
+       <span className="absolute inset-0 flex items-center justify-center text-xs font-bold tabular-nums">
          {percent.toLocaleString('fa-IR')}٪
        </span>
     </div>
@@ -125,7 +129,7 @@ const SectionHead = ({ icon: Icon, title, action, tone = 'from-primary/15 to-vio
       <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${tone}`}>
         <Icon className="h-4.5 w-4.5 h-[18px] w-[18px]" />
       </div>
-      <h2 className="text-base font-black tracking-tight sm:text-lg">{title}</h2>
+      <h2 className="text-base font-bold tracking-tight sm:text-lg">{title}</h2>
     </div>
     {action}
   </div>
@@ -345,6 +349,7 @@ const ProfilePage = () => {
 
   return (
     <div className="relative min-h-screen">
+      <SEO title="پروفایل" noIndex />
       <AmbientBg />
 
       <div className="container relative mx-auto max-w-5xl px-4 py-6 sm:py-10">
@@ -375,7 +380,7 @@ const ProfilePage = () => {
               <p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground">
                  {greeting} ✨
                </p>
-               <h1 className="truncate text-2xl font-black tracking-tight sm:text-3xl">
+               <h1 className="truncate text-2xl font-bold tracking-tight sm:text-3xl">
                  {displayName}
                </h1>
                <p className="mt-2 text-sm text-muted-foreground" dir="ltr">
@@ -532,7 +537,7 @@ const ProfilePage = () => {
                   value={verifyCode}
                   onChange={(e) => setVerifyCode(e.target.value)}
                   maxLength={6}
-                  className={`flex-1 text-center text-lg font-bold tracking-[0.35em] ${inputClass}`}
+                  className={`flex-1 text-center text-lg font-bold tracking-widest ${inputClass}`}
                   dir="ltr"
                 />
                 <Button
@@ -654,8 +659,8 @@ const ProfilePage = () => {
                     <Lock className="h-[18px] w-[18px]" />
                   </div>
                   <div>
-                    <h2 className="text-base font-black tracking-tight sm:text-lg">تغییر رمز عبور</h2>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">امنیت حساب خود را مدیریت کنید</p>
+                    <h2 className="text-base font-bold tracking-tight sm:text-lg">تغییر رمز عبور</h2>
+                    <p className="mt-0.5 text-xs text-muted-foreground">امنیت حساب خود را مدیریت کنید</p>
                   </div>
                 </div>
                 <ChevronLeft
@@ -779,7 +784,7 @@ const ProfilePage = () => {
                       <span className="text-sm font-semibold">{label}</span>
                     </div>
                     {verified ? (
-                      <Badge className="gap-1 rounded-lg border-0 bg-emerald-500 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-600">
+                      <Badge className="gap-1 rounded-lg border-0 bg-emerald-500 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-600">
                         <CheckCircle className="h-3 w-3" />
                         تأیید شده
                       </Badge>
@@ -794,7 +799,7 @@ const ProfilePage = () => {
                         تأیید
                       </Button>
                     ) : (
-                      <Badge variant="secondary" className="rounded-lg text-[11px]">وارد نشده</Badge>
+                      <Badge variant="secondary" className="rounded-lg text-xs">وارد نشده</Badge>
                     )}
                   </div>
                 ))}
@@ -823,7 +828,7 @@ const ProfilePage = () => {
                       <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                       <span className="text-sm text-muted-foreground">{label}</span>
                     </div>
-                    <span className={`text-sm font-black tabular-nums ${accent ? 'text-primary' : ''}`}>
+                    <span className={`text-sm font-bold tabular-nums ${accent ? 'text-primary' : ''}`}>
                       {value}
                     </span>
                   </div>
@@ -877,24 +882,21 @@ const ProfilePage = () => {
             {addrLoading ? (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {[1, 2].map((i) => (
-                  <div key={i} className="h-32 animate-pulse rounded-2xl bg-muted/60" />
+                  <Skeleton key={i} className="h-32 rounded-2xl" delay={i * 0.1} />
                 ))}
               </div>
             ) : addresses.length === 0 ? (
-              <div className="py-12 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-dashed border-border bg-muted/30">
-                  <MapPin className="h-7 w-7 text-muted-foreground/40" />
-                </div>
-                <p className="text-sm font-medium text-muted-foreground">هنوز آدرسی ثبت نکرده‌اید</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={openAddAddress}
-                  className="mt-4 rounded-xl"
-                >
-                  <Plus className="ml-1 h-3.5 w-3.5" />
-                  اولین آدرس را اضافه کنید
-                </Button>
+              <div className="py-8">
+                <EmptyState
+                  icon={MapPinOff}
+                  badge="آدرس‌ها"
+                  title="هنوز آدرسی ثبت نکرده‌اید"
+                  description="یک آدرس ارسال اضافه کنید تا خرید بعدی‌تان سریع‌تر و بدون وقفه تمام شود."
+                  primaryLabel="اولین آدرس را اضافه کنید"
+                  primaryOnClick={openAddAddress}
+                  accent="from-emerald-500/15 via-teal-500/10 to-cyan-500/10"
+                  className="py-8"
+                />
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
@@ -916,7 +918,7 @@ const ProfilePage = () => {
                         <div className="mb-1.5 flex flex-wrap items-center gap-2">
                           <span className="truncate font-bold">{addr.full_name}</span>
                           {addr.is_default && (
-                            <Badge className="rounded-md border-0 bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary hover:bg-primary/20">
+                            <Badge className="rounded-md border-0 bg-primary/15 px-2 py-0.5 text-xs font-bold text-primary hover:bg-primary/20">
                               پیش‌فرض
                             </Badge>
                           )}
@@ -966,18 +968,17 @@ const ProfilePage = () => {
           />
           <div className="p-5 sm:p-6">
             {wishlist.length === 0 ? (
-              <div className="py-12 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-dashed border-border bg-muted/30">
-                  <Heart className="h-7 w-7 text-muted-foreground/40" />
-                </div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  هنوز محصولی را به علاقه‌مندی‌ها اضافه نکرده‌اید
-                </p>
-                <Link to="/products">
-                  <Button variant="outline" className="mt-4 rounded-xl font-semibold">
-                    مشاهده محصولات
-                  </Button>
-                </Link>
+              <div className="py-8">
+                <EmptyState
+                  icon={HeartOff}
+                  badge="علاقه‌مندی‌ها"
+                  title="هنوز چیزی ذخیره نکرده‌اید"
+                  description="با لمس قلب روی محصولات، آن‌ها را اینجا نگه دارید تا بعداً راحت انتخاب کنید."
+                  primaryLabel="کشف محصولات"
+                  primaryTo="/products"
+                  accent="from-red-500/15 via-rose-500/10 to-pink-500/10"
+                  className="py-8"
+                />
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
@@ -986,14 +987,14 @@ const ProfilePage = () => {
                     <div className="overflow-hidden rounded-2xl border border-border/50 bg-card/50 shadow-sm transition-all duration-500 hover:-translate-y-1 hover:border-primary/20 hover:shadow-xl hover:shadow-primary/[0.06]">
                       <div className="relative aspect-[3/4] overflow-hidden bg-muted">
                         <img
-                          src={item.product?.primary_image || 'https://via.placeholder.com/400x500?text=No+Image'}
+                          src={item.product?.primary_image || PLACEHOLDER_IMG}
                           alt={item.product?.name}
                           className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
-                          onError={(e) => { e.target.src = 'https://via.placeholder.com/400x500?text=No+Image'; }}
+                          onError={(e) => { e.target.src = PLACEHOLDER_IMG; }}
                         />
                         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                         {item.product?.discount_percentage > 0 && (
-                          <Badge className="absolute left-2.5 top-2.5 rounded-lg border-0 bg-destructive px-2 py-0.5 text-[10px] font-bold shadow-md">
+                          <Badge className="absolute left-2.5 top-2.5 rounded-lg border-0 bg-destructive px-2 py-0.5 text-xs font-bold shadow-md">
                             −{item.product.discount_percentage}٪
                           </Badge>
                         )}
@@ -1013,7 +1014,7 @@ const ProfilePage = () => {
                           {item.product?.name}
                         </h4>
                         <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-black tabular-nums">
+                          <span className="text-sm font-bold tabular-nums">
                             {formatPrice(item.product?.price)}
                           </span>
                           {item.product?.compare_price && (
@@ -1047,8 +1048,8 @@ const ProfilePage = () => {
                 <History className="h-[18px] w-[18px]" />
               </div>
               <div>
-                <h2 className="text-base font-black tracking-tight sm:text-lg">تاریخچه ورود</h2>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">ورودهای اخیر حساب شما</p>
+                <h2 className="text-base font-bold tracking-tight sm:text-lg">تاریخچه ورود</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground">ورودهای اخیر حساب شما</p>
               </div>
             </div>
             <ChevronLeft
@@ -1068,14 +1069,19 @@ const ProfilePage = () => {
                 {loginHistoryLoading ? (
                   <div className="space-y-3">
                     {[1, 2, 3].map((i) => (
-                      <div key={i} className="h-16 animate-pulse rounded-2xl bg-muted/60" />
+                      <Skeleton key={i} className="h-16 rounded-2xl" delay={i * 0.08} />
                     ))}
                   </div>
                 ) : loginHistory.length === 0 ? (
-                  <div className="py-8 text-center">
-                    <History className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
-                    <p className="text-sm text-muted-foreground">تاریخچه ورودی ثبت نشده است</p>
-                  </div>
+                  <EmptyState
+                    icon={History}
+                    badge="امنیت"
+                    title="هنوز ورودی ثبت نشده"
+                    description="پس از ورودهای بعدی، دستگاه و زمان دسترسی اینجا نمایش داده می‌شود تا حساب‌تان امن بماند."
+                    accent="from-slate-500/15 via-blue-500/10 to-cyan-500/10"
+                    size="compact"
+                    className="py-6"
+                  />
                 ) : (
                   <div className="space-y-2.5">
                     {loginHistory.map((entry, idx) => (
@@ -1096,10 +1102,10 @@ const ProfilePage = () => {
                           </p>
                         </div>
                         <div className="shrink-0 text-left">
-                          <p className="text-[11px] font-medium text-muted-foreground">
+                          <p className="text-xs font-medium text-muted-foreground">
                             {new Date(entry.login_time).toLocaleDateString('fa-IR')}
                           </p>
-                          <p className="text-[10px] text-muted-foreground/70">
+                          <p className="text-xs text-muted-foreground/70">
                             {new Date(entry.login_time).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
@@ -1117,7 +1123,7 @@ const ProfilePage = () => {
       <Dialog open={deleteAddrOpen} onOpenChange={setDeleteAddrOpen}>
         <DialogContent className="overflow-hidden rounded-3xl border-border/50 sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2.5 text-lg font-black">
+            <DialogTitle className="flex items-center gap-2.5 text-lg font-bold">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10">
                 <AlertTriangle className="h-5 w-5 text-destructive" />
               </div>
@@ -1146,7 +1152,7 @@ const ProfilePage = () => {
       <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
         <DialogContent className="overflow-hidden rounded-3xl border-border/50 sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2.5 text-lg font-black">
+            <DialogTitle className="flex items-center gap-2.5 text-lg font-bold">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10">
                 <LogOut className="h-5 w-5 text-destructive" />
               </div>
@@ -1171,7 +1177,7 @@ const ProfilePage = () => {
       <Dialog open={showAddrForm} onOpenChange={setShowAddrForm}>
         <DialogContent className="max-h-[90vh] overflow-y-auto rounded-3xl border-border/50 sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2.5 text-lg font-black">
+            <DialogTitle className="flex items-center gap-2.5 text-lg font-bold">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <MapPin className="h-5 w-5" />
               </div>

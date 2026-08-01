@@ -45,8 +45,8 @@ export const ICON_SIZES = {
 } as const;
 
 export const BADGE_SIZES = {
-  DEFAULT: 'text-[11px] px-2.5 py-0.5',
-  sm: 'text-[10px] px-2 py-0.5',
+  DEFAULT: 'text-xs px-2.5 py-0.5',
+  sm: 'text-xs px-2 py-0.5',
   lg: 'text-xs px-3 py-1',
 } as const;
 
@@ -54,7 +54,7 @@ export const BUTTON_SIZES = {
   sm: 'h-9 rounded-lg px-3 text-sm',
   DEFAULT: 'h-10 rounded-lg px-4 text-sm',
   lg: 'h-11 rounded-lg px-6 text-base',
-  xl: 'h-12 rounded-xl px-6 text-base font-black',
+  xl: 'h-12 rounded-xl px-6 text-base font-semibold',
 } as const;
 
 export const INPUT_SIZES = {

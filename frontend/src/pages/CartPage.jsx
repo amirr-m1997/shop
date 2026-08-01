@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Tag, ArrowLeft, ShoppingCart } from 'lucide-react';
 import { useCart } from '../contexts/CartContext';
 import { formatPrice } from '../lib/formatPrice';
+import { SEO } from '../lib/seo';
 import { calcShipping, useShippingConfig } from '../lib/shipping';
 import AmbientBg from '../components/cart/AmbientBg';
 import CartSkeleton from '../components/cart/CartSkeleton';
@@ -70,6 +71,7 @@ const CartPage = () => {
 
   return (
     <div className="relative min-h-[70vh] pb-28 lg:pb-12">
+      <SEO title="سبد خرید" noIndex />
       <AmbientBg />
 
       <div className="container relative mx-auto max-w-6xl px-4 py-8 sm:py-10">
@@ -83,13 +85,13 @@ const CartPage = () => {
               </div>
             </div>
             <div>
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 فروشگاه · تسویه
               </p>
-              <h1 className="text-2xl font-black tracking-tight sm:text-3xl">سبد خرید</h1>
+              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">سبد خرید</h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
-                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1.5 text-[11px] font-bold text-primary">
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/10 px-1.5 text-xs font-bold text-primary">
                     {itemCount.toLocaleString('fa-IR')}
                   </span>
                   کالا آماده پرداخت

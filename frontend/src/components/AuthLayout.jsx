@@ -41,9 +41,9 @@ const AuthLayout = ({ children, title, subtitle, showBack = false, backHref = '/
           {/* Logo / Brand */}
           <div className="flex flex-col items-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-900 text-white shadow-xl shadow-neutral-900/20 dark:bg-white dark:text-neutral-900 dark:shadow-white/10">
-              <span className="text-2xl font-black">◈</span>
+              <span className="text-2xl font-bold">◈</span>
             </div>
-            <h1 className="mt-4 text-xl font-black tracking-tight text-foreground">
+            <h1 className="mt-4 text-xl font-bold tracking-tight text-foreground">
               فروشگاه مد
             </h1>
           </div>
@@ -53,7 +53,7 @@ const AuthLayout = ({ children, title, subtitle, showBack = false, backHref = '/
             <div className="p-6 sm:p-8">
               {title && (
                 <div className="mb-8 text-center">
-                  <h2 className="text-2xl font-black tracking-tight text-foreground">
+                  <h2 className="text-2xl font-bold tracking-tight text-foreground">
                     {title}
                   </h2>
                   {subtitle && (

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
+import { Eye, EyeOff, User, Lock, Mail, Phone } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import AuthLayout from '../components/AuthLayout';
 import AuthInput from '../components/AuthInput';
+import { SEO } from '../lib/seo';
 
 const RegisterPage = () => {
   const [username, setUsername] = useState('');
@@ -31,7 +32,7 @@ const RegisterPage = () => {
       await register(username, email, password);
       navigate('/');
     } catch (err) {
-      setError(err.message || 'خطا در ثبت نام');
+      setError(err.message || 'ثبت‌نام ناموفق بود. دوباره تلاش کنید.');
     } finally {
       setLoading(false);
     }
@@ -39,9 +40,10 @@ const RegisterPage = () => {
 
   return (
     <AuthLayout
-      title="ثبت نام حساب کاربری"
-      subtitle="همین حالا ثبت نام کنید و از امکانات کامل استفاده کنید"
+      title="ساخت حساب"
+      subtitle="حساب بسازید؛ خرید را شروع کنید"
     >
+      <SEO title="ثبت نام" noIndex />
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
           <div className="rounded-2xl bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive backdrop-blur-sm">
@@ -56,7 +58,7 @@ const RegisterPage = () => {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           required
-          placeholder="نام کاربری خود را وارد کنید"
+          placeholder="نام کاربری شما"
         />
 
         <AuthInput

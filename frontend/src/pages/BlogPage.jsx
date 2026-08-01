@@ -8,12 +8,16 @@ import {
   ArrowLeft,
   BookOpen,
   Search,
+  FileSearch,
   Sparkles,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import EmptyState from '../components/ui/EmptyState';
 import { blogAPI } from '../services/api';
 import { formatDate } from '../lib/formatDate';
+import Skeleton from '../components/ui/Skeleton';
+import { SEO } from '../lib/seo';
 
 const estimateReadingMinutes = (text = '') => {
   const plain = String(text).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -45,7 +49,7 @@ const BlogCard = ({ post, featured = false, index = 0 }) => {
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent md:bg-gradient-to-l" />
-          <span className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/80 px-3 py-1 text-[11px] font-black text-neutral-900 shadow-lg backdrop-blur-xl dark:bg-white/15 dark:text-white">
+          <span className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/80 px-3 py-1 text-xs font-bold text-neutral-900 shadow-lg backdrop-blur-xl dark:bg-white/15 dark:text-white">
             <Sparkles className="h-3 w-3 text-amber-500" />
             ویژه
           </span>
@@ -57,7 +61,7 @@ const BlogCard = ({ post, featured = false, index = 0 }) => {
               {post.category_name}
             </span>
           )}
-          <h2 className="text-2xl font-black leading-tight tracking-tight transition-colors group-hover:text-primary sm:text-3xl">
+          <h2 className="text-2xl font-bold leading-tight tracking-tight transition-colors group-hover:text-primary sm:text-3xl">
             {post.title}
           </h2>
           {post.excerpt && (
@@ -109,7 +113,7 @@ const BlogCard = ({ post, featured = false, index = 0 }) => {
       </div>
       <div className="flex flex-1 flex-col p-5">
         {post.category_name && (
-          <span className="mb-2.5 inline-flex w-fit items-center gap-1 rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-bold text-muted-foreground ring-1 ring-white/10 backdrop-blur-sm">
+          <span className="mb-2.5 inline-flex w-fit items-center gap-1 rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-bold text-muted-foreground ring-1 ring-white/10 backdrop-blur-sm">
             <Tag className="h-3 w-3" />
             {post.category_name}
           </span>
@@ -122,7 +126,7 @@ const BlogCard = ({ post, featured = false, index = 0 }) => {
             {post.excerpt}
           </p>
         )}
-        <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3 text-[11px] text-muted-foreground/70">
+        <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3 text-xs text-muted-foreground/70">
           <span className="inline-flex items-center gap-1">
             <User className="h-3 w-3" />
             {post.author_name || 'تیم مد'}
@@ -184,13 +188,13 @@ const BlogPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen">
-        <div className="h-48 animate-pulse bg-muted/50 sm:h-56" />
+      <div className="min-h-screen" aria-hidden="true">
+        <Skeleton className="h-48 rounded-none sm:h-56" />
         <div className="container mx-auto space-y-6 px-4 py-10">
-          <div className="h-56 animate-pulse rounded-[2rem] bg-muted/30 backdrop-blur-sm md:h-72" />
+          <Skeleton className="h-56 rounded-[2rem] md:h-72" />
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-64 animate-pulse rounded-[1.5rem] bg-muted/30 backdrop-blur-sm" />
+              <Skeleton key={i} className="h-64 rounded-[1.5rem]" delay={i * 0.08} />
             ))}
           </div>
         </div>
@@ -200,6 +204,11 @@ const BlogPage = () => {
 
   return (
     <div className="relative min-h-screen overflow-hidden pb-16">
+      <SEO
+        title="مجله مد"
+        description="مجله فروشگاه مد | آخرین اخبار، ترندها و نکات مد و فشن"
+        url="https://fashionshop.ir/blog"
+      />
       {/* Background decorations */}
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute -left-40 top-20 h-80 w-80 rounded-full bg-violet-500/10 blur-3xl" />
@@ -216,7 +225,7 @@ const BlogPage = () => {
             <BookOpen className="h-3.5 w-3.5 text-primary" />
             مجله مد و استایل
           </div>
-          <h1 className="animate-fade-in-up text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">
+          <h1 className="animate-fade-in-up text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
             مجله مد
           </h1>
           <p
@@ -288,23 +297,19 @@ const BlogPage = () => {
             ))}
           </div>
         ) : !featuredPost ? (
-          <div className="py-20 text-center">
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-2xl">
-              <BookOpen className="h-8 w-8 text-muted-foreground/50" />
-            </div>
-            <p className="text-muted-foreground/70">مقاله‌ای یافت نشد</p>
-            {(search || activeCategory !== 'همه') && (
-              <Button
-                variant="outline"
-                className="mt-4 rounded-2xl border-white/20 bg-white/10 backdrop-blur-xl hover:bg-white/20"
-                onClick={() => {
-                  setSearch('');
-                  setActiveCategory('همه');
-                }}
-              >
-                پاک کردن فیلتر
-              </Button>
-            )}
+          <div className="py-16">
+            <EmptyState
+              icon={search || activeCategory !== 'همه' ? FileSearch : BookOpen}
+              badge="مجله"
+              title={search || activeCategory !== 'همه' ? 'مقاله‌ای یافت نشد' : 'هنوز مقاله‌ای منتشر نشده'}
+              description={search || activeCategory !== 'همه' ? 'عبارت یا دسته‌بندی دیگری را امتحان کنید.' : 'به‌زودی مقالات آموزنده و جذاب منتشر خواهند شد.'}
+              primaryLabel={search || activeCategory !== 'همه' ? 'پاک کردن فیلتر' : 'بازگشت به خانه'}
+              primaryOnClick={search || activeCategory !== 'همه' ? () => { setSearch(''); setActiveCategory('همه'); } : undefined}
+              primaryTo={search || activeCategory !== 'همه' ? undefined : '/'}
+              secondaryLabel="مشاهده محصولات"
+              secondaryTo="/products"
+              accent="from-amber-500/15 via-orange-500/10 to-yellow-500/10"
+            />
           </div>
         ) : null}
       </div>

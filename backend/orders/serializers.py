@@ -55,6 +55,8 @@ class OrderSerializer(serializers.ModelSerializer):
     shipping_address = ShippingAddressSerializer(read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     payment_status_display = serializers.CharField(source='get_payment_status_display', read_only=True)
+    reservation_remaining_seconds = serializers.IntegerField(read_only=True)
+    can_pay = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Order
@@ -66,6 +68,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'tax', 'discount', 'total', 'notes',
             'tracking_number', 'postal_tracking_code',
             'items', 'created_at', 'updated_at', 'expires_at',
+            'reservation_remaining_seconds', 'can_pay',
         ]
         read_only_fields = [
             'order_number', 'user', 'status', 'payment_status',
@@ -74,7 +77,6 @@ class OrderSerializer(serializers.ModelSerializer):
 
 
 class CreateOrderSerializer(serializers.Serializer):
-    """سریالایزر مخصوص ایجاد سفارش از سبد خرید"""
     shipping_address_id = serializers.IntegerField(
         error_messages={'required': 'آدرس ارسال الزامی است.'}
     )

@@ -4,6 +4,7 @@ import { Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import AuthLayout from '../components/AuthLayout';
 import AuthInput from '../components/AuthInput';
 import { authAPI } from '../services/api';
+import { SEO } from '../lib/seo';
 
 const ResetPasswordPage = () => {
   const [searchParams] = useSearchParams();
@@ -58,11 +59,12 @@ const ResetPasswordPage = () => {
   if (success) {
     return (
       <AuthLayout>
+        <SEO title="بازنشانی رمز" noIndex />
         <div className="text-center py-8">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
             <CheckCircle className="h-8 w-8 text-emerald-500" />
           </div>
-          <h2 className="mt-5 text-xl font-black text-foreground">رمز عبور با موفقیت تغییر کرد</h2>
+          <h2 className="mt-5 text-xl font-bold text-foreground">رمز عبور با موفقیت تغییر کرد</h2>
           <p className="mt-2 text-sm text-muted-foreground">در حال انتقال به صفحه اصلی...</p>
         </div>
       </AuthLayout>
@@ -75,6 +77,7 @@ const ResetPasswordPage = () => {
       subtitle="رمز عبور جدید خود را وارد کنید"
       showBack
     >
+      <SEO title="بازنشانی رمز" noIndex />
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
           <div className="rounded-2xl bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive backdrop-blur-sm">

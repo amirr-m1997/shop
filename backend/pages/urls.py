@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     FAQViewSet, ContactInfoView, ContactMessageViewSet,
     SiteSettingsView, TestimonialViewSet,
-    SiteFeatureViewSet, about_stats,
+    SiteFeatureViewSet, about_stats, home_data, sitemap_xml,
 )
 
 router = DefaultRouter()
@@ -17,4 +17,6 @@ urlpatterns = [
     path('contact-info/', ContactInfoView.as_view({'get': 'list'}), name='contact-info'),
     path('settings/', SiteSettingsView.as_view({'get': 'list'}), name='site-settings'),
     path('about-stats/', about_stats, name='about-stats'),
+    path('home/', home_data, name='home-data'),
+    path('sitemap.xml', sitemap_xml, name='sitemap'),
 ]

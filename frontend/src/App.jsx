@@ -1,36 +1,43 @@
-import React, { useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import { WishlistProvider } from './contexts/WishlistContext';
 import Header from './components/Header';
-import HomePage from './pages/HomePage';
-import ProductListingPage from './pages/ProductListingPage';
-import ProductDetailPage from './pages/ProductDetailPage';
-import CartPage from './pages/CartPage';
-import CheckoutPage from './pages/CheckoutPage';
-import SizeFinderPage from './pages/SizeFinderPage';
-import OrderSuccessPage from './pages/OrderSuccessPage';
-import PaymentCallbackPage from './pages/PaymentCallbackPage';
-import OrderFailedPage from './pages/OrderFailedPage';
-import ContactPage from './pages/ContactPage';
-import ShippingPage from './pages/ShippingPage';
-import ReturnsPage from './pages/ReturnsPage';
-import FaqPage from './pages/FaqPage';
-import AboutPage from './pages/AboutPage';
-import BlogPage from './pages/BlogPage';
-import BlogPostPage from './pages/BlogPostPage';
 import Footer from './components/Footer';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import ProfilePage from './pages/ProfilePage';
-import OrdersPage from './pages/OrdersPage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
-import ResetPasswordPage from './pages/ResetPasswordPage';
-import NotFoundPage from './pages/NotFoundPage';
-import StylePage from './pages/StylePage';
 import DiscountPopup from './components/DiscountPopup';
+import LazyPageLoader from './components/LazyPageLoader';
+
+// ── Lazy-loaded page chunks ────────────────────────────────
+// Each import() becomes a separate chunk. ProductListingPage is
+// shared across 5 routes so Vite deduplicates it automatically.
+
+const HomePage = lazy(() => import('./pages/HomePage'));
+const ProductListingPage = lazy(() => import('./pages/ProductListingPage'));
+const ProductDetailPage = lazy(() => import('./pages/ProductDetailPage'));
+const CartPage = lazy(() => import('./pages/CartPage'));
+const CheckoutPage = lazy(() => import('./pages/CheckoutPage'));
+const SizeFinderPage = lazy(() => import('./pages/SizeFinderPage'));
+const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage'));
+const PaymentCallbackPage = lazy(() => import('./pages/PaymentCallbackPage'));
+const OrderFailedPage = lazy(() => import('./pages/OrderFailedPage'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
+const ShippingPage = lazy(() => import('./pages/ShippingPage'));
+const ReturnsPage = lazy(() => import('./pages/ReturnsPage'));
+const FaqPage = lazy(() => import('./pages/FaqPage'));
+const AboutPage = lazy(() => import('./pages/AboutPage'));
+const BlogPage = lazy(() => import('./pages/BlogPage'));
+const BlogPostPage = lazy(() => import('./pages/BlogPostPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const OrdersPage = lazy(() => import('./pages/OrdersPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
+const StylePage = lazy(() => import('./pages/StylePage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 
 const MAX_SAVED_SCROLL_POSITIONS = 50;
@@ -119,6 +126,7 @@ function AuthRedirectHandler() {
 
 function App() {
   return (
+    <HelmetProvider>
     <ThemeProvider>
       <AuthProvider>
         <CartProvider>
@@ -131,34 +139,34 @@ function App() {
                 <Header />
                 <main className="flex-1">
                   <Routes>
-                    <Route path="/" element={<HomePage />} />
-                    <Route path="/category/:category" element={<ProductListingPage />} />
-                    <Route path="/products" element={<ProductListingPage />} />
-                    <Route path="/product/:slug" element={<ProductDetailPage />} />
-                    <Route path="/cart" element={<CartPage />} />
-                    <Route path="/checkout" element={<CheckoutPage />} />
-                    <Route path="/size-finder" element={<SizeFinderPage />} />
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route path="/register" element={<RegisterPage />} />
-                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                    <Route path="/reset-password" element={<ResetPasswordPage />} />
-                    <Route path="/profile" element={<ProfilePage />} />
-                    <Route path="/orders" element={<OrdersPage />} />
-                    <Route path="/new-arrivals" element={<ProductListingPage />} />
-                    <Route path="/sale" element={<ProductListingPage />} />
-                    <Route path="/trending" element={<ProductListingPage />} />
-                    <Route path="/order-success" element={<OrderSuccessPage />} />
-                    <Route path="/payment/callback" element={<PaymentCallbackPage />} />
-                    <Route path="/order-failed" element={<OrderFailedPage />} />
-                    <Route path="/contact" element={<ContactPage />} />
-                    <Route path="/shipping" element={<ShippingPage />} />
-                    <Route path="/returns" element={<ReturnsPage />} />
-                    <Route path="/faq" element={<FaqPage />} />
-                    <Route path="/about" element={<AboutPage />} />
-                    <Route path="/blog" element={<BlogPage />} />
-                    <Route path="/blog/:slug" element={<BlogPostPage />} />
-                    <Route path="/style/:slug" element={<StylePage />} />
-                    <Route path="*" element={<NotFoundPage />} />
+                    <Route path="/" element={<LazyPageLoader Component={HomePage} />} />
+                    <Route path="/category/:category" element={<LazyPageLoader Component={ProductListingPage} />} />
+                    <Route path="/products" element={<LazyPageLoader Component={ProductListingPage} />} />
+                    <Route path="/product/:slug" element={<LazyPageLoader Component={ProductDetailPage} />} />
+                    <Route path="/cart" element={<LazyPageLoader Component={CartPage} />} />
+                    <Route path="/checkout" element={<LazyPageLoader Component={CheckoutPage} />} />
+                    <Route path="/size-finder" element={<LazyPageLoader Component={SizeFinderPage} />} />
+                    <Route path="/login" element={<LazyPageLoader Component={LoginPage} />} />
+                    <Route path="/register" element={<LazyPageLoader Component={RegisterPage} />} />
+                    <Route path="/forgot-password" element={<LazyPageLoader Component={ForgotPasswordPage} />} />
+                    <Route path="/reset-password" element={<LazyPageLoader Component={ResetPasswordPage} />} />
+                    <Route path="/profile" element={<LazyPageLoader Component={ProfilePage} />} />
+                    <Route path="/orders" element={<LazyPageLoader Component={OrdersPage} />} />
+                    <Route path="/new-arrivals" element={<LazyPageLoader Component={ProductListingPage} />} />
+                    <Route path="/sale" element={<LazyPageLoader Component={ProductListingPage} />} />
+                    <Route path="/trending" element={<LazyPageLoader Component={ProductListingPage} />} />
+                    <Route path="/order-success" element={<LazyPageLoader Component={OrderSuccessPage} />} />
+                    <Route path="/payment/callback" element={<LazyPageLoader Component={PaymentCallbackPage} />} />
+                    <Route path="/order-failed" element={<LazyPageLoader Component={OrderFailedPage} />} />
+                    <Route path="/contact" element={<LazyPageLoader Component={ContactPage} />} />
+                    <Route path="/shipping" element={<LazyPageLoader Component={ShippingPage} />} />
+                    <Route path="/returns" element={<LazyPageLoader Component={ReturnsPage} />} />
+                    <Route path="/faq" element={<LazyPageLoader Component={FaqPage} />} />
+                    <Route path="/about" element={<LazyPageLoader Component={AboutPage} />} />
+                    <Route path="/blog" element={<LazyPageLoader Component={BlogPage} />} />
+                    <Route path="/blog/:slug" element={<LazyPageLoader Component={BlogPostPage} />} />
+                    <Route path="/style/:slug" element={<LazyPageLoader Component={StylePage} />} />
+                    <Route path="*" element={<LazyPageLoader Component={NotFoundPage} />} />
                   </Routes>
                 </main>
                 <Footer />
@@ -168,6 +176,7 @@ function App() {
         </CartProvider>
       </AuthProvider>
     </ThemeProvider>
+    </HelmetProvider>
   );
 }
 

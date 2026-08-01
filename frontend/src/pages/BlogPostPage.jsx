@@ -8,11 +8,15 @@ import {
   Tag,
   Share2,
   BookOpen,
+  FileQuestion,
   ChevronLeft,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import EmptyState from '../components/ui/EmptyState';
 import { blogAPI } from '../services/api';
 import { formatDate } from '../lib/formatDate';
+import Skeleton from '../components/ui/Skeleton';
+import { BlogPostSEO } from '../lib/seo';
 
 const estimateReadingMinutes = (text = '') => {
   const plain = String(text)
@@ -42,14 +46,14 @@ const renderPlainContent = (content = '') => {
     // Simple markdown-ish headings
     if (lines[0]?.startsWith('## ')) {
       return (
-        <h2 key={idx} className="mt-10 mb-4 text-2xl font-black tracking-tight">
+        <h2 key={idx} className="mt-10 mb-4 text-2xl font-bold tracking-tight">
           {lines[0].replace(/^##\s+/, '')}
         </h2>
       );
     }
     if (lines[0]?.startsWith('# ')) {
       return (
-        <h2 key={idx} className="mt-10 mb-4 text-2xl font-black tracking-tight">
+        <h2 key={idx} className="mt-10 mb-4 text-2xl font-bold tracking-tight">
           {lines[0].replace(/^#\s+/, '')}
         </h2>
       );
@@ -138,13 +142,13 @@ const BlogPostPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen">
-        <div className="h-64 animate-pulse bg-muted sm:h-80" />
+      <div className="min-h-screen" aria-hidden="true">
+        <Skeleton className="h-64 rounded-none sm:h-80" />
         <div className="container mx-auto max-w-3xl space-y-4 px-4 py-10">
-          <div className="h-8 w-2/3 animate-pulse rounded-xl bg-muted" />
-          <div className="h-4 w-1/3 animate-pulse rounded-lg bg-muted" />
-          <div className="h-40 w-full animate-pulse rounded-2xl bg-muted" />
-          <div className="h-24 w-full animate-pulse rounded-2xl bg-muted" />
+          <Skeleton className="h-8 w-2/3 rounded-xl" />
+          <Skeleton className="h-4 w-1/3 rounded-lg" />
+          <Skeleton className="h-40 w-full rounded-2xl" />
+          <Skeleton className="h-24 w-full rounded-2xl" />
         </div>
       </div>
     );
@@ -152,15 +156,18 @@ const BlogPostPage = () => {
 
   if (!post) {
     return (
-      <div className="container mx-auto px-4 py-24 text-center">
-        <BookOpen className="mx-auto mb-4 h-12 w-12 text-muted-foreground/40" />
-        <h1 className="text-2xl font-black">مطلب یافت نشد</h1>
-        <p className="mt-2 text-muted-foreground">
-          این مقاله وجود ندارد یا منتشر نشده است.
-        </p>
-        <Button asChild className="mt-6 rounded-2xl">
-          <Link to="/blog">بازگشت به مجله</Link>
-        </Button>
+      <div className="min-h-[70vh]">
+        <EmptyState
+          icon={FileQuestion}
+          badge="مقاله"
+          title="مقاله مورد نظر یافت نشد"
+          description="این مقاله حذف شده یا هنوز منتشر نشده است. مقالات دیگر مجله را ببینید."
+          primaryLabel="بازگشت به مجله"
+          primaryTo="/blog"
+          secondaryLabel="مشاهده محصولات"
+          secondaryTo="/products"
+          accent="from-amber-500/15 via-orange-500/10 to-yellow-500/10"
+        />
       </div>
     );
   }
@@ -171,6 +178,7 @@ const BlogPostPage = () => {
 
   return (
     <div className="min-h-screen pb-16">
+      <BlogPostSEO post={post} />
       {/* Hero cover */}
       <section className="relative overflow-hidden">
         <div className="relative h-[42vh] min-h-[280px] max-h-[480px] sm:h-[48vh]">
@@ -211,7 +219,7 @@ const BlogPostPage = () => {
                 {post.category_name}
               </span>
             )}
-            <h1 className="text-2xl font-black leading-tight tracking-tight sm:text-3xl md:text-4xl">
+            <h1 className="text-2xl font-bold leading-tight tracking-tight sm:text-3xl md:text-4xl">
               {post.title}
             </h1>
             {post.excerpt && (
@@ -278,14 +286,14 @@ const BlogPostPage = () => {
           style={{ animationDelay: '0.2s' }}
         >
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-900 text-lg font-black text-white dark:bg-white dark:text-neutral-900">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-900 text-lg font-bold text-white dark:bg-white dark:text-neutral-900">
               {(post.author_name || 'ت')[0]}
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                 نویسنده
               </p>
-              <p className="text-lg font-black">{post.author_name || 'تیم مد'}</p>
+              <p className="text-lg font-bold">{post.author_name || 'تیم مد'}</p>
               <p className="text-sm text-muted-foreground">
                 مقالات و نکات تخصصی مد و استایل
               </p>
@@ -296,7 +304,7 @@ const BlogPostPage = () => {
         {/* Related */}
         {related.length > 0 && (
           <section className="mt-14">
-            <h2 className="mb-6 text-xl font-black tracking-tight sm:text-2xl">
+            <h2 className="mb-6 text-xl font-bold tracking-tight sm:text-2xl">
               مطالب مرتبط
             </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -322,7 +330,7 @@ const BlogPostPage = () => {
                     <h3 className="line-clamp-2 text-sm font-bold transition-colors group-hover:text-primary">
                       {item.title}
                     </h3>
-                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                    <p className="mt-1.5 text-xs text-muted-foreground">
                       {formatDate(item.published_at)}
                     </p>
                   </div>

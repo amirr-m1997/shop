@@ -81,13 +81,13 @@ const ProductCarousel = ({
                 style={{ background: accent }}
               />
               <span
-                className="text-[11px] font-bold uppercase tracking-[0.18em]"
+                className="text-xs font-bold uppercase tracking-widest"
                 style={{ color: accent }}
               >
                 مجموعه
               </span>
             </div>
-            <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
               {title}
             </h2>
             {subtitle && (

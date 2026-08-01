@@ -95,6 +95,7 @@ export const ordersAPI = {
   getOrders: () => api.get('/orders/orders/'),
   getOrder: (id) => api.get(`/orders/orders/${id}/`),
   createOrder: (data) => api.post('/orders/orders/create_order/', data),
+  cancelOrder: (id) => api.post(`/orders/orders/${id}/cancel/`),
   getShippingAddresses: () => api.get('/orders/shipping-addresses/'),
   createShippingAddress: (data) => api.post('/orders/shipping-addresses/', data),
   updateShippingAddress: (id, data) => api.put(`/orders/shipping-addresses/${id}/`, data),
@@ -112,6 +113,11 @@ export const blogAPI = {
 export const welcomeOfferAPI = {
   getOffer: () => api.get('/orders/welcome-offer/'),
   claimOffer: () => api.post('/orders/welcome-offer/claim/'),
+};
+
+// Home API (aggregated endpoint)
+export const homeAPI = {
+  getHomeData: () => api.get('/pages/home/'),
 };
 export const paymentsAPI = {
   initiate: (data) => api.post('/payments/initiate/', data),

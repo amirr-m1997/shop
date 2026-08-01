@@ -12,7 +12,7 @@ const FilterChip = ({ active, onClick, label, count, icon: Icon }) => (
     {label}
     {count > 0 && (
       <span
-        className={`rounded-full px-1.5 py-0.5 text-[10px] font-black tabular-nums ${
+        className={`rounded-full px-1.5 py-0.5 text-xs font-bold tabular-nums ${
           active ? 'bg-white/20' : 'bg-muted text-muted-foreground'
         }`}
       >

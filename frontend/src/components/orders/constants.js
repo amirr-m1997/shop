@@ -1,18 +1,28 @@
 import {
   Package, Clock, CheckCircle, Truck, XCircle, RotateCcw,
-  Loader, Wallet
+  Loader, Wallet, CreditCard, AlertTriangle, Ban
 } from 'lucide-react';
 
 export const STATUS_CONFIG = {
-  pending: {
+  pending_payment: {
     label: 'در انتظار پرداخت',
+    icon: Clock,
+    bg: 'bg-orange-500/12',
+    text: 'text-orange-700 dark:text-orange-300',
+    ring: 'ring-orange-500/25',
+    accent: 'from-orange-500 to-amber-400',
+    rail: 'from-orange-500 to-amber-400',
+    step: 0,
+  },
+  pending: {
+    label: 'در انتظار بررسی',
     icon: Clock,
     bg: 'bg-amber-500/12',
     text: 'text-amber-700 dark:text-amber-300',
     ring: 'ring-amber-500/25',
     accent: 'from-amber-500 to-orange-400',
     rail: 'from-amber-500 to-orange-400',
-    step: 0,
+    step: 1,
   },
   processing: {
     label: 'در حال پردازش',
@@ -22,7 +32,7 @@ export const STATUS_CONFIG = {
     ring: 'ring-blue-500/25',
     accent: 'from-blue-500 to-cyan-400',
     rail: 'from-blue-500 to-cyan-400',
-    step: 1,
+    step: 2,
   },
   shipped: {
     label: 'ارسال شده',
@@ -32,7 +42,7 @@ export const STATUS_CONFIG = {
     ring: 'ring-violet-500/25',
     accent: 'from-violet-500 to-purple-400',
     rail: 'from-violet-500 to-purple-400',
-    step: 2,
+    step: 3,
   },
   delivered: {
     label: 'تحویل داده شده',
@@ -42,7 +52,7 @@ export const STATUS_CONFIG = {
     ring: 'ring-emerald-500/25',
     accent: 'from-emerald-500 to-teal-400',
     rail: 'from-emerald-500 to-teal-400',
-    step: 3,
+    step: 4,
   },
   cancelled: {
     label: 'لغو شده',
@@ -52,6 +62,16 @@ export const STATUS_CONFIG = {
     ring: 'ring-red-500/25',
     accent: 'from-red-500 to-rose-400',
     rail: 'from-red-500 to-rose-400',
+    step: -1,
+  },
+  expired: {
+    label: 'منقضی شده',
+    icon: Ban,
+    bg: 'bg-gray-500/12',
+    text: 'text-gray-700 dark:text-gray-300',
+    ring: 'ring-gray-500/25',
+    accent: 'from-gray-500 to-slate-400',
+    rail: 'from-gray-500 to-slate-400',
     step: -1,
   },
   returned: {
@@ -74,12 +94,11 @@ export const PAYMENT_CONFIG = {
 
 export const PAYMENT_METHOD_LABELS = {
   online: 'پرداخت آنلاین',
-  cash_on_delivery: 'پرداخت در محل',
-  card: 'کارت به کارت',
 };
 
 export const JOURNEY_STEPS = [
-  { key: 'pending', label: 'ثبت', icon: Clock },
+  { key: 'pending_payment', label: 'پرداخت', icon: CreditCard },
+  { key: 'pending', label: 'بررسی', icon: Clock },
   { key: 'processing', label: 'پردازش', icon: Package },
   { key: 'shipped', label: 'ارسال', icon: Truck },
   { key: 'delivered', label: 'تحویل', icon: CheckCircle },

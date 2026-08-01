@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
-  Package, Calendar, ChevronDown, Wallet, MapPin, Hash, Copy, Truck
+  Package, Calendar, ChevronDown, Wallet, MapPin, Hash, Copy, Truck,
+  CreditCard, XCircle, AlertTriangle
 } from 'lucide-react';
 import { formatPrice } from '../../lib/formatPrice';
 import { formatDate } from '../../lib/formatDate';
@@ -10,15 +11,47 @@ import StatusBadge from './StatusBadge';
 import PaymentBadge from './PaymentBadge';
 import OrderJourney from './OrderJourney';
 import CountdownTimer from '../CountdownTimer';
+import { PLACEHOLDER_IMG } from '../../lib/placeholders';
+import { ordersAPI, paymentsAPI } from '../../services/api';
 
 const OrderCard = ({ order, index }) => {
   const [expanded, setExpanded] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const navigate = useNavigate();
   const cfg = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
   const Icon = cfg.icon;
   const itemCount = order.items?.length || 0;
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text).catch(() => {});
+  };
+
+  const handleContinuePayment = async () => {
+    setPaying(true);
+    try {
+      const payRes = await paymentsAPI.initiate({ order_id: order.id });
+      if (payRes.data.gateway_url) {
+        window.location.href = payRes.data.gateway_url;
+      }
+    } catch {
+      // Error handled by gateway redirect
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!window.confirm('آیا از لغو سفارش اطمینان دارید؟')) return;
+    setCancelling(true);
+    try {
+      await ordersAPI.cancelOrder(order.id);
+      window.location.reload();
+    } catch {
+      // Error handled by page
+    } finally {
+      setCancelling(false);
+    }
   };
 
   return (
@@ -36,10 +69,10 @@ const OrderCard = ({ order, index }) => {
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-base font-black tracking-tight">
+                <h3 className="text-base font-bold tracking-tight">
                   سفارش #{order.order_number}
                 </h3>
-                <span className="inline-flex items-center gap-1 rounded-md bg-muted/70 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1 rounded-md bg-muted/70 px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
                   <Hash className="h-2.5 w-2.5" />
                   {order.id}
                 </span>
@@ -66,7 +99,7 @@ const OrderCard = ({ order, index }) => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-            {order.payment_status === 'unpaid' && order.status !== 'cancelled' && order.expires_at && (
+            {order.status === 'pending_payment' && order.expires_at && (
               <CountdownTimer expiresAt={order.expires_at} />
             )}
             <PaymentBadge status={order.payment_status} />
@@ -84,9 +117,10 @@ const OrderCard = ({ order, index }) => {
                   style={{ zIndex: 4 - i }}
                 >
                   <img
-                    src={item.product?.primary_image || 'https://via.placeholder.com/60x60'}
+                    src={item.product?.primary_image || PLACEHOLDER_IMG}
                     alt=""
                     className="h-full w-full object-cover"
+                    onError={(e) => { e.target.src = PLACEHOLDER_IMG; }}
                   />
                 </div>
               ))}
@@ -106,14 +140,14 @@ const OrderCard = ({ order, index }) => {
       <div className="flex items-center justify-between gap-3 border-t border-border/40 bg-gradient-to-l from-muted/40 via-muted/20 to-transparent px-4 py-3.5 sm:px-5">
         <div className="flex items-center gap-4">
           <div>
-            <p className="text-[11px] font-medium text-muted-foreground">مبلغ کل</p>
-            <p className="text-base font-black tabular-nums tracking-tight sm:text-lg">
+            <p className="text-xs font-medium text-muted-foreground">مبلغ کل</p>
+            <p className="text-base font-bold tabular-nums tracking-tight sm:text-lg">
               {formatPrice(order.total)}
             </p>
           </div>
           {order.payment_method && (
             <div className="hidden border-r border-border/50 pr-4 sm:block">
-              <p className="text-[11px] font-medium text-muted-foreground">روش پرداخت</p>
+              <p className="text-xs font-medium text-muted-foreground">روش پرداخت</p>
               <p className="text-xs font-semibold">
                 {PAYMENT_METHOD_LABELS[order.payment_method] || order.payment_method}
               </p>
@@ -121,18 +155,53 @@ const OrderCard = ({ order, index }) => {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setExpanded(!expanded)}
-          className="group/btn inline-flex items-center gap-1.5 rounded-xl border border-border/60 bg-background/70 px-3.5 py-2 text-xs font-bold text-foreground shadow-sm backdrop-blur-sm transition-all duration-300 hover:border-primary/30 hover:shadow-md"
-        >
-          {expanded ? 'بستن جزئیات' : 'مشاهده جزئیات'}
-          <ChevronDown
-            className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-300 ${
-              expanded ? 'rotate-180' : ''
-            }`}
-          />
-        </button>
+        <div className="flex items-center gap-2">
+          {order.status === 'pending_payment' && order.can_pay && (
+            <>
+              <button
+                type="button"
+                onClick={handleContinuePayment}
+                disabled={paying}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-l from-primary to-primary/80 px-4 py-2 text-xs font-bold text-primary-foreground shadow-md shadow-primary/20 transition-all duration-300 hover:shadow-lg hover:shadow-primary/30 disabled:opacity-50"
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                {paying ? 'در حال اتصال...' : 'پرداخت'}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={cancelling}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-600 dark:text-red-400 transition-all duration-300 hover:bg-red-500/20 disabled:opacity-50"
+              >
+                <XCircle className="h-3.5 w-3.5" />
+                {cancelling ? 'در حال لغو...' : 'لغو'}
+              </button>
+            </>
+          )}
+
+          {order.status === 'expired' && (
+            <Link
+              to="/products"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border/60 bg-background/70 px-4 py-2 text-xs font-bold text-foreground shadow-sm backdrop-blur-sm transition-all duration-300 hover:border-primary/30 hover:shadow-md"
+            >
+              <Package className="h-3.5 w-3.5" />
+              سفارش جدید
+            </Link>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="group/btn inline-flex items-center gap-1.5 rounded-xl border border-border/60 bg-background/70 px-3.5 py-2 text-xs font-bold text-foreground shadow-sm backdrop-blur-sm transition-all duration-300 hover:border-primary/30 hover:shadow-md"
+          >
+            {expanded ? 'بستن جزئیات' : 'مشاهده جزئیات'}
+            <ChevronDown
+              className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-300 ${
+                expanded ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       <div
@@ -155,9 +224,10 @@ const OrderCard = ({ order, index }) => {
                 >
                   <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-border/40 sm:h-16 sm:w-16">
                     <img
-                      src={item.product?.primary_image || 'https://via.placeholder.com/100x100'}
+                      src={item.product?.primary_image || PLACEHOLDER_IMG}
                       alt={item.product?.name}
                       className="h-full w-full object-cover"
+                      onError={(e) => { e.target.src = PLACEHOLDER_IMG; }}
                     />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -177,19 +247,19 @@ const OrderCard = ({ order, index }) => {
                     {(item.variant?.size_name || item.variant?.color_name) && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {item.variant?.size_name && (
-                          <span className="rounded-md bg-secondary/80 px-1.5 py-0.5 text-[10px] font-semibold">
+                          <span className="rounded-md bg-secondary/80 px-1.5 py-0.5 text-xs font-semibold">
                             سایز {item.variant.size_name}
                           </span>
                         )}
                         {item.variant?.color_name && (
-                          <span className="rounded-md bg-secondary/80 px-1.5 py-0.5 text-[10px] font-semibold">
+                          <span className="rounded-md bg-secondary/80 px-1.5 py-0.5 text-xs font-semibold">
                             {item.variant.color_name}
                           </span>
                         )}
                       </div>
                     )}
                   </div>
-                  <p className="shrink-0 text-sm font-black tabular-nums">
+                  <p className="shrink-0 text-sm font-bold tabular-nums">
                     {formatPrice(item.total_price)}
                   </p>
                 </div>
@@ -224,8 +294,8 @@ const OrderCard = ({ order, index }) => {
                   )}
                 </div>
                 <div className="text-left sm:text-left">
-                  <p className="text-[11px] font-medium text-muted-foreground">مبلغ نهایی</p>
-                  <p className="text-xl font-black tabular-nums tracking-tight text-primary">
+                  <p className="text-xs font-medium text-muted-foreground">مبلغ نهایی</p>
+                  <p className="text-xl font-bold tabular-nums tracking-tight text-primary">
                     {formatPrice(order.total)}
                   </p>
                 </div>
@@ -240,7 +310,7 @@ const OrderCard = ({ order, index }) => {
                 {order.tracking_number && (
                   <div className="flex items-center justify-between rounded-xl bg-muted/40 px-3.5 py-2.5">
                     <div>
-                      <p className="text-[11px] text-muted-foreground">کد پیگیری پرداخت</p>
+                      <p className="text-xs text-muted-foreground">کد پیگیری پرداخت</p>
                       <p className="text-sm font-bold tabular-nums" dir="ltr">{order.tracking_number}</p>
                     </div>
                     <button
@@ -255,7 +325,7 @@ const OrderCard = ({ order, index }) => {
                 {order.postal_tracking_code && (
                   <div className="flex items-center justify-between rounded-xl bg-muted/40 px-3.5 py-2.5">
                     <div>
-                      <p className="text-[11px] text-muted-foreground">کد رهگیری پستی</p>
+                      <p className="text-xs text-muted-foreground">کد رهگیری پستی</p>
                       <p className="text-sm font-bold tabular-nums" dir="ltr">{order.postal_tracking_code}</p>
                     </div>
                     <button

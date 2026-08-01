@@ -1,0 +1,22 @@
+{{ store_name }}
+تأیید پرداخت
+================================
+
+سلام {{ user.get_full_name|default:user.username }}،
+پرداخت شما برای سفارش {{ order.order_number }} با موفقیت انجام شد.
+
+اطلاعات پرداخت
+--------------------------------
+شماره سفارش: {{ order.order_number }}
+کد پیگیری: {{ ref_id }}
+تاریخ پرداخت: {{ payment_date }}
+وضعیت پرداخت: {{ payment_status_label }}
+مبلغ پرداختی: {{ order.total|floatformat:0 }} تومان
+
+پرداخت شما با موفقیت ثبت شد و سفارش شما در حال پردازش است.
+از خرید شما متشکریم.
+
+با تشکر از خرید شما
+{{ store_name }}
+{{ frontend_url }}
+{% if store_phone %}تلفن: {{ store_phone }}{% endif %}

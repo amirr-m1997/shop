@@ -60,13 +60,13 @@ const CategoriesSection = ({ categories }) => {
                   }`}
                 >
                   {isFeatured && (
-                    <span className="mb-2 inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-md">
+                    <span className="mb-2 inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-xs font-bold text-white backdrop-blur-md">
                       <Zap className="h-3 w-3 text-amber-300" />
                       محبوب‌ترین
                     </span>
                   )}
                   <h3
-                    className={`font-black text-white tracking-tight ${
+                    className={`font-bold text-white tracking-tight ${
                       isFeatured
                         ? 'text-3xl sm:text-4xl md:text-5xl'
                         : 'text-lg sm:text-xl md:text-2xl'

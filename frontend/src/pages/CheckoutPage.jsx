@@ -8,12 +8,15 @@ import {
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
+import Skeleton from '../components/ui/Skeleton';
 import { Badge } from '../components/ui/Badge';
+import EmptyState from '../components/ui/EmptyState';
 import { useCart } from '../contexts/CartContext';
 import { ordersAPI, paymentsAPI, cartAPI } from '../services/api';
 import { formatPrice } from '../lib/formatPrice';
 import { PLACEHOLDER_IMG } from '../lib/placeholders';
 import { calcShipping, useShippingConfig } from '../lib/shipping';
+import { SEO } from '../lib/seo';
 
 const STEPS = [
   { id: 1, label: 'بررسی سفارش', icon: Package },
@@ -23,20 +26,12 @@ const STEPS = [
 
 const PAYMENT_METHODS = [
   {
-    id: 'card',
-    label: 'پرداخت آنلاین / کارت',
-    desc: 'درگاه بانکی امن — پرداخت فوری',
+    id: 'online',
+    label: 'پرداخت آنلاین',
+    desc: 'درگاه امن · پرداخت آنی',
     icon: CreditCard,
     accent: 'from-blue-500/15 to-cyan-500/10 border-blue-500/30',
     iconBg: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
-  },
-  {
-    id: 'cash_on_delivery',
-    label: 'پرداخت در محل',
-    desc: 'پرداخت هنگام تحویل سفارش',
-    icon: Truck,
-    accent: 'from-emerald-500/15 to-green-500/10 border-emerald-500/30',
-    iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
   },
 ];
 
@@ -94,15 +89,12 @@ const OrderSummary = ({ cart, subtotal, shipping, total, shippingConfig, coupon 
   const discount = coupon ? parseFloat(coupon.discount_amount) : 0;
   const finalTotal = total - discount;
   const [couponCode, setCouponCode] = useState('');
-  const [couponLoading, setCouponLoading] = useState(false);
-  const [couponError, setCouponError] = useState(null);
-  const { applyCoupon, removeCoupon, couponError: ctxCouponError, couponLoading: ctxCouponLoading } = useCart();
+  const { applyCoupon, removeCoupon, couponError, couponLoading } = useCart();
 
   const handleApply = async () => {
     if (!couponCode.trim()) return;
     try {
       await applyCoupon(couponCode.trim());
-      setCouponError(null);
     } catch {
       // error handled by context
     }
@@ -111,7 +103,6 @@ const OrderSummary = ({ cart, subtotal, shipping, total, shippingConfig, coupon 
   const handleRemove = () => {
     removeCoupon();
     setCouponCode('');
-    setCouponError(null);
   };
 
   return (
@@ -207,17 +198,17 @@ const OrderSummary = ({ cart, subtotal, shipping, total, shippingConfig, coupon 
               ) : (
                 <button
                   onClick={handleApply}
-                  disabled={!couponCode.trim() || ctxCouponLoading}
+                  disabled={!couponCode.trim() || couponLoading}
                   className="h-11 shrink-0 rounded-2xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25 disabled:opacity-40 disabled:pointer-events-none"
                 >
-                  {ctxCouponLoading ? '...' : 'اعمال'}
+                  {couponLoading ? '...' : 'اعمال'}
                 </button>
               )}
             </div>
-            {(couponError || ctxCouponError) && (
+            {couponError && (
               <p className="text-sm font-medium text-red-500 flex items-center gap-2 px-1">
                 <X className="h-4 w-4" />
-                {couponError || ctxCouponError}
+                {couponError}
               </p>
             )}
             {coupon && (
@@ -264,20 +255,33 @@ const OrderSummary = ({ cart, subtotal, shipping, total, shippingConfig, coupon 
 
 /* ─── Empty Cart ─── */
 const EmptyCheckout = ({ navigate }) => (
-  <div className="container mx-auto px-4 py-16 max-w-md text-center animate-fade-in-up">
-    <div className="mx-auto mb-6 w-28 h-28 rounded-2xl bg-gradient-to-br from-muted to-muted/40 border flex items-center justify-center">
-      <ShoppingBag className="h-12 w-12 text-muted-foreground/70" strokeWidth={1.25} />
-    </div>
-    <h2 className="text-2xl font-bold mb-2">سبد خرید خالی است</h2>
-    <p className="text-muted-foreground mb-6">برای تکمیل خرید ابتدا محصولی به سبد اضافه کنید.</p>
-    <div className="flex flex-col sm:flex-row gap-4 justify-center">
-      <Button onClick={() => navigate('/products')} className="rounded-full px-6">
-        مشاهده محصولات
-      </Button>
-      <Button variant="outline" onClick={() => navigate('/cart')} className="rounded-full px-6">
-        رفتن به سبد خرید
-      </Button>
-    </div>
+  <div className="flex min-h-[70vh] items-center justify-center">
+    <EmptyState
+      icon={ShoppingBag}
+      badge="تسویه حساب"
+      title="هنوز چیزی برای تسویه نیست"
+      description="سبد خرید خالی است. محصولات منتخب را کشف کنید و وقتی آماده شدید، اینجا منتظرتان هستیم."
+      primaryLabel="کشف محصولات"
+      primaryOnClick={() => navigate('/products')}
+      secondaryLabel="رفتن به سبد خرید"
+      secondaryOnClick={() => navigate('/cart')}
+    >
+      <div className="mt-10 grid w-full max-w-sm grid-cols-3 gap-3">
+        {[
+          { icon: Truck, label: 'ارسال سریع' },
+          { icon: ShieldCheck, label: 'خرید امن' },
+          { icon: Sparkles, label: 'بسته‌بندی لوکس' },
+        ].map(({ icon: Icon, label }) => (
+          <div
+            key={label}
+            className="rounded-2xl border border-border/50 bg-card/60 p-3.5 shadow-sm backdrop-blur-md"
+          >
+            <Icon className="mx-auto mb-2 h-[18px] w-[18px] text-primary/70" />
+            <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+          </div>
+        ))}
+      </div>
+    </EmptyState>
   </div>
 );
 
@@ -301,7 +305,7 @@ const CheckoutPage = () => {
     state: '',
     postal_code: '',
   });
-  const [paymentMethod, setPaymentMethod] = useState('cash_on_delivery');
+  const [paymentMethod, setPaymentMethod] = useState('online');
   const [orderNotes, setOrderNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -354,7 +358,7 @@ const CheckoutPage = () => {
     setError('');
 
     if (!newAddress.full_name || !newAddress.phone || !newAddress.address_line1 || !newAddress.city) {
-      setError('لطفاً فیلدهای الزامی را پر کنید');
+      setError('لطفاً فیلدهای الزامی را تکمیل کنید');
       return;
     }
 
@@ -379,7 +383,7 @@ const CheckoutPage = () => {
 
   const handlePlaceOrder = async () => {
     if (!selectedAddress) {
-      setError('لطفاً یک آدرس ارسال را انتخاب کنید');
+      setError('لطفاً آدرس ارسال را انتخاب کنید');
       setStep(2);
       return;
     }
@@ -395,19 +399,17 @@ const CheckoutPage = () => {
       });
       const orderId = orderRes.data.id;
 
-      if (paymentMethod === 'card') {
-        try {
-          const payRes = await paymentsAPI.initiate({ order_id: orderId });
-          if (payRes.data.gateway_url) {
-            window.location.href = payRes.data.gateway_url;
-            return;
-          }
-        } catch (payErr) {
-          console.error('Payment initiation error:', payErr);
-          setError(payErr.response?.data?.error || payErr.response?.data?.detail || 'خطا در اتصال به درگاه پرداخت. سفارش ثبت شد و می‌توانید از پنل کاربری پرداخت کنید.');
-          setLoading(false);
+      try {
+        const payRes = await paymentsAPI.initiate({ order_id: orderId });
+        if (payRes.data.gateway_url) {
+          window.location.href = payRes.data.gateway_url;
           return;
         }
+      } catch (payErr) {
+        console.error('Payment initiation error:', payErr);
+        setError(payErr.response?.data?.error || payErr.response?.data?.detail || 'اتصال به درگاه پرداخت ناموفق بود. سفارش ثبت شد — می‌توانید از پنل کاربری پرداخت کنید.');
+        setLoading(false);
+        return;
       }
 
       await clearCart();
@@ -417,7 +419,7 @@ const CheckoutPage = () => {
     } catch (err) {
       console.error('Error placing order:', err);
       const data = err.response?.data;
-      let msg = 'خطا در ثبت سفارش. لطفاً دوباره تلاش کنید.';
+      let msg = 'ثبت سفارش ناموفق بود. لطفاً دوباره تلاش کنید.';
       if (typeof data === 'string') {
         msg = data;
       } else if (data?.error) {
@@ -442,6 +444,7 @@ const CheckoutPage = () => {
   if (!cart || !cart.items || cart.items.length === 0) {
     return (
       <div className="min-h-[70vh] bg-gradient-to-b from-muted/40 via-background to-background">
+        <SEO title="تسویه حساب" noIndex />
         <EmptyCheckout navigate={navigate} />
       </div>
     );
@@ -456,6 +459,7 @@ const CheckoutPage = () => {
 
   return (
     <div className="min-h-[70vh] bg-gradient-to-b from-muted/40 via-background to-background">
+      <SEO title="تسویه حساب" noIndex />
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 animate-fade-in-down">
@@ -464,7 +468,7 @@ const CheckoutPage = () => {
               <Wallet className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight">تکمیل خرید</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">تکمیل خرید</h1>
               <p className="text-sm text-muted-foreground mt-0.5">
                 مرحله {step.toLocaleString('fa-IR')} از ۳
               </p>
@@ -493,7 +497,7 @@ const CheckoutPage = () => {
                   </div>
                   <div>
                     <h2 className="font-bold text-lg">بررسی سفارش</h2>
-                    <p className="text-xs text-muted-foreground">محصولات سبد خود را یک‌بار دیگر چک کنید</p>
+                    <p className="text-xs text-muted-foreground">محصولات سبد خود را مرور کنید</p>
                   </div>
                 </div>
                 <CardContent className="p-5 sm:p-6">
@@ -516,10 +520,10 @@ const CheckoutPage = () => {
                           </h3>
                           {item.variant && (
                             <div className="flex flex-wrap gap-1.5 mt-1.5">
-                              <span className="text-[11px] px-2 py-0.5 rounded-md bg-secondary font-medium">
+                              <span className="text-xs px-2 py-0.5 rounded-md bg-secondary font-medium">
                                 سایز: {item.variant.size_name}
                               </span>
-                              <span className="text-[11px] px-2 py-0.5 rounded-md bg-secondary font-medium">
+                              <span className="text-xs px-2 py-0.5 rounded-md bg-secondary font-medium">
                                 رنگ: {item.variant.color_name}
                               </span>
                             </div>
@@ -567,67 +571,89 @@ const CheckoutPage = () => {
                   )}
 
                   {addrLoading ? (
-                    <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      <span className="text-sm">در حال بارگذاری آدرس‌ها...</span>
+                    <div className="space-y-3 py-4">
+                      {[1, 2].map((i) => (
+                        <div key={i} className="rounded-2xl border border-border/40 p-4 space-y-3">
+                          <div className="flex items-center gap-3">
+                            <Skeleton className="h-5 w-5 rounded-lg" />
+                            <Skeleton className="h-4 w-32 rounded-lg" />
+                          </div>
+                          <Skeleton className="h-3 w-full rounded" />
+                          <Skeleton className="h-3 w-3/4 rounded" delay={0.05} />
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     <>
-                      <div className="space-y-3 mb-5">
-                        {shippingAddresses.map((address) => {
-                          const selected = selectedAddress === address.id;
-                          return (
-                            <button
-                              type="button"
-                              key={address.id}
-                              onClick={() => setSelectedAddress(address.id)}
-                              className={`w-full text-right p-4 rounded-2xl border-2 transition-all ${
-                                selected
-                                  ? 'border-primary bg-primary/5 shadow-sm shadow-primary/10'
-                                  : 'border-border hover:border-primary/30 hover:bg-muted/40'
-                              }`}
-                            >
-                              <div className="flex items-start gap-3">
-                                <div
-                                  className={`mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
-                                    selected ? 'border-primary bg-primary' : 'border-muted-foreground/40'
-                                  }`}
-                                >
-                                  {selected && <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="font-bold text-sm">{address.full_name}</p>
-                                    {address.is_default && (
-                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                                        پیش‌فرض
-                                      </Badge>
-                                    )}
+                      {shippingAddresses.length === 0 && showAddressForm && (
+                        <div className="mb-5 rounded-2xl border border-dashed border-border/60 bg-gradient-to-br from-primary/[0.04] via-card to-muted/20 px-4 py-5 text-center">
+                          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/10">
+                            <MapPin className="h-5 w-5 text-primary/70" strokeWidth={1.5} />
+                          </div>
+                          <p className="text-sm font-bold">اولین آدرس ارسال را ثبت کنید</p>
+                          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                            برای تحویل سفارش، آدرس معتبر خود را ثبت کنید.
+                          </p>
+                        </div>
+                      )}
+
+                      {shippingAddresses.length > 0 && (
+                        <div className="space-y-3 mb-5">
+                          {shippingAddresses.map((address) => {
+                            const selected = selectedAddress === address.id;
+                            return (
+                              <button
+                                type="button"
+                                key={address.id}
+                                onClick={() => setSelectedAddress(address.id)}
+                                className={`w-full text-right p-4 rounded-2xl border-2 transition-all ${
+                                  selected
+                                    ? 'border-primary bg-primary/5 shadow-sm shadow-primary/10'
+                                    : 'border-border hover:border-primary/30 hover:bg-muted/40'
+                                }`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div
+                                    className={`mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                                      selected ? 'border-primary bg-primary' : 'border-muted-foreground/40'
+                                    }`}
+                                  >
+                                    {selected && <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />}
                                   </div>
-                                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                                    <Phone className="h-3 w-3" />
-                                    {address.phone}
-                                  </p>
-                                  <p className="text-sm mt-1.5 leading-relaxed flex items-start gap-1">
-                                    <Home className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
-                                    <span>
-                                      {address.address_line1}
-                                      {address.address_line2 && `، ${address.address_line2}`}
-                                      {(address.city || address.state) && (
-                                        <>
-                                          <br />
-                                          {[address.city, address.state].filter(Boolean).join('، ')}
-                                          {address.postal_code && ` — کد پستی: ${address.postal_code}`}
-                                        </>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <p className="font-bold text-sm">{address.full_name}</p>
+                                      {address.is_default && (
+                                        <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                                          پیش‌فرض
+                                        </Badge>
                                       )}
-                                    </span>
-                                  </p>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                      <Phone className="h-3 w-3" />
+                                      {address.phone}
+                                    </p>
+                                    <p className="text-sm mt-1.5 leading-relaxed flex items-start gap-1">
+                                      <Home className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                                      <span>
+                                        {address.address_line1}
+                                        {address.address_line2 && `، ${address.address_line2}`}
+                                        {(address.city || address.state) && (
+                                          <>
+                                            <br />
+                                            {[address.city, address.state].filter(Boolean).join('، ')}
+                                            {address.postal_code && ` — کد پستی: ${address.postal_code}`}
+                                          </>
+                                        )}
+                                      </span>
+                                    </p>
+                                  </div>
                                 </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       {!showAddressForm ? (
                         <Button
@@ -830,14 +856,14 @@ const CheckoutPage = () => {
                       onChange={(e) => setOrderNotes(e.target.value)}
                       rows={3}
                       className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
-                      placeholder="هر نکته یا توضیحی درباره سفارش خود دارید بنویسید..."
+                      placeholder="توضیحی درباره سفارش خود بنویسید"
                     />
                   </div>
 
                   {/* Pay amount highlight */}
                   <div className="mt-5 rounded-2xl border border-primary/20 bg-primary/5 p-4 flex items-center justify-between">
                     <span className="text-sm font-medium text-muted-foreground">مبلغ نهایی</span>
-                    <span className="text-xl font-black tabular-nums text-primary">
+                    <span className="text-xl font-bold tabular-nums text-primary">
                       {formatPrice(finalTotal > 0 ? finalTotal : 0)}
                     </span>
                   </div>

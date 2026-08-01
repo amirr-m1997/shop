@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { Filter, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react';
+import { Filter, X, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, SlidersHorizontal, SearchX, ListFilter, PackageOpen } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import EmptyState from '../components/ui/EmptyState';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import {
@@ -15,6 +16,8 @@ import { Slider } from '../components/ui/Slider';
 import { productsAPI } from '../services/api';
 import { formatPrice } from '../lib/formatPrice';
 import ProductCard from '../components/ProductCard';
+import ProductGridSkeleton from '../components/skeletons/ProductGridSkeleton';
+import { SEO, CategorySEO } from '../lib/seo';
 
 /* ─── Collapsible Filter Section ─── */
 const FilterSection = ({ title, defaultOpen = true, children }) => {
@@ -253,6 +256,21 @@ const ProductListingPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <SEO
+        title={
+          searchQuery ? `نتیجه جستجو: ${searchQuery}`
+          : isSalePage ? 'تخفیف‌ها و حراج'
+          : isNewArrivalsPage ? 'جدیدترین محصولات'
+          : isTrendingPage ? 'محبوب‌ترین محصولات'
+          : matchedCat ? `خرید ${matchedCat.name}`
+          : 'فروشگاه'
+        }
+        description={
+          matchedCat?.description
+          || `${pageTitle} - جدیدترین محصولات با بهترین قیمت در فروشگاه مد`
+        }
+        url={window.location.href}
+      />
       {/* ── Mobile Filter Toggle ── */}
       <div className="flex items-center justify-between mb-4 md:hidden">
         <Button variant="outline" onClick={() => setFilterOpen(!filterOpen)} className="flex items-center gap-2">
@@ -609,27 +627,44 @@ const ProductListingPage = () => {
           </div>
 
           {loading ? (
-            <div className="text-center py-12 text-muted-foreground">در حال بارگذاری...</div>
+            <ProductGridSkeleton count={8} size="large" />
           ) : products.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              {searchQuery ? (
-                <div>
-                  <p className="mb-4">محصولی با عنوان «{searchQuery}» یافت نشد</p>
-                  <Button variant="outline" onClick={() => { searchParams.delete('search'); setSearchParams(searchParams); }}>
-                    پاک کردن جستجو
-                  </Button>
-                </div>
-              ) : hasActiveFilters ? (
-                <div>
-                  <p className="mb-4">محصولی با فیلترهای انتخابی یافت نشد</p>
-                  <Button variant="outline" onClick={clearFilters}>
-                    پاک کردن فیلترها
-                  </Button>
-                </div>
-              ) : (
-                'محصولی یافت نشد'
-              )}
-            </div>
+            searchQuery ? (
+              <EmptyState
+                icon={SearchX}
+                badge="جستجو"
+                title={`محصولی با عنوان «${searchQuery}» یافت نشد`}
+                description="عبارت دیگری را امتحان کنید یا فیلترها را پاک کنید تا همه محصولات را ببینید."
+                primaryLabel="پاک کردن جستجو"
+                primaryOnClick={() => { searchParams.delete('search'); setSearchParams(searchParams); }}
+                secondaryLabel="مشاهده همه محصولات"
+                secondaryTo="/products"
+                accent="from-amber-500/15 via-orange-500/10 to-yellow-500/10"
+              />
+            ) : hasActiveFilters ? (
+              <EmptyState
+                icon={ListFilter}
+                badge="فیلتر"
+                title="محصولی با فیلترهای انتخابی یافت نشد"
+                description="فیلترها را تغییر دهید یا پاک کنید تا محصولات بیشتری ببینید."
+                primaryLabel="پاک کردن فیلترها"
+                primaryOnClick={clearFilters}
+                secondaryLabel="مشاهده همه محصولات"
+                secondaryTo="/products"
+                accent="from-violet-500/15 via-purple-500/10 to-fuchsia-500/10"
+              />
+            ) : (
+              <EmptyState
+                icon={PackageOpen}
+                badge="محصولات"
+                title="هنوز محصولی ثبت نشده"
+                description="به‌زودی محصولات جدید و جذاب اضافه خواهند شد. صفحه اصلی را بررسی کنید."
+                primaryLabel="بازگشت به خانه"
+                primaryTo="/"
+                secondaryLabel="مشاهده بلاگ"
+                secondaryTo="/blog"
+              />
+            )
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {products.map(product => (

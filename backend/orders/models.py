@@ -5,6 +5,8 @@ from decimal import Decimal
 from datetime import timedelta
 from products.models import Product
 
+RESERVATION_MINUTES = 10
+
 
 class ShippingAddress(models.Model):
     user = models.ForeignKey(
@@ -38,11 +40,13 @@ class ShippingAddress(models.Model):
 
 class Order(models.Model):
     STATUS_CHOICES = [
+        ('pending_payment', 'در انتظار پرداخت'),
         ('pending', 'در انتظار بررسی'),
         ('processing', 'در حال پردازش'),
         ('shipped', 'ارسال شده'),
         ('delivered', 'تحویل داده شده'),
         ('cancelled', 'لغو شده'),
+        ('expired', 'منقضی شده'),
         ('returned', 'مرجوع شده'),
     ]
 
@@ -54,8 +58,6 @@ class Order(models.Model):
 
     PAYMENT_METHOD_CHOICES = [
         ('online', 'پرداخت آنلاین'),
-        ('cash_on_delivery', 'پرداخت در محل'),
-        ('card', 'کارت به کارت'),
     ]
 
     order_number = models.CharField(
@@ -76,7 +78,7 @@ class Order(models.Model):
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default='pending',
+        default='pending_payment',
         verbose_name="وضعیت سفارش"
     )
     payment_status = models.CharField(
@@ -139,21 +141,23 @@ class Order(models.Model):
             return False
         return timezone.now() > self.expires_at
 
-    def cancel_if_expired(self):
-        if self.is_expired and self.status in ['pending', 'processing']:
-            from django.db.models import F
-            from products.models import Product, ProductVariant
-            from django.db import transaction
-            with transaction.atomic():
-                for item in self.items.all():
-                    if item.product:
-                        Product.objects.filter(id=item.product.id).update(stock=F('stock') + item.quantity)
-                    if item.variant:
-                        ProductVariant.objects.filter(id=item.variant.id).update(stock=F('stock') + item.quantity)
-                self.status = 'cancelled'
-                self.save(update_fields=['status', 'updated_at'])
-            return True
-        return False
+    @property
+    def reservation_remaining_seconds(self):
+        """Seconds remaining until reservation expires. 0 if expired or no timer."""
+        if not self.expires_at or self.status != 'pending_payment':
+            return 0
+        delta = self.expires_at - timezone.now()
+        seconds = int(delta.total_seconds())
+        return max(seconds, 0)
+
+    @property
+    def can_pay(self):
+        """Whether the customer can still initiate/continue payment."""
+        return (
+            self.status == 'pending_payment'
+            and self.payment_status == 'unpaid'
+            and not self.is_expired
+        )
 
 
 class OrderItem(models.Model):

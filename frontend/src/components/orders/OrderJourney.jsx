@@ -32,7 +32,7 @@ const OrderJourney = ({ status }) => {
                   )}
                 </div>
                 <span
-                  className={`text-[10px] font-semibold sm:text-[11px] ${
+                  className={`text-xs font-semibold sm:text-xs ${
                     done || active ? 'text-foreground' : 'text-muted-foreground'
                   }`}
                 >

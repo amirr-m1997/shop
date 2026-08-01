@@ -64,10 +64,10 @@ const TrendsSection = ({ styles }) => {
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
-                <span className="mb-1.5 block text-[10px] font-bold tracking-widest text-amber-300/90">
+                <span className="mb-1.5 block text-xs font-bold tracking-widest text-amber-300/90">
                   ۰{(idx + 1).toLocaleString('fa-IR')}
                 </span>
-                <h3 className="text-base font-black text-white sm:text-lg">{item.title}</h3>
+                <h3 className="text-base font-bold text-white sm:text-lg">{item.title}</h3>
                 <p className="mt-1 flex items-center gap-1 text-xs text-white/60 transition-colors group-hover:text-white">
                   مشاهده استایل
                   <ArrowLeft className="h-3 w-3 transition-transform group-hover:-translate-x-1" />

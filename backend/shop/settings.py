@@ -18,8 +18,6 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR.parent / '.env')
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
@@ -46,6 +44,8 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'x-device-fingerprint',
+    'x-request-id',
 ]
 
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
@@ -77,6 +77,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'shop.middleware.RequestLoggingMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -85,6 +86,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'shop.middleware.SecurityHeadersMiddleware',
 ]
 
 ROOT_URLCONF = 'shop.urls'
@@ -161,6 +163,8 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# ─── Django REST Framework ─────────────────────────────────
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
@@ -172,14 +176,301 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+
+    # ── Global Throttling ──
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '200/hour',
+        'user': '2000/hour',
+        # Scoped rates for sensitive endpoints
+        'login': '5/min',
+        'register': '5/min',
+        'send_otp': '3/min',
+        'verify_otp': '5/min',
+        'forgot_password': '3/min',
+        'reset_password': '5/min',
+        'payment_init': '10/min',
+        'payment_verify': '5/min',
+        'payment_webhook': '60/min',
+        'coupon_apply': '20/min',
+    },
+
+    # ── Exception handler for consistent throttle/lockout responses ──
+    'EXCEPTION_HANDLER': 'shop.exceptions.custom_exception_handler',
 }
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
+# ─── Default primary key field type ────────────────────────
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Zarinpal Payment Gateway
+# ─── Cache Configuration ───────────────────────────────────
+# Uses LocMemCache by default. Switch to Redis in production
+# by setting REDIS_URL in .env.
+
+REDIS_URL = os.getenv('REDIS_URL', '')
+
+if REDIS_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': REDIS_URL,
+            'KEY_PREFIX': 'shop',
+            'TIMEOUT': 300,
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'shop-security',
+        }
+    }
+
+# ─── Security Settings ─────────────────────────────────────
+
+# HSTS (enable when HTTPS is confirmed)
+# Set SECURE_HSTS_SECONDS=31536000 in .env for production
+SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '0'))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = os.getenv('SECURE_HSTS_INCLUDE_SUBDOMAINS', 'False') == 'True'
+SECURE_HSTS_PRELOAD = os.getenv('SECURE_HSTS_PRELOAD', 'False') == 'True'
+
+# Cookie security
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SAMESITE = 'Lax'
+
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+# Additional security headers (handled by middleware, but also set here for Django built-ins)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = False  # Disabled — CSP replaces it
+X_FRAME_OPTIONS = 'DENY'
+
+# ─── Logging Configuration ─────────────────────────────────
+# Production-grade logging with rotating file handlers,
+# separate loggers per domain, and structured formatting.
+
+LOG_DIR = BASE_DIR / 'logs'
+LOG_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+
+    # ── Formatters ────────────────────────────────────────
+    'formatters': {
+        'verbose': {
+            'format': '{asctime} {levelname} [{name}] {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+        'json': {
+            '()': 'shop.observability.JsonFormatter',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+        'security': {
+            'format': '{asctime} [SECURITY] {levelname} [{name}] {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+    },
+
+    # ── Filters ───────────────────────────────────────────
+    'filters': {
+        'require_debug_true': {
+            '()': 'django.utils.log.RequireDebugTrue',
+        },
+        'require_debug_false': {
+            '()': 'django.utils.log.RequireDebugFalse',
+        },
+    },
+
+    # ── Handlers ──────────────────────────────────────────
+    'handlers': {
+        # Console (always active — for development and containerized deploys)
+        'console': {
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'console_simple': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+
+        # ── Rotating file handlers ────────────────────────
+        # All application logs (info+)
+        'application_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOG_DIR / 'application.log',
+            'maxBytes': 10 * 1024 * 1024,  # 10 MB
+            'backupCount': 10,
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
+
+        # Errors only (warning+, across all loggers)
+        'errors_file': {
+            'level': 'WARNING',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOG_DIR / 'errors.log',
+            'maxBytes': 10 * 1024 * 1024,
+            'backupCount': 15,
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
+
+        # Security events (lockouts, OTP abuse, rate limits, suspicious activity)
+        'security_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOG_DIR / 'security.log',
+            'maxBytes': 10 * 1024 * 1024,
+            'backupCount': 20,
+            'formatter': 'security',
+            'encoding': 'utf-8',
+        },
+
+        # Payment events (initiation, verification, gateway responses, failures)
+        'payment_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOG_DIR / 'payment.log',
+            'maxBytes': 10 * 1024 * 1024,
+            'backupCount': 15,
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
+
+        # Null handler to prevent "No handler" warnings
+        'null': {
+            'class': 'logging.NullHandler',
+        },
+    },
+
+    # ── Loggers ───────────────────────────────────────────
+    'loggers': {
+        # Django core — catches middleware/startup messages
+        'django': {
+            'handlers': ['console', 'application_file', 'errors_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+
+        # Request/response lifecycle — 4xx/5xx
+        'django.request': {
+            'handlers': ['console', 'application_file', 'errors_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+
+        # Security middleware, CSRF, permission denied
+        'django.security': {
+            'handlers': ['console', 'security_file', 'errors_file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+
+        # Database queries (only in DEBUG)
+        'django.db.backends': {
+            'handlers': ['null'] if not DEBUG else ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+
+        # ── Application loggers ──────────────────────────
+
+        # General application events
+        'application': {
+            'handlers': ['console', 'application_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+
+        # Authentication: login, register, OTP, password reset
+        'authentication': {
+            'handlers': ['console', 'application_file', 'security_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+
+        # Payment gateway interactions
+        'payment': {
+            'handlers': ['console', 'payment_file', 'errors_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+
+        # Order lifecycle events
+        'orders': {
+            'handlers': ['console', 'application_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+
+        # Inventory management
+        'inventory': {
+            'handlers': ['console', 'application_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+
+        # Security events (lockouts, abuse, suspicious requests)
+        'security': {
+            'handlers': ['console', 'security_file', 'errors_file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+
+        # API performance and usage
+        'api': {
+            'handlers': ['console', 'application_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+
+        # Email service (send status, errors)
+        'email': {
+            'handlers': ['console', 'application_file', 'errors_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+
+        # Catch-all for any third-party or unhandled loggers
+        '': {
+            'handlers': ['console', 'errors_file'],
+            'level': 'WARNING',
+            'propagate': True,
+        },
+    },
+
+    # ── Root logger ───────────────────────────────────────
+    'root': {
+        'handlers': ['console', 'errors_file'],
+        'level': 'WARNING',
+    },
+}
+
+# ─── Email Configuration (Gmail SMTP) ──────────────────────
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'mkhmdyamyr8@gmail.com')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'xrlp ncjo aplz fiov')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'mkhmdyamyr8@gmail.com')
+
+# ─── Zarinpal Payment Gateway ──────────────────────────────
 ZARINPAL_MERCHANT_ID = os.getenv('ZARINPAL_MERCHANT_ID', '')
 ZARINPAL_SANDBOX = os.getenv('ZARINPAL_SANDBOX', 'True') == 'True'
 ZARINPAL_CALLBACK_URL = os.getenv(
@@ -187,4 +478,50 @@ ZARINPAL_CALLBACK_URL = os.getenv(
     'http://localhost:8000/api/payments/verify/'
 )
 
+# ─── Sentry Configuration ──────────────────────────────────
+# Set SENTRY_DSN in .env to enable error tracking in production.
+# Install: pip install sentry-sdk
+SENTRY_DSN = os.getenv('SENTRY_DSN', '')
+SENTRY_TRACES_SAMPLE_RATE = float(os.getenv('SENTRY_TRACES_SAMPLE_RATE', '0.1'))
+SENTRY_ENVIRONMENT = os.getenv('SENTRY_ENVIRONMENT', 'production')
 
+if SENTRY_DSN:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.django import DjangoIntegration
+        from sentry_sdk.integrations.logging import LoggingIntegration
+
+        sentry_logging = LoggingIntegration(
+            level=logging.WARNING,        # Send warnings and above to Sentry
+            event_level=logging.ERROR,    # Create Sentry events for errors+
+        )
+
+        from shop.observability import sentry_before_send, sentry_before_breadcrumb
+
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            integrations=[
+                DjangoIntegration(),
+                sentry_logging,
+            ],
+            environment=SENTRY_ENVIRONMENT,
+            traces_sample_rate=SENTRY_TRACES_SAMPLE_RATE,
+            send_default_pii=False,
+            before_send=sentry_before_send,
+            before_breadcrumb=sentry_before_breadcrumb,
+            enable_tracing=True,
+            release=os.getenv('SENTRY_RELEASE', 'shop@latest'),
+        )
+        import logging as _logging
+        _logging.getLogger('shop').info(
+            'Sentry initialized: environment=%s traces_sample_rate=%.2f',
+            SENTRY_ENVIRONMENT, SENTRY_TRACES_SAMPLE_RATE,
+        )
+    except ImportError:
+        import logging as _logging
+        _logging.getLogger('shop').warning(
+            'sentry-sdk not installed. Install with: pip install sentry-sdk'
+        )
+    except Exception as e:
+        import logging as _logging
+        _logging.getLogger('shop').warning('Sentry initialization failed: %s', e)

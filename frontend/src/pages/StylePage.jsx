@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Palette, PackageOpen } from 'lucide-react';
 import { productsAPI } from '../services/api';
 import ProductCard from '../components/ProductCard';
+import EmptyState from '../components/ui/EmptyState';
+import StylePageSkeleton from '../components/skeletons/StylePageSkeleton';
+import { StyleSEO } from '../lib/seo';
 
 const StylePage = () => {
   const { slug } = useParams();
@@ -30,27 +33,30 @@ const StylePage = () => {
   const products = style?.products || [];
 
   if (loading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="animate-pulse space-y-4">
-          <div className="h-64 bg-muted rounded-2xl" />
-          <div className="h-8 w-48 bg-muted rounded" />
-        </div>
-      </div>
-    );
+    return <StylePageSkeleton />;
   }
 
   if (error || !style) {
     return (
-      <div className="container mx-auto px-4 py-16 text-center">
-        <p className="text-muted-foreground mb-4">{error || 'استایل یافت نشد'}</p>
-        <Link to="/products" className="text-primary hover:underline">مشاهده همه محصولات</Link>
+      <div className="min-h-[70vh]">
+        <EmptyState
+          icon={Palette}
+          badge="استایل"
+          title="استایل مورد نظر یافت نشد"
+          description="این استایل حذف شده یا وجود ندارد. استایل‌های دیگر را کشف کنید."
+          primaryLabel="مشاهده همه محصولات"
+          primaryTo="/products"
+          secondaryLabel="بازگشت به خانه"
+          secondaryTo="/"
+          accent="from-violet-500/15 via-purple-500/10 to-fuchsia-500/10"
+        />
       </div>
     );
   }
 
   return (
     <div className="min-h-[70vh]">
+      <StyleSEO style={style} />
       {/* Hero Banner */}
       <div className="relative h-64 sm:h-80 md:h-96 overflow-hidden">
         {style.image ? (
@@ -77,10 +83,18 @@ const StylePage = () => {
         </div>
 
         {products.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <ShoppingBag className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>محصولی برای این استایل یافت نشد</p>
-          </div>
+          <EmptyState
+            icon={PackageOpen}
+            badge="استایل"
+            title="هنوز محصولی در این استایل نیست"
+            description="به‌زودی محصولات این استایل اضافه می‌شوند. در این فاصله بقیه مجموعه‌ها را کشف کنید."
+            primaryLabel="مشاهده همه محصولات"
+            primaryTo="/products"
+            secondaryLabel="بازگشت به خانه"
+            secondaryTo="/"
+            accent="from-violet-500/15 via-purple-500/10 to-fuchsia-500/10"
+            size="compact"
+          />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
             {products.map(product => (

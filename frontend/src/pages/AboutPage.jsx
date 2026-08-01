@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { pagesAPI } from '../services/api';
+import Skeleton from '../components/ui/Skeleton';
+import { SEO } from '../lib/seo';
 
 /* ── Animated counter hook ───────────────────────────── */
 function useCountUp(end, duration = 2000, enabled = false) {
@@ -118,6 +120,23 @@ export default function AboutPage() {
 
   return (
     <div className="min-h-screen overflow-hidden">
+      <SEO
+        title="درباره ما"
+        description="درباره فروشگاه مد | داستان ما، ارزش‌ها و تعهد ما به کیفیت و رضایت مشتریان"
+        url="https://fashionshop.ir/about"
+      >
+        <script type="application/ld+json">
+          {JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'Organization',
+            name: 'فروشگاه مد',
+            url: 'https://fashionshop.ir',
+            logo: 'https://fashionshop.ir/logo.png',
+            description: 'فروشگاه آنلاین پوشاک مردانه و زنانه',
+            sameAs: [],
+          })}
+        </script>
+      </SEO>
 
       {/* ── Hero Section ─────────────────────────────────── */}
       <section className="relative flex items-center justify-center overflow-hidden min-h-[460px] sm:min-h-[560px]">
@@ -264,9 +283,9 @@ export default function AboutPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               {[1, 2, 3, 4].map(i => (
                 <div key={i} className="flex flex-col items-center gap-3 p-6">
-                  <div className="h-14 w-14 rounded-2xl bg-muted animate-pulse" />
-                  <div className="h-8 w-20 rounded bg-muted animate-pulse" />
-                  <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+                  <Skeleton className="h-14 w-14 rounded-2xl" delay={i * 0.08} />
+                  <Skeleton className="h-8 w-20 rounded" delay={i * 0.12} />
+                  <Skeleton className="h-4 w-16 rounded" delay={i * 0.16} />
                 </div>
               ))}
             </div>
@@ -311,7 +330,7 @@ export default function AboutPage() {
           }} />
 
           <div className="relative z-10">
-            <h2 className="text-2xl sm:text-3xl font-black mb-4 drop-shadow-sm">
+            <h2 className="text-2xl sm:text-3xl font-bold mb-4 drop-shadow-sm">
               آماده‌اید استایل خود را پیدا کنید؟
             </h2>
             <p className="text-white/85 mb-8 max-w-lg mx-auto">

@@ -1,7 +1,10 @@
 import uuid
+import logging
 
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
+from django.core.mail import send_mail
+from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta
 
@@ -12,8 +15,24 @@ from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 
 from .models import UserProfile, LoginHistory
+from .throttles import (
+    LoginThrottle, RegisterThrottle, SendOtpThrottle, VerifyOtpThrottle,
+    ForgotPasswordThrottle, ResetPasswordThrottle,
+)
+from .security import (
+    record_login_failure, clear_login_failures, is_account_locked,
+    apply_login_delay, requires_captcha, validate_captcha,
+    extract_device_fingerprint, log_security_event,
+    record_otp_send, record_otp_failure, clear_otp_failures, is_otp_locked,
+)
+from shop.observability import (
+    log_auth_success, log_auth_failure, log_auth_lockout,
+    log_otp_request, log_otp_verification, log_password_reset,
+)
 from orders.models import ShippingAddress
 from orders.serializers import ShippingAddressSerializer
+
+logger = logging.getLogger('authentication')
 
 
 def _get_or_create_profile(user):
@@ -38,11 +57,18 @@ def _user_data(user):
     }
 
 
+def _get_client_ip(request):
+    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
+    return x_forwarded.split(',')[0].strip() if x_forwarded else request.META.get('REMOTE_ADDR', 'unknown')
+
+
 # --- Auth ---
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_view(request):
+    throttle_classes = [RegisterThrottle]
+
     username = request.data.get('username', '').strip()
     email = request.data.get('email', '').strip()
     password = request.data.get('password', '')
@@ -69,12 +95,17 @@ def register_view(request):
     token, _ = Token.objects.get_or_create(user=user)
 
     # Record registration as first login
-    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-    ip_address = x_forwarded.split(',')[0].strip() if x_forwarded else request.META.get('REMOTE_ADDR')
+    ip_address = _get_client_ip(request)
     LoginHistory.objects.create(
         user=user,
         ip_address=ip_address,
         user_agent=request.META.get('HTTP_USER_AGENT', ''),
+    )
+
+    log_auth_success(username, user.id, ip_address, method='register')
+    logger.info(
+        '[register_success] user=%s user_id=%d ip=%s',
+        username, user.id, ip_address,
     )
 
     return Response({
@@ -86,18 +117,81 @@ def register_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_view(request):
+    throttle_classes = [LoginThrottle]
+
     username = request.data.get('username', '').strip()
     password = request.data.get('password', '')
+    captcha_response = request.data.get('captcha', '')
+    device_fingerprint = request.data.get('device_fingerprint', '')
 
+    if not username:
+        return Response({'error': 'نام کاربری الزامی است'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Identifier for lockout: username + IP
+    ip_address = _get_client_ip(request)
+    identifier = username.lower()
+    ip_identifier = ip_address
+
+    # Check account lockout (by username)
+    if is_account_locked(identifier):
+        log_security_event('login_blocked_lockout', request, f'user={username}')
+        log_auth_lockout(identifier, lock_type='account')
+        return Response(
+            {'error': 'حساب شما به‌صورت موقت قفل شده است. لطفاً ۵ دقیقه صبر کنید یا با پشتیبانی سایت تماس بگیرید.'},
+            status=status.HTTP_423_LOCKED,
+        )
+
+    # Check IP lockout
+    if is_account_locked(ip_identifier):
+        log_security_event('login_blocked_ip_lockout', request, f'user={username}')
+        log_auth_lockout(ip_identifier, lock_type='ip')
+        return Response(
+            {'error': 'تعداد تلاش‌های ناموفق بیش از حد مجاز است. لطفاً ۵ دقیقه صبر کنید یا با پشتیبانی سایت تماس بگیرید.'},
+            status=status.HTTP_423_LOCKED,
+        )
+
+    # Check CAPTCHA requirement
+    if requires_captcha(identifier):
+        valid, err = validate_captcha(captcha_response, '')
+        if not valid:
+            log_security_event('login_captcha_failed', request, f'user={username}')
+            return Response(
+                {'error': err, 'captcha_required': True},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    # Apply progressive delay
+    apply_login_delay(identifier)
+
+    # Attempt authentication
     user = authenticate(username=username, password=password)
     if not user:
+        fail_count = record_login_failure(identifier)
+        record_login_failure(ip_identifier)
+
+        log_security_event('login_failure', request, f'user={username}, count={fail_count}')
+        log_auth_failure(username, ip_address, fail_count=fail_count)
+
+        if fail_count >= 10:
+            log_auth_lockout(identifier, lock_type='account', duration=300)
+            return Response(
+                {'error': 'حساب شما به‌صورت موقت قفل شده است. لطفاً ۵ دقیقه صبر کنید یا با پشتیبانی سایت تماس بگیرید.'},
+                status=status.HTTP_423_LOCKED,
+            )
+        if fail_count >= 5:
+            return Response(
+                {'error': 'نام کاربری یا رمز عبور اشتباه است.', 'captcha_required': True},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         return Response({'error': 'نام کاربری یا رمز عبور اشتباه است'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Success — clear failures
+    clear_login_failures(identifier)
+    clear_login_failures(ip_identifier)
 
     token, _ = Token.objects.get_or_create(user=user)
 
     # Record login history
-    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-    ip_address = x_forwarded.split(',')[0].strip() if x_forwarded else request.META.get('REMOTE_ADDR')
     LoginHistory.objects.create(
         user=user,
         ip_address=ip_address,
@@ -107,6 +201,12 @@ def login_view(request):
     # Delete login history older than 30 days
     cutoff = timezone.now() - timedelta(days=30)
     LoginHistory.objects.filter(user=user, login_time__lt=cutoff).delete()
+
+    log_auth_success(username, user.id, ip_address, method='login')
+    logger.info(
+        '[login_success] user=%s user_id=%d ip=%s',
+        username, user.id, ip_address,
+    )
 
     return Response({
         'token': token.key,
@@ -165,23 +265,68 @@ def user_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def send_verification_view(request):
+    throttle_classes = [SendOtpThrottle]
+
     verify_type = request.data.get('type', 'email')
     profile = _get_or_create_profile(request.user)
+    ip_address = _get_client_ip(request)
+
+    # Check OTP lockout
+    lock_id = f'{request.user.id}:{verify_type}'
+    if is_otp_locked(lock_id):
+        log_security_event('otp_send_blocked', request, f'user={request.user.username}')
+        return Response(
+            {'error': 'تعداد درخواست‌ها بیش از حد مجاز است. لطفاً ۵ دقیقه صبر کنید یا با پشتیبانی سایت تماس بگیرید.'},
+            status=status.HTTP_423_LOCKED,
+        )
+
+    # Track OTP sends
+    send_count = record_otp_send(lock_id)
+    if send_count > 5:
+        log_security_event('otp_abuse', request, f'user={request.user.username}, sends={send_count}')
 
     if verify_type == 'phone':
         if not profile.phone:
             return Response({'error': 'شماره تلفن وارد نشده است'}, status=status.HTTP_400_BAD_REQUEST)
         code = profile.generate_verification_code('phone')
-        # In production, send SMS here
-        return Response({
-            'message': 'کد تأیید ارسال شد',
-        })
+        log_otp_request(request.user.id, 'phone', ip_address, success=True)
+        logger.info(
+            '[otp_sent] user=%s type=phone ip=%s',
+            request.user.username, ip_address,
+        )
+        # TODO: اتصال سرویس پیامک (مثلاً کاوه‌نگار)
+        response_data = {'message': 'کد تأیید ارسال شد'}
+        if settings.DEBUG:
+            response_data['code'] = code
+        return Response(response_data)
 
     elif verify_type == 'email':
         if not request.user.email:
             return Response({'error': 'ایمیل وارد نشده است'}, status=status.HTTP_400_BAD_REQUEST)
         code = profile.generate_verification_code('email')
-        # In production, send email here
+        try:
+            send_mail(
+                subject='کد تأیید ایمیل — فروشگاه مد',
+                message=f'کد تأیید شما: {code}\n\nاین کد تا ۱۰ دقیقه معتبر است.',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[request.user.email],
+                fail_silently=False,
+            )
+            log_otp_request(request.user.id, 'email', ip_address, success=True)
+            logger.info(
+                '[otp_sent] user=%s type=email ip=%s',
+                request.user.username, ip_address,
+            )
+        except Exception as e:
+            log_otp_request(request.user.id, 'email', ip_address, success=False)
+            logger.error(
+                '[otp_send_failed] user=%s type=email ip=%s error=%s',
+                request.user.username, ip_address, str(e),
+            )
+            return Response(
+                {'error': f'خطا در ارسال ایمیل: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
         return Response({
             'message': 'کد تأیید به ایمیل شما ارسال شد',
         })
@@ -192,19 +337,37 @@ def send_verification_view(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def verify_code_view(request):
+    throttle_classes = [VerifyOtpThrottle]
+
     code = request.data.get('code', '').strip()
     verify_type = request.data.get('type', 'email')
 
     if not code:
         return Response({'error': 'کد تأیید الزامی است'}, status=status.HTTP_400_BAD_REQUEST)
 
+    # Check OTP lockout
+    lock_id = f'{request.user.id}:{verify_type}'
+    if is_otp_locked(lock_id):
+        log_security_event('otp_verify_blocked', request, f'user={request.user.username}')
+        return Response(
+            {'error': 'تعداد تلاش‌های ناموفق بیش از حد مجاز است. لطفاً ۵ دقیقه صبر کنید یا با پشتیبانی سایت تماس بگیرید.'},
+            status=status.HTTP_423_LOCKED,
+        )
+
     profile = _get_or_create_profile(request.user)
 
     if profile.verification_code != code:
+        fail_count = record_otp_failure(lock_id)
+        log_security_event('otp_verify_failure', request, f'user={request.user.username}, count={fail_count}')
+        log_otp_verification(request.user.id, verify_type, success=False,
+                             ip=_get_client_ip(request), fail_count=fail_count)
         return Response({'error': 'کد تأیید اشتباه است'}, status=status.HTTP_400_BAD_REQUEST)
 
     if profile.verification_type != verify_type:
         return Response({'error': 'نوع تأیید نامعتبر است'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Success — clear OTP failures
+    clear_otp_failures(lock_id)
 
     if verify_type == 'phone':
         profile.phone_verified = True
@@ -214,6 +377,12 @@ def verify_code_view(request):
     profile.verification_code = ''
     profile.verification_type = ''
     profile.save()
+
+    log_otp_verification(request.user.id, verify_type, success=True, ip=_get_client_ip(request))
+    logger.info(
+        '[otp_verified] user=%s type=%s ip=%s',
+        request.user.username, verify_type, _get_client_ip(request),
+    )
 
     return Response({'message': f'{"تلفن" if verify_type == "phone" else "ایمیل"} با موفقیت تأیید شد'})
 
@@ -226,11 +395,13 @@ def verify_code_view(request):
 def change_password_view(request):
     old_password = request.data.get('old_password', '')
     new_password = request.data.get('new_password', '')
+    ip_address = _get_client_ip(request)
 
     if not old_password or not new_password:
         return Response({'error': 'رمز عبور فعلی و رمز عبور جدید الزامی است'}, status=status.HTTP_400_BAD_REQUEST)
 
     if not request.user.check_password(old_password):
+        log_auth_failure(request.user.username, ip_address, reason='wrong_password')
         return Response({'error': 'رمز عبور فعلی اشتباه است'}, status=status.HTTP_400_BAD_REQUEST)
 
     if len(new_password) < 6:
@@ -241,6 +412,12 @@ def change_password_view(request):
 
     Token.objects.filter(user=request.user).delete()
     token = Token.objects.create(user=request.user)
+
+    log_password_reset(request.user.id, ip_address, method='change')
+    logger.info(
+        '[password_changed] user=%s user_id=%d ip=%s',
+        request.user.username, request.user.id, ip_address,
+    )
 
     return Response({'message': 'رمز عبور با موفقیت تغییر کرد', 'token': token.key})
 
@@ -260,13 +437,20 @@ def logout_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def password_reset_request_view(request):
+    throttle_classes = [ForgotPasswordThrottle]
+
     email = request.data.get('email', '').strip()
+    ip_address = _get_client_ip(request)
     if not email:
         return Response({'error': 'ایمیل الزامی است'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         user = User.objects.get(email=email)
     except User.DoesNotExist:
+        logger.info(
+            '[password_reset_not_found] email=%s ip=%s',
+            email[:3] + '***', ip_address,
+        )
         return Response({'message': 'اگر ایمیل شما در سیستم وجود داشته باشد، لینک بازیابی ارسال خواهد شد.'})
 
     token = uuid.uuid4().hex[:40]
@@ -274,16 +458,50 @@ def password_reset_request_view(request):
     profile.reset_token = token
     profile.save(update_fields=['reset_token'])
 
+    reset_link = f'{settings.FRONTEND_URL}/reset-password?token={token}'
+
+    try:
+        send_mail(
+            subject='بازیابی رمز عبور — فروشگاه مد',
+            message=(
+                f'سلام {user.get_full_name() or user.username},\n\n'
+                f'برای بازیابی رمز عبور روی لینک زیر کلیک کنید:\n\n'
+                f'{reset_link}\n\n'
+                f'این لینک تا ۲۴ ساعت معتبر است.\n'
+                f'اگر شما این درخواست را نداده‌اید، این ایمیل را نادیده بگیرید.'
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            fail_silently=False,
+        )
+        log_password_reset(user.id, ip_address, method='request')
+        logger.info(
+            '[password_reset_requested] user=%s user_id=%d ip=%s',
+            user.username, user.id, ip_address,
+        )
+    except Exception as e:
+        logger.error(
+            '[password_reset_email_failed] user=%s ip=%s error=%s',
+            user.username, ip_address, str(e),
+        )
+        return Response(
+            {'error': f'خطا در ارسال ایمیل: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
     return Response({
-        'message': 'اگر ایمیل شما در سیستم وجود داشته باشد، لینک بازیابی ارسال خواهد شد.',
+        'message': 'لینک بازیابی رمز عبور به ایمیل شما ارسال شد.',
     })
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def password_reset_confirm_view(request):
+    throttle_classes = [ResetPasswordThrottle]
+
     token = request.data.get('token', '').strip()
     new_password = request.data.get('new_password', '')
+    ip_address = _get_client_ip(request)
 
     if not token or not new_password:
         return Response({'error': 'توکن و رمز عبور جدید الزامی است'}, status=status.HTTP_400_BAD_REQUEST)
@@ -295,6 +513,10 @@ def password_reset_confirm_view(request):
         profile = UserProfile.objects.get(reset_token=token[:40])
         user = profile.user
     except UserProfile.DoesNotExist:
+        logger.warning(
+            '[password_reset_invalid_token] ip=%s',
+            ip_address,
+        )
         return Response({'error': 'توکن نامعتبر یا منقضی شده است'}, status=status.HTTP_400_BAD_REQUEST)
 
     user.set_password(new_password)
@@ -304,6 +526,12 @@ def password_reset_confirm_view(request):
     profile.save(update_fields=['reset_token'])
 
     new_token = Token.objects.create(user=user)
+
+    log_password_reset(user.id, ip_address, method='confirm')
+    logger.info(
+        '[password_reset_success] user=%s user_id=%d ip=%s',
+        user.username, user.id, ip_address,
+    )
 
     return Response({
         'message': 'رمز عبور با موفقیت بازیابی شد',

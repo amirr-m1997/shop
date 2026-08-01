@@ -1,4 +1,5 @@
 import re
+import logging
 import requests
 from decimal import Decimal
 from django.conf import settings
@@ -12,6 +13,16 @@ from rest_framework.response import Response
 from .models import Payment
 from .serializers import PaymentSerializer, InitiatePaymentSerializer
 from orders.models import Order
+from accounts.throttles import PaymentInitThrottle, PaymentVerifyThrottle, PaymentWebhookThrottle
+from accounts.security import log_security_event
+from shop.observability import (
+    log_payment_initiation, log_payment_gateway_response,
+    log_payment_verification, log_payment_failure,
+    log_payment_timeout, log_duplicate_callback,
+    log_external_service_failure, log_event,
+)
+
+logger = logging.getLogger('payment')
 
 
 FRONTEND_URL = settings.FRONTEND_URL
@@ -30,12 +41,15 @@ else:
     ZARINPAL_VERIFY_URL = 'https://payment.zarinpal.com/pg/v4/payment/verify.json'
     ZARINPAL_GATEWAY_URL = 'https://www.zarinpal.com/pg/StartPay/'
 
-# UUID v4 pattern (hex digits only — xxxxxxxx placeholder is NOT valid)
 UUID_RE = re.compile(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
 )
 
-# Zarinpal v4 error codes
+
+def _get_client_ip(request):
+    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
+    return x_forwarded.split(',')[0].strip() if x_forwarded else request.META.get('REMOTE_ADDR', 'unknown')
+
 ZARINPAL_ERRORS = {
     -9: 'خطای اعتبارسنجی — merchant_id، مبلغ، callback یا توضیحات نامعتبر است.',
     -10: 'مرچنت‌کد یا IP پذیرنده صحیح نیست.',
@@ -54,7 +68,6 @@ ZARINPAL_ERRORS = {
 
 
 def _parse_zarinpal_response(result):
-    """Extract code/message from Zarinpal v4 response (data or errors)."""
     data = result.get('data') or {}
     errors = result.get('errors') or {}
 
@@ -106,20 +119,27 @@ def _build_metadata(user, order):
 class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [PaymentInitThrottle]
 
     def get_queryset(self):
-        return Payment.objects.filter(user=self.request.user)
+        return Payment.objects.filter(user=self.request.user).select_related('order')
 
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def initiate_payment(request):
+    throttle_classes = [PaymentInitThrottle]
+
     serializer = InitiatePaymentSerializer(
         data=request.data, context={'request': request}
     )
     serializer.is_valid(raise_exception=True)
 
     if not ZARINPAL_MERCHANT_ID or not UUID_RE.match(ZARINPAL_MERCHANT_ID.strip()):
+        logger.warning(
+            '[payment_init_invalid_merchant] user=%s ip=%s',
+            request.user.username, _get_client_ip(request),
+        )
         return Response(
             {
                 'error': (
@@ -137,6 +157,28 @@ def initiate_payment(request):
         user=request.user,
     )
 
+    # Race condition guard: only pending_payment orders can be paid
+    if not order.can_pay:
+        if order.status == 'expired':
+            return Response(
+                {'error': 'این سفارش منقضی شده است. لطفاً سفارش جدیدی ثبت کنید.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if order.status == 'cancelled':
+            return Response(
+                {'error': 'این سفارش لغو شده است.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if order.payment_status == 'paid':
+            return Response(
+                {'error': 'این سفارش قبلاً پرداخت شده است.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(
+            {'error': 'امکان پرداخت برای این سفارش وجود ندارد.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     existing = Payment.objects.filter(order=order).first()
     if existing:
         if existing.status == 'success':
@@ -145,14 +187,12 @@ def initiate_payment(request):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if existing.status == 'processing' and existing.authority:
-            # Reuse in-progress payment and send user back to gateway
             gateway_url = f'{ZARINPAL_GATEWAY_URL}{existing.authority}'
             return Response({
                 'gateway_url': gateway_url,
                 'authority': existing.authority,
                 'payment_id': existing.id,
             })
-        # failed / pending without authority → reuse row for a new request
         payment = existing
         payment.amount = order.total
         payment.status = 'pending'
@@ -172,16 +212,18 @@ def initiate_payment(request):
             status='pending',
         )
 
-    # Amounts are stored in Tomans; Zarinpal accepts IRT (Toman) currency
     amount = int(order.total)
     if amount < 1000:
         payment.status = 'failed'
         payment.error_message = 'مبلغ سفارش کمتر از حداقل مجاز درگاه است.'
         payment.save(update_fields=['status', 'error_message', 'updated_at'])
+        log_payment_failure(payment.id, order.id, 0, payment.error_message)
         return Response(
             {'error': payment.error_message},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+    log_payment_initiation(payment.id, order.id, amount, request.user.username, _get_client_ip(request))
 
     payload = {
         'merchant_id': ZARINPAL_MERCHANT_ID.strip(),
@@ -208,6 +250,11 @@ def initiate_payment(request):
             payment.status = 'failed'
             payment.error_message = f'پاسخ نامعتبر از درگاه (HTTP {response.status_code})'
             payment.save(update_fields=['status', 'error_message', 'updated_at'])
+            log_external_service_failure(
+                'payment', 'zarinpal', 'initiate_payment',
+                response_code=response.status_code,
+                payment_id=payment.id, order_id=order.id,
+            )
             return Response(
                 {'error': payment.error_message},
                 status=status.HTTP_502_BAD_GATEWAY,
@@ -221,6 +268,7 @@ def initiate_payment(request):
                 payment.status = 'failed'
                 payment.error_message = 'درگاه authority برنگرداند.'
                 payment.save(update_fields=['status', 'error_message', 'updated_at'])
+                log_payment_gateway_response(payment.id, code, error='no_authority')
                 return Response(
                     {'error': payment.error_message},
                     status=status.HTTP_502_BAD_GATEWAY,
@@ -233,6 +281,8 @@ def initiate_payment(request):
             payment.save(update_fields=[
                 'authority', 'status', 'error_code', 'error_message', 'updated_at',
             ])
+
+            log_payment_gateway_response(payment.id, code, authority=authority)
 
             return Response({
                 'gateway_url': f'{ZARINPAL_GATEWAY_URL}{authority}',
@@ -247,12 +297,18 @@ def initiate_payment(request):
         payment.save(update_fields=[
             'status', 'error_code', 'error_message', 'updated_at',
         ])
+        log_payment_failure(payment.id, order.id, code, msg)
         return Response({'error': msg, 'code': code}, status=status.HTTP_400_BAD_REQUEST)
 
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
         payment.status = 'failed'
         payment.error_message = 'خطا در اتصال به درگاه پرداخت.'
         payment.save(update_fields=['status', 'error_message', 'updated_at'])
+        log_payment_timeout(payment.id, order.id)
+        log_external_service_failure(
+            'payment', 'zarinpal', 'initiate_payment',
+            error=e, payment_id=payment.id, order_id=order.id,
+        )
         return Response(
             {'error': payment.error_message},
             status=status.HTTP_502_BAD_GATEWAY,
@@ -262,24 +318,54 @@ def initiate_payment(request):
 @csrf_exempt
 @require_GET
 def payment_verify_callback(request):
+    # Manual throttle check (non-DRF view)
+    from django.core.cache import cache
+    ident = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or request.META.get('REMOTE_ADDR', 'unknown')
+    throttle_key = f'throttle_payment_verify_{ident}'
+    count = cache.get(throttle_key, 0)
+    if count >= 5:
+        log_security_event('payment_verify_throttled', request, f'ip={ident}')
+        return HttpResponseRedirect(f'{FRONTEND_URL}/payment/callback?error=throttled')
+    cache.set(throttle_key, count + 1, 60)
+
     payment_id = request.GET.get('payment_id')
     authority = request.GET.get('Authority')
     status_param = request.GET.get('Status')
 
+    logger.info(
+        '[payment_callback_received] payment_id=%s status=%s authority=%s',
+        payment_id, status_param, authority[:20] if authority else None,
+    )
+
     try:
         payment = Payment.objects.select_related('order').get(id=payment_id)
     except (Payment.DoesNotExist, ValueError, TypeError):
-        return HttpResponseRedirect(f'{FRONTEND_URL}/order-failed?error=payment_not_found')
+        logger.warning('[payment_callback_payment_not_found] payment_id=%s', payment_id)
+        return HttpResponseRedirect(f'{FRONTEND_URL}/payment/callback?error=payment_not_found')
+
+    order = payment.order
+
+    # ── Race condition guard ──
+    # If the order expired or was cancelled while the user was at the bank,
+    # do NOT accept the payment. Refund via gateway if needed.
+    if order.status in ('expired', 'cancelled'):
+        payment.status = 'failed'
+        payment.error_message = 'سفارش منقضی یا لغو شده بود هنگام بازگشت از درگاه.'
+        payment.save(update_fields=['status', 'error_message', 'updated_at'])
+        log_payment_failure(payment.id, order.id, -1, payment.error_message)
+        return HttpResponseRedirect(
+            f'{FRONTEND_URL}/payment/callback?error=order_expired&order={order.id}'
+        )
 
     if status_param != 'OK':
         payment.status = 'failed'
         payment.error_message = 'پرداخت توسط کاربر لغو شد.'
         payment.save(update_fields=['status', 'error_message', 'updated_at'])
+        log_payment_failure(payment.id, order.id, -1, 'User cancelled payment')
         return HttpResponseRedirect(
-            f'{FRONTEND_URL}/order-failed?error=cancelled&order={payment.order.id}'
+            f'{FRONTEND_URL}/payment/callback?error=cancelled&order={order.id}'
         )
 
-    # Must match the amount/currency used at request time (IRT / Tomans)
     amount = int(payment.amount)
     payload = {
         'merchant_id': ZARINPAL_MERCHANT_ID.strip(),
@@ -305,31 +391,57 @@ def payment_verify_callback(request):
             payment.error_message = 'پاسخ نامعتبر از درگاه هنگام تأیید پرداخت.'
             payment.save(update_fields=['status', 'error_message', 'updated_at'])
             return HttpResponseRedirect(
-                f'{FRONTEND_URL}/order-failed?error=network_error&order={payment.order.id}'
+                f'{FRONTEND_URL}/payment/callback?error=network_error&order={order.id}'
             )
 
         code, data, errors = _parse_zarinpal_response(result)
 
         if code in (100, 101):
-            payment.status = 'success'
-            payment.ref_id = str(data.get('ref_id', ''))
-            payment.card_pan = data.get('card_pan', '') or ''
-            fee_raw = data.get('fee', 0) or 0
-            # fee from gateway is in same unit as request (IRT)
-            payment.fee = Decimal(str(fee_raw))
-            if authority:
-                payment.authority = authority
-            payment.save(update_fields=[
-                'status', 'ref_id', 'card_pan', 'fee', 'authority', 'updated_at',
-            ])
+            # ── Double-check order status inside atomic block ──
+            from django.db import transaction as db_transaction
 
-            order = payment.order
-            order.payment_status = 'paid'
-            order.tracking_number = str(data.get('ref_id', ''))
-            order.save(update_fields=['payment_status', 'tracking_number', 'updated_at'])
+            with db_transaction.atomic():
+                fresh_order = Order.objects.select_for_update().get(id=order.id)
+
+                if fresh_order.status not in ('pending_payment',):
+                    payment.status = 'failed'
+                    payment.error_message = 'وضعیت سفارش تغییر کرده بود.'
+                    payment.save(update_fields=['status', 'error_message', 'updated_at'])
+                    log_payment_verification(payment.id, order.id, 'race_condition_lost')
+                    return HttpResponseRedirect(
+                        f'{FRONTEND_URL}/payment/callback?error=order_changed&order={order.id}'
+                    )
+
+                payment.status = 'success'
+                payment.ref_id = str(data.get('ref_id', ''))
+                payment.card_pan = data.get('card_pan', '') or ''
+                fee_raw = data.get('fee', 0) or 0
+                payment.fee = Decimal(str(fee_raw))
+                if authority:
+                    payment.authority = authority
+                payment.save(update_fields=[
+                    'status', 'ref_id', 'card_pan', 'fee', 'authority', 'updated_at',
+                ])
+
+                fresh_order.payment_status = 'paid'
+                fresh_order.status = 'pending'
+                fresh_order.tracking_number = str(data.get('ref_id', ''))
+                fresh_order.expires_at = None
+                fresh_order.save(update_fields=[
+                    'payment_status', 'status', 'tracking_number', 'expires_at', 'updated_at',
+                ])
+
+            log_payment_verification(payment.id, order.id, 'success', ref_id=payment.ref_id)
+
+            try:
+                from shop.email_service import send_payment_confirmation, send_invoice_email
+                send_payment_confirmation(order, payment)
+                send_invoice_email(order)
+            except Exception as e:
+                logger.error('[email_send_error] order=%s error=%s', order.order_number, e)
 
             return HttpResponseRedirect(
-                f'{FRONTEND_URL}/order-success'
+                f'{FRONTEND_URL}/payment/callback'
                 f'?ref_id={data.get("ref_id", "")}'
                 f'&order_number={order.order_number}'
             )
@@ -341,16 +453,21 @@ def payment_verify_callback(request):
         payment.save(update_fields=[
             'status', 'error_code', 'error_message', 'updated_at',
         ])
+        log_payment_failure(payment.id, order.id, code, msg)
         return HttpResponseRedirect(
-            f'{FRONTEND_URL}/order-failed'
-            f'?error=verify_failed&code={code}&order={payment.order.id}'
+            f'{FRONTEND_URL}/payment/callback'
+            f'?error=verify_failed&code={code}&order={order.id}'
         )
     except requests.exceptions.RequestException as e:
         payment.status = 'failed'
         payment.error_message = str(e)
         payment.save(update_fields=['status', 'error_message', 'updated_at'])
+        log_external_service_failure(
+            'payment', 'zarinpal', 'verify_payment',
+            error=e, payment_id=payment.id, order_id=order.id,
+        )
         return HttpResponseRedirect(
-            f'{FRONTEND_URL}/order-failed?error=network_error&order={payment.order.id}'
+            f'{FRONTEND_URL}/payment/callback?error=network_error&order={order.id}'
         )
 
 

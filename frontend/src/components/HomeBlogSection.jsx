@@ -13,7 +13,7 @@ const HomeBlogSection = ({ posts = [] }) => {
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
             <div className="h-8 w-1.5 rounded-full bg-cyan-500" />
-            <h2 className="text-xl sm:text-2xl font-black">مجله مد</h2>
+            <h2 className="text-xl sm:text-2xl font-bold">مجله مد</h2>
           </div>
           <Link
             to="/blog"

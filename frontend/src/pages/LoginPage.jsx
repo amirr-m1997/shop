@@ -4,6 +4,7 @@ import { Eye, EyeOff, User, Lock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import AuthLayout from '../components/AuthLayout';
 import AuthInput from '../components/AuthInput';
+import { SEO } from '../lib/seo';
 
 const LoginPage = () => {
   const [username, setUsername] = useState('');
@@ -23,7 +24,7 @@ const LoginPage = () => {
       await login(username, password);
       navigate('/');
     } catch (err) {
-      setError(err.message || 'خطا در ورود به سیستم');
+      setError(err.message || 'ورود ناموفق بود. دوباره تلاش کنید.');
     } finally {
       setLoading(false);
     }
@@ -31,9 +32,10 @@ const LoginPage = () => {
 
   return (
     <AuthLayout
-      title="ورود به حساب کاربری"
-      subtitle="خوش آمدید! برای ادامه وارد حساب خود شوید"
+      title="ورود به حساب"
+      subtitle="خوش آمدید — برای ادامه وارد شوید"
     >
+      <SEO title="ورود" noIndex />
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
           <div className="rounded-2xl bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive backdrop-blur-sm">
@@ -48,7 +50,7 @@ const LoginPage = () => {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           required
-          placeholder="نام کاربری خود را وارد کنید"
+          placeholder="نام کاربری شما"
           autoFocus
         />
 
@@ -59,7 +61,7 @@ const LoginPage = () => {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          placeholder="رمز عبور خود را وارد کنید"
+          placeholder="رمز عبور شما"
           rightElement={
             <button
               type="button"
@@ -104,7 +106,7 @@ const LoginPage = () => {
         </button>
 
         <p className="text-center text-sm text-muted-foreground">
-          حساب کاربری ندارید؟{' '}
+          حساب ندارید؟{' '}
           <Link to="/register" className="text-primary/80 hover:text-primary font-semibold transition-colors">
             ثبت نام کنید
           </Link>

@@ -1,33 +1,22 @@
-import { CheckCircle, AlertTriangle, ArrowRight, RefreshCw, Ruler, RotateCw } from 'lucide-react'
+import { CheckCircle, AlertTriangle, ArrowRight, RefreshCw, Ruler } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import EmptyState from '../ui/EmptyState'
 
 export default function ResultStep({ result, apiError, onRestart, onRetry, onBrowse }) {
   if (apiError) {
     return (
-      <div className="text-center space-y-4 py-8">
-        <div className="flex justify-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-red-200/30 bg-red-500/10 backdrop-blur-xl dark:border-red-800/30">
-            <AlertTriangle className="h-8 w-8 text-red-500" />
-          </div>
-        </div>
-        <h2 className="text-xl font-bold">خطا در پردازش</h2>
-        <p className="text-sm text-muted-foreground/80 max-w-sm mx-auto">{apiError}</p>
-        <div className="flex gap-3 justify-center">
-          <button
-            onClick={onRetry}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 hover:-translate-y-0.5"
-          >
-            <RotateCw className="h-4 w-4" />
-            تلاش مجدد
-          </button>
-          <button
-            onClick={onRestart}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-medium text-foreground backdrop-blur-xl transition-all hover:bg-white/20"
-          >
-            شروع مجدد
-          </button>
-        </div>
-      </div>
+      <EmptyState
+        icon={AlertTriangle}
+        badge="سایز‌یاب"
+        title="خطا در پردازش اندازه‌ها"
+        description={apiError || 'مشکلی پیش آمد. دوباره تلاش کنید یا اندازه‌ها را از نو وارد کنید.'}
+        primaryLabel="تلاش مجدد"
+        primaryOnClick={onRetry}
+        secondaryLabel="شروع مجدد"
+        secondaryOnClick={onRestart}
+        accent="from-red-500/15 via-rose-500/10 to-orange-500/10"
+        size="compact"
+      />
     )
   }
 
@@ -37,24 +26,18 @@ export default function ResultStep({ result, apiError, onRestart, onRetry, onBro
 
   if (!recommendations || recommendations.length === 0) {
     return (
-      <div className="text-center space-y-4 py-8">
-        <div className="flex justify-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/20 bg-white/10 backdrop-blur-xl">
-            <AlertTriangle className="h-8 w-8 text-muted-foreground/60" />
-          </div>
-        </div>
-        <h2 className="text-xl font-bold">نتیجه‌ای یافت نشد</h2>
-        <p className="text-sm text-muted-foreground/80 max-w-sm mx-auto">
-          متأسفانه نتوانستیم سایز مناسبی پیدا کنیم. لطفاً با پشتیبانی تماس بگیرید.
-        </p>
-        <button
-          onClick={onRestart}
-          className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 hover:-translate-y-0.5"
-        >
-          <RefreshCw className="h-4 w-4" />
-          شروع مجدد
-        </button>
-      </div>
+      <EmptyState
+        icon={Ruler}
+        badge="سایز‌یاب"
+        title="سایز مناسبی پیدا نشد"
+        description="با اندازه‌های فعلی نتیجه‌ای نداشتیم. دوباره امتحان کنید یا با پشتیبانی در تماس باشید — ما کمک می‌کنیم."
+        primaryLabel="شروع مجدد"
+        primaryOnClick={onRestart}
+        secondaryLabel="مشاهده محصولات"
+        secondaryOnClick={onBrowse}
+        accent="from-amber-500/15 via-orange-500/10 to-yellow-500/10"
+        size="compact"
+      />
     )
   }
 
@@ -120,7 +103,7 @@ function RecommendationCard({ rec }) {
           </div>
         </div>
         <div className="text-left">
-          <div className={cn('text-2xl font-black', confColor)}>
+          <div className={cn('text-2xl font-bold', confColor)}>
             {rec.confidence}%
           </div>
           <div className="text-xs text-muted-foreground/60">اطمینان</div>

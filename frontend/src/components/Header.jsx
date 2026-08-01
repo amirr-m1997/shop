@@ -104,7 +104,7 @@ const Header = () => {
         <div className="flex h-16 items-center justify-between gap-2">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2 space-x-reverse shrink-0">
-            <span className="text-xl sm:text-2xl font-black tracking-tight">فروشگاه مد</span>
+            <span className="text-xl sm:text-2xl font-bold tracking-tight">فروشگاه مد</span>
           </Link>
 
           {/* Desktop Navigation */}

@@ -155,6 +155,15 @@ class CartViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def apply_coupon(self, request):
+        from accounts.throttles import CouponThrottle
+        throttle = CouponThrottle()
+        if not throttle.allow_request(request, self):
+            from rest_framework.response import Response as DRFResponse
+            from rest_framework import status as drf_status
+            return DRFResponse(
+                {'error': 'تعداد درخواست‌ها بیش از حد مجاز است.'},
+                status=drf_status.HTTP_429_TOO_MANY_REQUESTS,
+            )
         code = request.data.get('code', '').strip()
         if not code:
             return Response({'error': 'کد تخفیف را وارد کنید.'}, status=status.HTTP_400_BAD_REQUEST)

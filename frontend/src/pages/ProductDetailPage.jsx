@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ChevronLeft, Package } from 'lucide-react';
+import { ChevronLeft, Package, PackageX } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import EmptyState from '../components/ui/EmptyState';
 import { productsAPI } from '../services/api';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,6 +13,9 @@ import ProductInfo from '../components/product/ProductInfo';
 import VariantSelector from '../components/product/VariantSelector';
 import ProductActions from '../components/product/ProductActions';
 import ReviewsSection from '../components/product/ReviewsSection';
+import ProductDetailSkeleton from '../components/skeletons/ProductDetailSkeleton';
+import { PLACEHOLDER_IMG } from '../lib/placeholders';
+import { ProductSEO } from '../lib/seo';
 
 const ProductDetailPage = () => {
   const { slug } = useParams();
@@ -166,7 +170,7 @@ const ProductDetailPage = () => {
 
   const images = product?.images?.length
     ? product.images
-    : [{ id: 0, image: 'https://via.placeholder.com/800x800' }];
+    : [{ id: 0, image: PLACEHOLDER_IMG }];
 
   const goImage = (dir) => {
     setSelectedImage((prev) => {
@@ -178,30 +182,23 @@ const ProductDetailPage = () => {
   };
 
   if (loading) {
-    return (
-      <div className="container mx-auto px-4 py-10">
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-          <div className="aspect-square animate-pulse rounded-[1.75rem] bg-muted" />
-          <div className="space-y-4">
-            <div className="h-6 w-24 animate-pulse rounded-full bg-muted" />
-            <div className="h-10 w-3/4 animate-pulse rounded-xl bg-muted" />
-            <div className="h-8 w-40 animate-pulse rounded-lg bg-muted" />
-            <div className="h-24 w-full animate-pulse rounded-2xl bg-muted" />
-            <div className="h-14 w-full animate-pulse rounded-2xl bg-muted" />
-          </div>
-        </div>
-      </div>
-    );
+    return <ProductDetailSkeleton />;
   }
 
   if (!product) {
     return (
-      <div className="container mx-auto px-4 py-20 text-center">
-        <Package className="mx-auto mb-4 h-12 w-12 text-muted-foreground/40" />
-        <p className="text-lg font-bold">محصول یافت نشد</p>
-        <Button asChild className="mt-6 rounded-2xl">
-          <Link to="/products">بازگشت به فروشگاه</Link>
-        </Button>
+      <div className="min-h-[70vh]">
+        <EmptyState
+          icon={PackageX}
+          badge="محصول"
+          title="محصول مورد نظر یافت نشد"
+          description="این محصول حذف شده یا در دسترس نیست. محصولات مشابه را کشف کنید."
+          primaryLabel="مشاهده همه محصولات"
+          primaryTo="/products"
+          secondaryLabel="بازگشت به خانه"
+          secondaryTo="/"
+          accent="from-amber-500/15 via-orange-500/10 to-yellow-500/10"
+        />
       </div>
     );
   }
@@ -216,6 +213,7 @@ const ProductDetailPage = () => {
 
   return (
     <div className="min-h-screen pb-16">
+      <ProductSEO product={product} />
       {/* Breadcrumb */}
       <div className="container mx-auto px-4 pt-6">
         <nav className="mb-6 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:text-sm">
@@ -304,7 +302,7 @@ const ProductDetailPage = () => {
         {/* Related products */}
         {relatedProducts.length > 0 && (
           <section className="mt-16">
-            <h2 className="mb-7 text-2xl font-black tracking-tight sm:text-3xl">
+            <h2 className="mb-7 text-2xl font-bold tracking-tight sm:text-3xl">
               شاید این را هم دوست داشته باشید
             </h2>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-5">

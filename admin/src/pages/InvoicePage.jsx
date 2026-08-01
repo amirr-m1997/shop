@@ -96,7 +96,7 @@ export default function InvoicePage() {
           <div className="text-left">
             <h3 className="text-sm font-semibold text-slate-500 mb-2">اطلاعات پرداخت</h3>
             <div className="text-sm space-y-1 text-slate-800 dark:text-slate-100">
-              <div>روش پرداخت: {order.payment_method === 'online' ? 'آنلاین' : order.payment_method === 'card' ? 'کارت به کارت' : 'در محل'}</div>
+              <div>روش پرداخت: آنلاین</div>
               <div>وضعیت پرداخت: {order.payment_status === 'paid' ? 'پرداخت شده' : order.payment_status === 'unpaid' ? 'پرداخت نشده' : 'بازپرداخت شده'}</div>
             </div>
           </div>

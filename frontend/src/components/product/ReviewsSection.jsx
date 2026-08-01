@@ -1,8 +1,9 @@
 import React from 'react';
-import { Star, Send, CheckCircle } from 'lucide-react';
+import { Star, Send, CheckCircle, MessageSquare } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { formatDate } from '../../lib/formatDate';
+import EmptyState from '../ui/EmptyState';
 
 const ReviewsSection = ({
   reviews,
@@ -21,11 +22,11 @@ const ReviewsSection = ({
     <section className="mt-16 sm:mt-20">
       <div className="mb-8 flex items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
-            نظرات کاربران
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            نظرات مشتریان
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {reviews.length.toLocaleString('fa-IR')} نظر ثبت‌شده
+            {reviews.length.toLocaleString('fa-IR')} نظر
           </p>
         </div>
       </div>
@@ -38,7 +39,7 @@ const ReviewsSection = ({
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10">
                 <CheckCircle className="h-7 w-7 text-emerald-500" />
               </div>
-              <p className="font-bold">نظر شما با موفقیت ثبت شد!</p>
+              <p className="font-bold">نظر شما ثبت شد</p>
             </div>
           ) : (
             <form onSubmit={handleSubmitReview} className="space-y-4">
@@ -84,7 +85,7 @@ const ReviewsSection = ({
                 className="h-11 w-full rounded-xl font-bold"
               >
                 <Send className="ml-2 h-4 w-4" />
-                {reviewSubmitting ? 'در حال ارسال...' : 'ارسال نظر'}
+                {reviewSubmitting ? 'در حال ثبت...' : 'ثبت نظر'}
               </Button>
             </form>
           )}
@@ -92,10 +93,16 @@ const ReviewsSection = ({
 
         <div className="space-y-3 lg:col-span-3">
           {reviews.length === 0 ? (
-            <div className="flex h-full min-h-[200px] items-center justify-center rounded-[1.5rem] border border-dashed border-border/60 bg-muted/20 p-8 text-center">
-              <p className="text-sm text-muted-foreground">
-                هنوز نظری ثبت نشده است. اولین نفری باشید که نظر می‌دهید!
-              </p>
+            <div className="flex h-full min-h-[220px] items-center justify-center rounded-[1.5rem] border border-dashed border-border/50 bg-gradient-to-br from-card/80 via-muted/10 to-card/60">
+              <EmptyState
+                icon={MessageSquare}
+                badge="نظرات"
+                title="هنوز نظری ثبت نشده"
+                description="اولین نفری باشید که تجربه خریدتان را به اشتراک می‌گذارید — نظر شما به دیگران کمک می‌کند."
+                accent="from-amber-500/15 via-orange-500/10 to-rose-500/10"
+                size="compact"
+                className="py-6"
+              />
             </div>
           ) : (
             reviews.map((review) => (
@@ -107,10 +114,10 @@ const ReviewsSection = ({
                   <div>
                     <div className="mb-1 flex flex-wrap items-center gap-2">
                       <span className="font-bold">
-                        {review.owner_name || 'کاربر'}
+                        {review.owner_name || 'مشتری'}
                       </span>
                       {review.is_verified_purchase && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
                           <CheckCircle className="h-3 w-3" />
                           خریدار تایید شده
                         </span>

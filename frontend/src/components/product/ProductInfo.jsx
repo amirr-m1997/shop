@@ -4,9 +4,9 @@ import { Badge } from '../ui/Badge';
 import { formatPrice } from '../../lib/formatPrice';
 
 const TRUST_ITEMS = [
-  { icon: Truck, title: 'ارسال رایگان', desc: 'برای سفارش‌های بالای ۲ میلیون' },
-  { icon: RotateCcw, title: 'بازگشت آسان', desc: 'تا ۳۰ روز ضمانت بازگشت' },
-  { icon: Shield, title: 'پرداخت امن', desc: 'با درگاه‌های معتبر' },
+  { icon: Truck, title: 'ارسال رایگان', desc: 'سفارش بالای ۲ میلیون' },
+  { icon: RotateCcw, title: 'بازگشت آسان', desc: 'تا ۳۰ روز' },
+  { icon: Shield, title: 'پرداخت امن', desc: 'درگاه رسمی' },
 ];
 
 const ProductInfo = ({ product, maxStock, selectedSize, selectedColor }) => {
@@ -25,7 +25,7 @@ const ProductInfo = ({ product, maxStock, selectedSize, selectedColor }) => {
         )}
       </div>
 
-      <h1 className="text-2xl font-black tracking-tight sm:text-3xl md:text-4xl">
+      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl">
         {product.name}
       </h1>
 
@@ -53,7 +53,7 @@ const ProductInfo = ({ product, maxStock, selectedSize, selectedColor }) => {
       </div>
 
       <div className="mt-5 flex flex-wrap items-baseline gap-3">
-        <span className="text-3xl font-black tabular-nums tracking-tight sm:text-4xl">
+        <span className="text-3xl font-bold tabular-nums tracking-tight sm:text-4xl">
           {formatPrice(product.price || 0)}
         </span>
         {product.compare_price && (
@@ -62,7 +62,7 @@ const ProductInfo = ({ product, maxStock, selectedSize, selectedColor }) => {
               {formatPrice(product.compare_price)}
             </span>
             {product.discount_percentage > 0 && (
-              <span className="rounded-xl bg-destructive/10 px-2.5 py-1 text-xs font-black text-destructive">
+              <span className="rounded-xl bg-destructive/10 px-2.5 py-1 text-xs font-bold text-destructive">
                 −{product.discount_percentage}٪
               </span>
             )}
@@ -99,7 +99,7 @@ const ProductInfo = ({ product, maxStock, selectedSize, selectedColor }) => {
             </div>
             <div className="min-w-0">
               <p className="truncate text-xs font-bold">{item.title}</p>
-              <p className="truncate text-[10px] text-muted-foreground">{item.desc}</p>
+              <p className="truncate text-xs text-muted-foreground">{item.desc}</p>
             </div>
           </div>
         ))}

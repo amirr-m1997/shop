@@ -12,7 +12,7 @@ const SectionHeader = ({
         <div className="mb-3 flex items-center gap-2.5">
           <div className={`h-7 w-1 rounded-full ${accent}`} />
           <span
-            className={`text-[11px] font-bold uppercase tracking-[0.2em] ${
+            className={`text-xs font-bold uppercase tracking-widest ${
               light ? 'text-white/60' : 'text-muted-foreground'
             }`}
           >
@@ -21,7 +21,7 @@ const SectionHeader = ({
         </div>
       )}
       <h2
-        className={`text-2xl font-black tracking-tight sm:text-3xl md:text-4xl ${
+        className={`text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl ${
           light ? 'text-white' : ''
         }`}
       >

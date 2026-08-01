@@ -19,7 +19,7 @@ from .serializers import (CategorySerializer, BrandSerializer, SizeSerializer, C
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Category.objects.all()
+    queryset = Category.objects.prefetch_related('children')
     serializer_class = CategorySerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['name']
@@ -92,11 +92,11 @@ class ProductFilter(django_filters.FilterSet):
             return queryset
         try:
             category = Category.objects.get(slug=value)
-            # شامل دسته اصلی و تمام زیرمجموعه‌ها
             category_ids = [category.id]
 
             def get_descendants(cat):
-                for child in cat.children.all():
+                children = cat.children.all()
+                for child in children:
                     category_ids.append(child.id)
                     get_descendants(child)
 
@@ -126,6 +126,15 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-created_at']
     lookup_field = 'slug'
 
+    def get_queryset(self):
+        return Product.objects.filter(is_active=True).select_related(
+            'brand', 'category',
+        ).prefetch_related(
+            'images',
+            'variants__size',
+            'variants__color',
+        )
+
     def get_serializer_class(self):
         if self.action == 'retrieve':
             return ProductDetailSerializer
@@ -149,7 +158,14 @@ class ReviewViewSet(viewsets.ModelViewSet):
     filterset_fields = ['product', 'rating']
     ordering = ['-created_at']
 
+    def get_queryset(self):
+        return Review.objects.select_related('user', 'product').all()
+
     def perform_create(self, serializer):
+        product = serializer.validated_data['product']
+        if Review.objects.filter(user=self.request.user, product=product).exists():
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'product': ['شما قبلاً برای این محصول نظر ثبت کرده‌اید.']})
         review = serializer.save(user=self.request.user)
         review.product.update_rating()
 
@@ -183,17 +199,16 @@ class WishlistViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Wishlist.objects.filter(user=self.request.user).select_related('product')
+        return Wishlist.objects.filter(user=self.request.user).select_related(
+            'product', 'product__brand', 'product__category',
+        ).prefetch_related('product__images')
 
     def perform_create(self, serializer):
+        product_id = serializer.validated_data.get('product_id')
+        if product_id and Wishlist.objects.filter(user=self.request.user, product_id=product_id).exists():
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'product_id': ['این محصول قبلاً به لیست علاقه‌مندی اضافه شده است.']})
         serializer.save(user=self.request.user)
-
-
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
-from rest_framework.decorators import api_view, permission_classes
-from django.db.models import F, Q
 
 
 class HomepageSectionsView(APIView):
@@ -201,6 +216,10 @@ class HomepageSectionsView(APIView):
 
     def get(self, request):
         sections = HomepageSection.objects.filter(is_active=True)
+        for section in sections:
+            section._optimized_products = section.get_products().select_related(
+                'brand', 'category',
+            ).prefetch_related('images')
         serializer = HomepageSectionSerializer(sections, many=True)
         return Response(serializer.data)
 
@@ -218,7 +237,15 @@ class StyleLookListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        styles = StyleLook.objects.filter(is_active=True)
+        from django.db.models import Prefetch
+        styles = StyleLook.objects.filter(is_active=True).prefetch_related(
+            Prefetch(
+                'products',
+                queryset=Product.objects.filter(is_active=True).select_related(
+                    'brand', 'category',
+                ).prefetch_related('images'),
+            )
+        )
         serializer = StyleLookSerializer(styles, many=True, context={'request': request})
         return Response(serializer.data)
 
@@ -227,8 +254,16 @@ class StyleLookDetailView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, slug):
+        from django.db.models import Prefetch
         try:
-            style = StyleLook.objects.get(slug=slug, is_active=True)
+            style = StyleLook.objects.prefetch_related(
+                Prefetch(
+                    'products',
+                    queryset=Product.objects.filter(is_active=True).select_related(
+                        'brand', 'category',
+                    ).prefetch_related('images'),
+                )
+            ).get(slug=slug, is_active=True)
         except StyleLook.DoesNotExist:
             return Response({'error': 'استایل یافت نشد'}, status=404)
         serializer = StyleLookSerializer(style, context={'request': request})
@@ -240,20 +275,22 @@ class RecommendationsView(APIView):
 
     def get(self, request):
         product_id = request.query_params.get('product_id')
+        base_qs = Product.objects.filter(is_active=True).select_related(
+            'brand', 'category',
+        ).prefetch_related('images')
         if product_id:
             try:
                 product = Product.objects.get(id=product_id)
-                recommendations = Product.objects.filter(
-                    is_active=True,
+                recommendations = base_qs.filter(
                     category=product.category,
                 ).exclude(id=product.id).order_by('-rating', '-created_at')[:8]
             except Product.DoesNotExist:
-                recommendations = Product.objects.filter(
-                    is_active=True, is_trending=True
+                recommendations = base_qs.filter(
+                    is_trending=True
                 ).order_by('-rating')[:8]
         else:
-            recommendations = Product.objects.filter(
-                is_active=True, is_trending=True
+            recommendations = base_qs.filter(
+                is_trending=True
             ).order_by('-rating')[:8]
 
         serializer = ProductListSerializer(recommendations, many=True)
@@ -625,13 +662,11 @@ class CategoriesByRootView(APIView):
         if not root_name:
             return Response([])
 
-        # پیدا کردن دسته ریشه با نام
         root_cats = Category.objects.filter(name=root_name, parent__isnull=True)
         if not root_cats.exists():
-            # اگر با نام پیدا نشد، همه دسته‌های ریشه رو برگردان
             return Response([])
 
-        root = root_cats.first()
+        root = root_cats.prefetch_related('children').first()
 
         def serialize(cat, depth=0):
             result = {
@@ -658,15 +693,17 @@ class AdminProductSearchView(APIView):
             return Response([])
         products = Product.objects.filter(
             Q(name__icontains=q) | Q(sku__icontains=q)
-        )[:10]
+        ).prefetch_related('images')[:10]
         results = []
         for p in products:
-            img = p.images.filter(is_primary=True).first()
+            primary = next((img for img in p.images.all() if img.is_primary), None)
+            if not primary:
+                primary = next(iter(p.images.all()), None)
             results.append({
                 'id': p.pk,
                 'name': p.name,
                 'sku': p.sku or '',
                 'price': str(p.price),
-                'image': img.image.url if img and img.image else '',
+                'image': primary.image.url if primary and primary.image else '',
             })
         return Response(results)

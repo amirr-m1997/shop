@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle, ArrowLeft, Hash, Copy, Clock } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { SEO } from '../lib/seo';
 import { Card, CardContent } from '../components/ui/Card';
 import CountdownTimer from '../components/CountdownTimer';
 
@@ -17,6 +18,7 @@ const OrderSuccessPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-16 max-w-lg text-center">
+      <SEO title="سفارش موفق" noIndex />
       <Card>
         <CardContent className="p-8">
           <CheckCircle className="h-20 w-20 text-green-500 mx-auto mb-6" />
@@ -29,7 +31,7 @@ const OrderSuccessPage = () => {
             <div className="mt-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5">
               <p className="text-sm text-muted-foreground mb-2">کد پیگیری پرداخت</p>
               <div className="flex items-center justify-center gap-2">
-                <p className="text-2xl font-black tabular-nums tracking-wider text-emerald-600 dark:text-emerald-400">{refId}</p>
+                <p className="text-2xl font-bold tabular-nums tracking-wider text-emerald-600 dark:text-emerald-400">{refId}</p>
                 <button
                   onClick={() => copyToClipboard(String(refId))}
                   className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"

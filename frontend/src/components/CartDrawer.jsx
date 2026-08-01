@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { X, ShoppingBag, ArrowRight, Trash2 } from 'lucide-react';
+import { X, ShoppingBag, ArrowRight, Trash2, Sparkles } from 'lucide-react';
 import { formatPrice } from '../lib/formatPrice';
 import { useCart } from '../contexts/CartContext';
 import CartItemDrawer from './CartItemDrawer';
@@ -68,9 +68,9 @@ export default function CartDrawer({ isOpen, onClose }) {
                           bg-white/40 dark:bg-white/5 backdrop-blur-lg">
             <div className="flex items-center gap-2.5">
               <ShoppingBag className="h-5 w-5 text-primary" />
-              <h2 className="text-base font-extrabold">سبد خرید</h2>
+              <h2 className="text-base font-bold">سبد خرید</h2>
               {itemCount > 0 && (
-                <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-primary-foreground">
+                <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
                   {itemCount}
                 </span>
               )}
@@ -83,18 +83,27 @@ export default function CartDrawer({ isOpen, onClose }) {
           {/* Body */}
           <div className="flex-1 overflow-y-auto overscroll-contain">
             {items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-                <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-black/5 dark:bg-white/10 backdrop-blur-sm">
-                  <ShoppingBag className="h-10 w-10 text-muted-foreground/40" />
+              <div className="flex flex-col items-center justify-center py-14 px-6 text-center">
+                <div className="relative mx-auto mb-6 h-24 w-24">
+                  <div className="absolute inset-0 animate-[pulse_3s_ease-in-out_infinite] rounded-full bg-gradient-to-br from-primary/15 via-violet-500/10 to-blue-500/10 blur-xl" />
+                  <div className="relative flex h-full w-full items-center justify-center">
+                    <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-border/50 bg-gradient-to-br from-card via-card to-muted/40 shadow-lg shadow-primary/5 ring-1 ring-white/20 dark:ring-white/5">
+                      <ShoppingBag className="h-8 w-8 text-muted-foreground/50" strokeWidth={1.15} />
+                    </div>
+                  </div>
+                  <div className="absolute -bottom-1 -left-1 flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-md shadow-primary/30 ring-2 ring-background">
+                    <Sparkles className="h-3.5 w-3.5" />
+                  </div>
                 </div>
-                <p className="font-bold text-foreground">سبد خرید خالی است</p>
-                <p className="mt-1 text-sm text-muted-foreground">محصولی به سبد اضافه نکرده‌اید</p>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">سبد خرید</p>
+                <p className="font-bold text-foreground text-lg">هنوز چیزی اینجا نیست</p>
+                <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">محصولات خاص منتظر شما هستند</p>
                 <Link
                   to="/products"
                   onClick={onClose}
-                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                  className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25 transition-all duration-300"
                 >
-                  مشاهده محصولات
+                  کشف محصولات
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
@@ -126,7 +135,7 @@ export default function CartDrawer({ isOpen, onClose }) {
 
               <div className="flex items-center justify-between rounded-xl bg-black/5 dark:bg-white/10 backdrop-blur-sm px-4 py-3">
                 <span className="text-sm text-muted-foreground">جمع کل</span>
-                <span className="text-lg font-black">{formatPrice(totalPrice)}</span>
+                <span className="text-lg font-bold">{formatPrice(totalPrice)}</span>
               </div>
 
               <Link
@@ -170,9 +179,9 @@ export default function CartDrawer({ isOpen, onClose }) {
                           bg-white/40 dark:bg-white/5 backdrop-blur-lg">
             <div className="flex items-center gap-2.5">
               <ShoppingBag className="h-5 w-5 text-primary" />
-              <h2 className="text-base font-extrabold">سبد خرید</h2>
+              <h2 className="text-base font-bold">سبد خرید</h2>
               {itemCount > 0 && (
-                <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-primary-foreground">
+                <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-bold text-primary-foreground">
                   {itemCount}
                 </span>
               )}
@@ -186,17 +195,28 @@ export default function CartDrawer({ isOpen, onClose }) {
           <div className="flex-1 overflow-y-auto">
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full px-6 text-center">
-                <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-black/5 dark:bg-white/10 backdrop-blur-sm">
-                  <ShoppingBag className="h-10 w-10 text-muted-foreground/40" />
+                <div className="relative mx-auto mb-6 h-28 w-28">
+                  <div className="absolute inset-0 animate-[pulse_3s_ease-in-out_infinite] rounded-full bg-gradient-to-br from-primary/15 via-violet-500/10 to-blue-500/10 blur-xl" />
+                  <div className="relative flex h-full w-full items-center justify-center">
+                    <div className="flex h-22 w-22 h-[5.5rem] w-[5.5rem] items-center justify-center rounded-[1.5rem] border border-border/50 bg-gradient-to-br from-card via-card to-muted/40 shadow-lg shadow-primary/5 ring-1 ring-white/20 dark:ring-white/5">
+                      <ShoppingBag className="h-9 w-9 text-muted-foreground/50" strokeWidth={1.15} />
+                    </div>
+                  </div>
+                  <div className="absolute -bottom-1 -left-1 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-md shadow-primary/30 ring-2 ring-background">
+                    <Sparkles className="h-3.5 w-3.5" />
+                  </div>
                 </div>
-                <p className="font-bold text-foreground">سبد خرید خالی است</p>
-                <p className="mt-1 text-sm text-muted-foreground">محصولی به سبد اضافه نکرده‌اید</p>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">سبد خرید</p>
+                <p className="text-lg font-bold text-foreground">هنوز چیزی اینجا نیست</p>
+                <p className="mt-1.5 max-w-[220px] text-sm leading-relaxed text-muted-foreground">
+                  محصولات خاص و مجموعه‌های منتخب منتظر شما هستند
+                </p>
                 <Link
                   to="/products"
                   onClick={onClose}
-                  className="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                  className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25"
                 >
-                  مشاهده محصولات
+                  کشف محصولات
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
@@ -227,7 +247,7 @@ export default function CartDrawer({ isOpen, onClose }) {
 
               <div className="flex items-center justify-between rounded-xl bg-black/5 dark:bg-white/10 backdrop-blur-sm px-4 py-3">
                 <span className="text-sm text-muted-foreground">جمع کل</span>
-                <span className="text-lg font-black">{formatPrice(totalPrice)}</span>
+                <span className="text-lg font-bold">{formatPrice(totalPrice)}</span>
               </div>
 
               <Link

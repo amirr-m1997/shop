@@ -70,10 +70,10 @@ export default function CartItemDrawer({ item }) {
         {(variant.size_name || variant.color_name) && (
           <div className="mt-1.5 flex flex-wrap gap-1">
             {variant.size_name && (
-              <span className="rounded-md bg-secondary px-2 py-0.5 text-[11px] font-semibold">سایز {variant.size_name}</span>
+              <span className="rounded-md bg-secondary px-2 py-0.5 text-xs font-semibold">سایز {variant.size_name}</span>
             )}
             {variant.color_name && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-0.5 text-[11px] font-semibold">
+              <span className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-0.5 text-xs font-semibold">
                 <span className="h-2.5 w-2.5 rounded-full border" style={{ backgroundColor: variant.color_hex || '#999' }} />
                 {variant.color_name}
               </span>
@@ -106,7 +106,7 @@ export default function CartItemDrawer({ item }) {
 
           {/* Price + Delete */}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-black text-foreground">{formatPrice(unitPrice * quantity)}</span>
+            <span className="text-sm font-bold text-foreground">{formatPrice(unitPrice * quantity)}</span>
             <button
               onClick={handleRemove}
               disabled={updating}

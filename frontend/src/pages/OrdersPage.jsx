@@ -2,15 +2,20 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Package, ShoppingBag, CreditCard, PackageCheck, ArrowLeft,
-  Sparkles, ShieldCheck, Clock, Truck, CheckCircle, XCircle, Loader
+  ShieldCheck, Clock, Truck, CheckCircle, XCircle, Loader, ListFilter
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { ordersAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { formatPrice } from '../lib/formatPrice';
+import { SEO } from '../lib/seo';
 import AmbientBg from '../components/orders/AmbientBg';
 import OrderCard from '../components/orders/OrderCard';
 import FilterChip from '../components/orders/FilterChip';
+import Skeleton from '../components/ui/Skeleton';
+import EmptyState from '../components/ui/EmptyState';
+import PageHeaderSkeleton from '../components/skeletons/PageHeaderSkeleton';
+import ListSkeleton from '../components/skeletons/ListSkeleton';
 
 /* ─── Main ─── */
 const OrdersPage = () => {
@@ -41,15 +46,17 @@ const OrdersPage = () => {
   }, [orders, filter]);
 
   const stats = useMemo(() => {
-    const totalSpent = orders.reduce((sum, o) => sum + parseFloat(o.total || 0), 0);
-    const active = orders.filter((o) => ['pending', 'processing', 'shipped'].includes(o.status)).length;
+    const paidOrders = orders.filter((o) => !['cancelled', 'expired', 'returned'].includes(o.status));
+    const totalSpent = paidOrders.reduce((sum, o) => sum + parseFloat(o.total || 0), 0);
+    const active = orders.filter((o) => ['pending_payment', 'pending', 'processing', 'shipped'].includes(o.status)).length;
     const delivered = orders.filter((o) => o.status === 'delivered').length;
     return { count: orders.length, totalSpent, active, delivered };
   }, [orders]);
 
   const statusFilters = [
     { key: 'all', label: 'همه', icon: Package },
-    { key: 'pending', label: 'در انتظار', icon: Clock },
+    { key: 'pending_payment', label: 'در انتظار پرداخت', icon: Clock },
+    { key: 'pending', label: 'در انتظار بررسی', icon: Clock },
     { key: 'processing', label: 'پردازش', icon: Loader },
     { key: 'shipped', label: 'ارسال شده', icon: Truck },
     { key: 'delivered', label: 'تحویل شده', icon: CheckCircle },
@@ -60,18 +67,19 @@ const OrdersPage = () => {
   if (!isAuthenticated) {
     return (
       <div className="relative flex min-h-[70vh] items-center justify-center">
+        <SEO title="سفارشات" noIndex />
         <AmbientBg />
-        <div className="relative mx-4 w-full max-w-md overflow-hidden rounded-[1.75rem] border border-border/50 bg-card/80 p-8 text-center shadow-2xl shadow-primary/[0.06] backdrop-blur-xl animate-fade-in-up">
-          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-primary/15 to-violet-500/10 ring-1 ring-primary/10">
-            <Package className="h-9 w-9 text-primary/70" strokeWidth={1.5} />
-          </div>
-          <h2 className="mb-2 text-2xl font-black tracking-tight">لطفاً وارد شوید</h2>
-          <p className="mb-7 text-sm leading-relaxed text-muted-foreground">
-            برای مشاهده سفارش‌ها باید وارد حساب کاربری خود شوید
-          </p>
-          <Button asChild className="h-12 w-full rounded-2xl font-bold shadow-lg shadow-primary/20">
-            <Link to="/login">ورود به حساب</Link>
-          </Button>
+        <div className="relative mx-4 w-full max-w-lg">
+          <EmptyState
+            icon={Package}
+            badge="سفارش‌ها"
+            title="برای دیدن سفارش‌ها وارد شوید"
+            description="با ورود به حساب، وضعیت ارسال، پیگیری و تاریخچه خریدهایتان را یکجا می‌بینید."
+            primaryLabel="ورود به حساب"
+            primaryTo="/login"
+            secondaryLabel="ثبت‌نام"
+            secondaryTo="/register"
+          />
         </div>
       </div>
     );
@@ -80,26 +88,17 @@ const OrdersPage = () => {
   /* ── Loading ── */
   if (loading) {
     return (
-      <div className="relative min-h-[70vh]">
+      <div className="relative min-h-[70vh]" aria-hidden="true">
+        <SEO title="سفارشات" noIndex />
         <AmbientBg />
         <div className="container relative mx-auto max-w-4xl px-4 py-10">
-          <div className="mb-8 flex items-center gap-4">
-            <div className="h-14 w-14 animate-pulse rounded-2xl bg-muted" />
-            <div className="space-y-2">
-              <div className="h-7 w-44 animate-pulse rounded-lg bg-muted" />
-              <div className="h-4 w-28 animate-pulse rounded bg-muted" />
-            </div>
-          </div>
+          <PageHeaderSkeleton className="mb-8" />
           <div className="mb-6 flex gap-2">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-10 w-24 animate-pulse rounded-2xl bg-muted" />
+              <Skeleton key={i} className="h-10 w-24 rounded-2xl" delay={i * 0.06} />
             ))}
           </div>
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-40 animate-pulse rounded-[1.5rem] border border-border/40 bg-card/60" />
-            ))}
-          </div>
+          <ListSkeleton count={3} className="h-40" delayStep={0.1} />
         </div>
       </div>
     );
@@ -109,59 +108,35 @@ const OrdersPage = () => {
   if (orders.length === 0) {
     return (
       <div className="relative flex min-h-[70vh] items-center justify-center">
+        <SEO title="سفارشات" noIndex />
         <AmbientBg />
-        <div className="relative mx-4 w-full max-w-md text-center animate-fade-in-up">
-          <div className="relative mx-auto mb-8 h-40 w-40">
-            <div className="absolute inset-0 animate-[pulse_3s_ease-in-out_infinite] rounded-full bg-gradient-to-br from-primary/15 via-violet-500/10 to-blue-500/10 blur-2xl" />
-            <div className="relative flex h-full w-full items-center justify-center">
-              <div className="flex h-28 w-28 items-center justify-center rounded-[2rem] border border-border/50 bg-gradient-to-br from-card via-card to-muted/40 shadow-xl shadow-primary/5 ring-1 ring-white/20 dark:ring-white/5">
-                <ShoppingBag className="h-12 w-12 text-muted-foreground/60" strokeWidth={1.15} />
-              </div>
+        <div className="relative mx-4 w-full max-w-lg">
+          <EmptyState
+            icon={ShoppingBag}
+            badge="سفارش‌ها"
+            title="هنوز سفارشی ندارید"
+            description="اولین خرید خود را شروع کنید و تجربه خرید لوکس را تجربه کنید. مجموعه‌های منتخب منتظر شما هستند."
+            primaryLabel="مشاهده محصولات"
+            primaryTo="/products"
+            secondaryLabel="بازگشت به خانه"
+            secondaryTo="/"
+          >
+            <div className="mt-12 grid w-full max-w-sm grid-cols-3 gap-3">
+              {[
+                { icon: Truck, label: 'ارسال سریع' },
+                { icon: ShieldCheck, label: 'خرید امن' },
+                { icon: CreditCard, label: 'پرداخت آسان' },
+              ].map(({ icon: Icon, label }) => (
+                <div
+                  key={label}
+                  className="rounded-2xl border border-border/50 bg-card/60 p-3.5 shadow-sm backdrop-blur-md"
+                >
+                  <Icon className="mx-auto mb-2 h-[18px] w-[18px] text-primary/70" />
+                  <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+                </div>
+              ))}
             </div>
-            <div className="absolute -bottom-1 -left-1 flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/30 ring-4 ring-background">
-              <Sparkles className="h-5 w-5" />
-            </div>
-          </div>
-
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">
-            سفارش‌ها
-          </p>
-          <h2 className="mb-3 text-3xl font-black tracking-tight">هنوز سفارشی ندارید</h2>
-          <p className="mx-auto mb-8 max-w-sm text-sm leading-relaxed text-muted-foreground">
-            اولین خرید خود را شروع کنید و تجربه خرید لوکس را تجربه کنید.
-          </p>
-
-          <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Button
-              asChild
-              size="lg"
-              className="h-12 rounded-2xl px-8 font-bold shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5"
-            >
-              <Link to="/products" className="flex items-center gap-2">
-                <ShoppingBag className="h-5 w-5" />
-                مشاهده محصولات
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="lg" className="h-12 rounded-2xl px-8">
-              <Link to="/">بازگشت به خانه</Link>
-            </Button>
-          </div>
-
-          <div className="mt-12 grid grid-cols-3 gap-3">
-            {[
-              { icon: Truck, label: 'ارسال سریع' },
-              { icon: ShieldCheck, label: 'خرید امن' },
-              { icon: CreditCard, label: 'پرداخت آسان' },
-            ].map(({ icon: Icon, label }) => (
-              <div
-                key={label}
-                className="rounded-2xl border border-border/50 bg-card/60 p-3.5 shadow-sm backdrop-blur-md"
-              >
-                <Icon className="mx-auto mb-2 h-[18px] w-[18px] text-primary/70" />
-                <p className="text-[11px] font-semibold text-muted-foreground">{label}</p>
-              </div>
-            ))}
-          </div>
+          </EmptyState>
         </div>
       </div>
     );
@@ -170,6 +145,7 @@ const OrdersPage = () => {
   /* ── Main render ── */
   return (
     <div className="relative min-h-screen pb-12">
+      <SEO title="سفارشات" noIndex />
       <AmbientBg />
 
       <div className="container relative mx-auto max-w-4xl px-4 py-6 sm:py-10">
@@ -188,10 +164,10 @@ const OrdersPage = () => {
                 </div>
               </div>
               <div>
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                   حساب کاربری
                 </p>
-                <h1 className="text-2xl font-black tracking-tight sm:text-3xl">سفارش‌های من</h1>
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">سفارش‌های من</h1>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {stats.count.toLocaleString('fa-IR')} سفارش ثبت‌شده
                   {stats.active > 0 && (
@@ -228,10 +204,10 @@ const OrdersPage = () => {
                     wide ? 'min-w-[140px]' : 'min-w-[88px]'
                   }`}
                 >
-                  <p className={`text-lg font-black tabular-nums leading-none sm:text-xl ${tone}`}>
+                  <p className={`text-lg font-bold tabular-nums leading-none sm:text-xl ${tone}`}>
                     {value}
                   </p>
-                  <p className="mt-1.5 text-[10px] font-medium text-muted-foreground sm:text-[11px]">
+                  <p className="mt-1.5 text-xs font-medium text-muted-foreground sm:text-xs">
                     {label}
                   </p>
                 </div>
@@ -262,21 +238,17 @@ const OrdersPage = () => {
 
         {/* ── Orders List ── */}
         {filteredOrders.length === 0 ? (
-          <div className="rounded-[1.5rem] border border-dashed border-border/70 bg-card/40 py-16 text-center backdrop-blur-sm animate-fade-in">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/60">
-              <Package className="h-6 w-6 text-muted-foreground/50" />
-            </div>
-            <p className="text-sm font-semibold text-muted-foreground">
-              سفارشی با فیلتر انتخابی یافت نشد
-            </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setFilter('all')}
-              className="mt-3 rounded-xl text-primary"
-            >
-              نمایش همه سفارش‌ها
-            </Button>
+          <div className="rounded-[1.5rem] border border-dashed border-border/60 bg-card/40 backdrop-blur-sm">
+            <EmptyState
+              icon={ListFilter}
+              badge="فیلتر"
+              title="سفارشی با این وضعیت نیست"
+              description="در این فیلتر سفارشی پیدا نشد. همه سفارش‌ها را ببینید یا وضعیت دیگری را انتخاب کنید."
+              primaryLabel="نمایش همه سفارش‌ها"
+              primaryOnClick={() => setFilter('all')}
+              accent="from-violet-500/15 via-purple-500/10 to-fuchsia-500/10"
+              size="compact"
+            />
           </div>
         ) : (
           <div className="space-y-4">

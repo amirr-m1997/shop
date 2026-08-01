@@ -9,9 +9,9 @@ const StaticHero = ({ settings, features = [] }) => {
     features.length > 0
       ? features.slice(0, 3)
       : [
-          { id: 1, icon: 'Truck', title: 'ارسال رایگان', description: 'برای سفارش‌های بالای ۲ میلیون' },
-          { id: 2, icon: 'RotateCcw', title: 'بازگشت آسان', description: 'تا ۳۰ روز ضمانت بازگشت' },
-          { id: 3, icon: 'Shield', title: 'پرداخت امن', description: 'با درگاه‌های معتبر' },
+          { id: 1, icon: 'Truck', title: 'ارسال رایگان', description: 'سفارش بالای ۲ میلیون' },
+          { id: 2, icon: 'RotateCcw', title: 'بازگشت آسان', description: 'تا ۳۰ روز' },
+          { id: 3, icon: 'Shield', title: 'پرداخت امن', description: 'درگاه رسمی' },
         ];
 
   return (
@@ -85,7 +85,7 @@ const StaticHero = ({ settings, features = [] }) => {
                           <p className="truncate text-xs sm:text-sm font-bold tracking-tight text-neutral-900 dark:text-white">
                             {f.title}
                           </p>
-                          <p className="mt-0.5 truncate text-[10px] sm:text-[11px] text-neutral-900 dark:text-white/70">
+                          <p className="mt-0.5 truncate text-xs sm:text-xs text-neutral-900 dark:text-white/70">
                             {f.description}
                           </p>
                         </div>

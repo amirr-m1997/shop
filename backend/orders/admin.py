@@ -101,11 +101,13 @@ class OrderAdmin(admin.ModelAdmin):
     @admin.display(description='وضعیت سفارش')
     def status_badge(self, obj):
         colors = {
+            'pending_payment': '#f97316',
             'pending': '#f59e0b',
             'processing': '#3b82f6',
             'shipped': '#8b5cf6',
             'delivered': '#10b981',
             'cancelled': '#ef4444',
+            'expired': '#6b7280',
             'returned': '#6b7280',
         }
         color = colors.get(obj.status, '#6b7280')
@@ -159,7 +161,7 @@ class OrderAdmin(admin.ModelAdmin):
 
     @admin.action(description='تغییر وضعیت پرداخت به "پرداخت شده"')
     def mark_paid(self, request, queryset):
-        count = queryset.update(payment_status='paid')
+        count = queryset.update(payment_status='paid', status='processing')
         self.message_user(request, f'{count} سفارش به "پرداخت شده" تغییر کرد.')
 
 

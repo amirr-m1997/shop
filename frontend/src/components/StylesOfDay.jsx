@@ -11,7 +11,7 @@ const StylesOfDay = ({ styles = [] }) => {
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
             <div className="h-8 w-1.5 rounded-full bg-pink-500" />
-            <h2 className="text-xl sm:text-2xl font-black">استایل‌های روز</h2>
+            <h2 className="text-xl sm:text-2xl font-bold">استایل‌های روز</h2>
           </div>
           <Link
             to="/lookbook"

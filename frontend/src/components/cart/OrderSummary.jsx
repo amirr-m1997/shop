@@ -21,7 +21,7 @@ const OrderSummary = ({ subtotal, shipping, total, itemCount, discount, coupon }
               <Package className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-black leading-none tracking-tight">خلاصه سفارش</h2>
+              <h2 className="text-lg font-bold leading-none tracking-tight">خلاصه سفارش</h2>
               <p className="mt-2 text-xs font-medium opacity-80">
                 {itemCount.toLocaleString('fa-IR')} کالا · آماده پرداخت
               </p>
@@ -67,14 +67,14 @@ const OrderSummary = ({ subtotal, shipping, total, itemCount, discount, coupon }
             <div className="relative overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-l from-muted/60 to-muted/20 p-4">
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-sm font-bold">مبلغ قابل پرداخت</span>
-                <span className="text-xl font-black tracking-tight text-primary sm:text-2xl tabular-nums">
+                <span className="text-xl font-bold tracking-tight text-primary sm:text-2xl tabular-nums">
                   {formatPrice(finalTotal > 0 ? finalTotal : 0)}
                 </span>
               </div>
             </div>
           </div>
 
-          <Button asChild size="lg" className="group/btn relative w-full overflow-hidden rounded-2xl text-base font-black shadow-lg shadow-primary/25 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/30">
+          <Button asChild size="lg" className="group/btn relative w-full overflow-hidden rounded-2xl text-base font-bold shadow-lg shadow-primary/25 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/30">
             <Link to={`/checkout${coupon ? `?coupon=${encodeURIComponent(coupon.code)}` : ''}`} className="relative flex h-12 items-center justify-center gap-2">
               <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/15 to-transparent transition-transform duration-700 group-hover/btn:translate-x-full" />
               <Lock className="h-4 w-4 opacity-80" />
@@ -85,7 +85,7 @@ const OrderSummary = ({ subtotal, shipping, total, itemCount, discount, coupon }
 
           <Button asChild variant="ghost" className="w-full rounded-2xl text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground">
             <Link to="/products" className="flex items-center justify-center gap-2">
-              ادامه خرید از فروشگاه
+              ادامه خرید
               <ChevronLeft className="h-4 w-4" />
             </Link>
           </Button>

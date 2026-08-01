@@ -4,6 +4,7 @@ import { Mail, ArrowRight, CheckCircle } from 'lucide-react';
 import AuthLayout from '../components/AuthLayout';
 import AuthInput from '../components/AuthInput';
 import { authAPI } from '../services/api';
+import { SEO } from '../lib/seo';
 
 const ForgotPasswordPage = () => {
   const [email, setEmail] = useState('');
@@ -39,6 +40,7 @@ const ForgotPasswordPage = () => {
       subtitle="ایمیل خود را وارد کنید تا لینک بازیابی برایتان ارسال شود"
       showBack
     >
+      <SEO title="فراموشی رمز" noIndex />
       <div className="space-y-5">
         {error && (
           <div className="rounded-2xl bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive backdrop-blur-sm">

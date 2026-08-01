@@ -1,0 +1,47 @@
+{{ store_name }}
+فاکتور خرید
+================================
+
+سلام {{ user.get_full_name|default:user.username }}،
+فاکتور خرید شما پیوست شده است.
+
+اطلاعات سفارش
+--------------------------------
+شماره سفارش: {{ order.order_number }}
+تاریخ ثبت: {{ order_date }}
+وضعیت: {{ status_label }}
+روش پرداخت: {{ payment_method_label }}
+
+محصولات سفارش
+--------------------------------
+{% for item in items %}
+{{ forloop.counter }}. {{ item.product.name }}{% if item.variant %} ({{ item.variant.size.name|default:"" }}{% if item.variant.size and item.variant.color %} / {% endif %}{{ item.variant.color.name|default:"" }}){% endif %}
+   تعداد: {{ item.quantity }} × {{ item.price|floatformat:0 }} تومان = {{ item.total_price|floatformat:0 }} تومان
+{% endfor %}
+
+جمع‌بندی
+--------------------------------
+جمع کل: {{ order.subtotal|floatformat:0 }} تومان
+هزینه ارسال: {% if order.shipping_cost %}{{ order.shipping_cost|floatformat:0 }} تومان{% else %}رایگان{% endif %}
+{% if order.discount > 0 %}تخفیف: -{{ order.discount|floatformat:0 }} تومان
+{% endif %}{% if order.tax > 0 %}مالیات: {{ order.tax|floatformat:0 }} تومان
+{% endif %}
+مبلغ قابل پرداخت: {{ order.total|floatformat:0 }} تومان
+
+{% if has_pdf %}
+فاکتور PDF این سفارش به ایمیل شما پیوست شده است.
+{% endif %}
+{% if shipping %}
+آدرس ارسال
+--------------------------------
+{{ shipping.full_name }}
+{{ shipping.address_line1 }}{% if shipping.address_line2 %}
+{{ shipping.address_line2 }}{% endif %}
+{{ shipping.city }}، {{ shipping.state }}
+کد پستی: {{ shipping.postal_code }}
+تلفن: {{ shipping.phone }}
+{% endif %}
+با تشکر از خرید شما
+{{ store_name }}
+{{ frontend_url }}
+{% if store_phone %}تلفن: {{ store_phone }}{% endif %}
