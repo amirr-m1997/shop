@@ -100,6 +100,10 @@ export const CartProvider = ({ children }) => {
     setCouponError(null);
   }, []);
 
+  const clearCouponError = useCallback(() => {
+    setCouponError(null);
+  }, []);
+
   useEffect(() => {
     fetchCart();
   }, [isAuthenticated]);
@@ -119,6 +123,7 @@ export const CartProvider = ({ children }) => {
       couponLoading,
       applyCoupon,
       removeCoupon,
+      clearCouponError,
     }}>
       {children}
     </CartContext.Provider>

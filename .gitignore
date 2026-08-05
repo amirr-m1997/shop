@@ -46,4 +46,11 @@ collected_static/
 # ===== Coverage =====
 htmlcov/
 .coverage
-.coverage.*
+.coveفثr
+ححage.*
+صص# Logs
+backend/logs/
+
+
+logs/
+.gitignore

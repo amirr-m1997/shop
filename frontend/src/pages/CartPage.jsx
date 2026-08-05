@@ -16,7 +16,7 @@ import MobileCheckoutBar from '../components/cart/MobileCheckoutBar';
 
 /* ─── Main Page ─── */
 const CartPage = () => {
-  const { cart, loading, updateCartItem, removeCartItem, coupon, couponError, couponLoading, applyCoupon, removeCoupon } = useCart();
+  const { cart, loading, updateCartItem, removeCartItem, coupon, couponError, couponLoading, applyCoupon, removeCoupon, clearCouponError } = useCart();
   const { config: shippingConfig } = useShippingConfig();
   const [updatingId, setUpdatingId] = useState(null);
   const pendingRef = useRef({});
@@ -111,7 +111,7 @@ const CartPage = () => {
 
         <FreeShippingBar shippingInfo={shippingInfo} />
 
-        <CouponSection coupon={coupon} couponError={couponError} couponLoading={couponLoading} onApplyCoupon={applyCoupon} onRemoveCoupon={removeCoupon} />
+        <CouponSection coupon={coupon} couponError={couponError} couponLoading={couponLoading} onApplyCoupon={applyCoupon} onRemoveCoupon={removeCoupon} onClearCouponError={clearCouponError} />
 
         <div className="grid grid-cols-1 gap-7 lg:grid-cols-3 lg:gap-8">
           {/* Items list */}

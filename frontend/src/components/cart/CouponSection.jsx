@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Percent, X, CheckCircle2 } from 'lucide-react';
+import FeedbackModal from '../ui/FeedbackModal';
 
-const CouponSection = ({ coupon, couponError, couponLoading, onApplyCoupon, onRemoveCoupon }) => {
+const CouponSection = ({ coupon, couponError, couponLoading, onApplyCoupon, onRemoveCoupon, onClearCouponError }) => {
   const [couponCode, setCouponCode] = useState('');
 
   const handleApply = () => {
@@ -55,6 +56,16 @@ const CouponSection = ({ coupon, couponError, couponLoading, onApplyCoupon, onRe
           <span>کد {coupon.code} اعمال شد · {coupon.discount_type === 'percentage' ? `${coupon.discount_value}٪` : `${Number(coupon.discount_value).toLocaleString('fa-IR')} تومان`} تخفیف</span>
         </div>
       )}
+
+      <FeedbackModal
+        open={!!couponError}
+        type="error"
+        title="اعمال کد تخفیف"
+        message={couponError}
+        primaryLabel="باشه"
+        onPrimary={onClearCouponError}
+        onClose={onClearCouponError}
+      />
     </div>
   );
 };

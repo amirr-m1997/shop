@@ -1,26 +1,31 @@
 import React from 'react';
-import { ShoppingCart, CheckCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ShoppingCart } from 'lucide-react';
 import { Button } from '../ui/Button';
 import WishlistButton from '../WishlistButton';
+import FeedbackModal from '../ui/FeedbackModal';
 
 const ProductActions = ({
   isAuthenticated,
   handleAddToCart,
   addedToCart,
   cartError,
+  onCloseSuccess,
+  onCloseError,
   selectedSize,
   selectedColor,
   maxStock,
   product,
 }) => {
+  const navigate = useNavigate();
+
+  const goToCart = () => {
+    onCloseSuccess();
+    navigate('/cart');
+  };
+
   return (
     <>
-      {cartError && (
-        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
-          {cartError}
-        </div>
-      )}
-
       <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
         <Button
           size="lg"
@@ -41,18 +46,32 @@ const ProductActions = ({
         </div>
       </div>
 
-      {addedToCart && (
-        <div className="mt-4 flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
-          <CheckCircle className="h-4 w-4 shrink-0" />
-          <span>
-            به سبد خرید اضافه شد.
-            {!isAuthenticated && (
-              <span className="block mt-1 text-emerald-600/90 dark:text-emerald-400/90">
-                میتوانید بدون ایجاد حساب ثبت سفارش کنید.
-              </span>
-            )}
-          </span>
-        </div>
+      <FeedbackModal
+        open={addedToCart}
+        type="success"
+        title="به سبد خرید اضافه شد"
+        message={
+          !isAuthenticated
+            ? 'محصول با موفقیت به سبد خرید شما اضافه شد. میتوانید بدون ایجاد حساب ثبت سفارش کنید.'
+            : 'محصول با موفقیت به سبد خرید شما اضافه شد.'
+        }
+        primaryLabel="ادامه خرید"
+        onPrimary={onCloseSuccess}
+        secondaryLabel="مشاهده سبد خرید"
+        onSecondary={goToCart}
+        onClose={onCloseSuccess}
+      />
+
+      {cartError && (
+        <FeedbackModal
+          open
+          type="error"
+          title="افزودن به سبد خرید"
+          message={cartError}
+          primaryLabel="باشه"
+          onPrimary={onCloseError}
+          onClose={onCloseError}
+        />
       )}
     </>
   );

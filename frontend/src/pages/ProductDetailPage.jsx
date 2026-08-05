@@ -121,7 +121,7 @@ const ProductDetailPage = () => {
 
   const handleAddToCart = async () => {
     if (!selectedSize || !selectedColor) {
-      alert('لطفاً سایز و رنگ مورد نظر را انتخاب کنید.');
+      setCartError('لطفاً سایز و رنگ مورد نظر را انتخاب کنید.');
       return;
     }
 
@@ -156,12 +156,14 @@ const ProductDetailPage = () => {
 
       await addToCart(payload);
       setAddedToCart(true);
-      setTimeout(() => setAddedToCart(false), 3000);
     } catch (error) {
       const msg = error?.response?.data?.error || error?.message || 'خطا در افزودن به سبد خرید';
       setCartError(msg);
     }
   };
+
+  const closeSuccessModal = () => setAddedToCart(false);
+  const closeErrorModal = () => setCartError('');
 
   const images = product?.images?.length
     ? product.images
@@ -266,6 +268,8 @@ const ProductDetailPage = () => {
                 handleAddToCart={handleAddToCart}
                 addedToCart={addedToCart}
                 cartError={cartError}
+                onCloseSuccess={closeSuccessModal}
+                onCloseError={closeErrorModal}
                 selectedSize={selectedSize}
                 selectedColor={selectedColor}
                 maxStock={maxStock}
