@@ -18,6 +18,7 @@ from .serializers import (
 )
 from .services import reserve_inventory, release_inventory
 from cart.models import Cart, CartItem
+from cart.services import get_or_create_cart, get_session_id
 from pages.models import SiteSettings
 from products.models import Product, ProductVariant
 from shop.observability import (
@@ -72,7 +73,10 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             'shipping_address',
         )
 
-    @action(detail=False, methods=['post'], url_path='create_order')
+    @action(
+        detail=False, methods=['post'], url_path='create_order',
+        permission_classes=[permissions.AllowAny],
+    )
     def create_order(self, request):
         serializer = CreateOrderSerializer(
             data=request.data,
@@ -80,10 +84,13 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
         )
         serializer.is_valid(raise_exception=True)
 
+        is_guest = not request.user.is_authenticated
+
         try:
+            cart, session_id = get_or_create_cart(request)
             cart = Cart.objects.prefetch_related(
                 'items__product', 'items__variant__size', 'items__variant__color',
-            ).get(user=request.user)
+            ).get(id=cart.id)
         except Cart.DoesNotExist:
             return Response(
                 {'error': 'سبد خرید شما خالی است.'},
@@ -111,11 +118,24 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-        shipping_address = get_object_or_404(
-            ShippingAddress,
-            id=serializer.validated_data['shipping_address_id'],
-            user=request.user
-        )
+        if is_guest:
+            shipping_address = ShippingAddress.objects.create(
+                user=None,
+                full_name=serializer.validated_data['full_name'],
+                phone=serializer.validated_data.get('phone') or serializer.validated_data.get('guest_phone') or '',
+                address_line1=serializer.validated_data['address_line1'],
+                address_line2=serializer.validated_data.get('address_line2', ''),
+                city=serializer.validated_data['city'],
+                state=serializer.validated_data['state'],
+                postal_code=serializer.validated_data['postal_code'],
+                country=serializer.validated_data.get('country') or 'Iran',
+            )
+        else:
+            shipping_address = get_object_or_404(
+                ShippingAddress,
+                id=serializer.validated_data['shipping_address_id'],
+                user=request.user
+            )
 
         subtotal = Decimal('0')
         order_items_data = []
@@ -142,7 +162,7 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
         if coupon_code:
             try:
                 coupon = Coupon.objects.get(code=coupon_code, is_active=True)
-                valid, msg = coupon.is_valid(user=request.user)
+                valid, msg = coupon.is_valid(user=request.user if not is_guest else None)
                 if valid:
                     discount = coupon.apply_discount(subtotal)
             except Coupon.DoesNotExist:
@@ -154,7 +174,10 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
 
         with transaction.atomic():
             order = Order.objects.create(
-                user=request.user,
+                user=request.user if not is_guest else None,
+                guest_email=serializer.validated_data.get('guest_email') if is_guest else None,
+                guest_phone=serializer.validated_data.get('guest_phone') if is_guest else None,
+                guest_session_id=session_id if is_guest else None,
                 shipping_address=shipping_address,
                 status='pending_payment',
                 payment_method=serializer.validated_data['payment_method'],
@@ -173,24 +196,39 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             # Reserve inventory (decrement stock)
             reserve_inventory(order)
 
-            if coupon:
+            if coupon and not is_guest:
                 CouponUsage.objects.create(coupon=coupon, user=request.user, order=order)
                 Coupon.objects.filter(id=coupon.id).update(used_count=F('used_count') + 1)
 
             cart_items.delete()
 
-        log_order_created(order.id, order.order_number, request.user.id, total, len(order_items_data))
+        customer = request.user.username if not is_guest else (order.guest_email or 'مهمان')
+        user_id = request.user.id if not is_guest else None
+        log_order_created(order.id, order.order_number, user_id, total, len(order_items_data))
         log_inventory_reserved(order.id, len(order_items_data))
         logger.info(
             '[order_created] order_id=%d order_number=%s user=%s total=%s items=%d',
-            order.id, order.order_number, request.user.username, total, len(order_items_data),
+            order.id, order.order_number, customer, total, len(order_items_data),
         )
 
+        # Queue background task for order confirmation email
         try:
-            from shop.email_service import send_order_confirmation
-            send_order_confirmation(order)
+            from django_q.tasks import async_task
+            async_task(
+                'orders.tasks.send_order_confirmation_email',
+                order.id,
+                priority=1,  # High priority for order confirmation
+            )
+            logger.info('[email_task_queued] order=%s task=send_order_confirmation_email', order.order_number)
         except Exception as e:
-            logger.error('[email_send_error] order=%s error=%s', order.order_number, e)
+            # Fallback to direct email sending if task queue fails
+            logger.error('[email_task_queue_error] order=%s error=%s, falling back to direct send',
+                       order.order_number, e)
+            try:
+                from shop.email_service import send_order_confirmation
+                send_order_confirmation(order)
+            except Exception as e2:
+                logger.error('[email_send_error] order=%s error=%s', order.order_number, e2)
 
         return Response(
             OrderSerializer(order).data,
@@ -223,11 +261,24 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             order.id, order.order_number, request.user.username,
         )
 
+        # Queue background task for order status update email
         try:
-            from shop.email_service import send_order_status_update
-            send_order_status_update(order, old_status)
+            from django_q.tasks import async_task
+            async_task(
+                'orders.tasks.send_order_status_update_email',
+                order.id,
+                priority=1,  # High priority for status updates
+            )
+            logger.info('[email_task_queued] order=%s task=send_order_status_update_email', order.order_number)
         except Exception as e:
-            logger.error('[email_send_error] order=%s error=%s', order.order_number, e)
+            # Fallback to direct email sending if task queue fails
+            logger.error('[email_task_queue_error] order=%s error=%s, falling back to direct send',
+                       order.order_number, e)
+            try:
+                from shop.email_service import send_order_status_update
+                send_order_status_update(order, old_status)
+            except Exception as e2:
+                logger.error('[email_send_error] order=%s error=%s', order.order_number, e2)
 
         return Response(
             {'message': 'سفارش با موفقیت لغو شد.', 'order': OrderSerializer(order).data},

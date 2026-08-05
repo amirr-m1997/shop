@@ -16,11 +16,6 @@ export const CartProvider = ({ children }) => {
   const isAddingRef = useRef(false);
 
   const fetchCart = async () => {
-    if (!isAuthenticated) {
-      setCart(null);
-      return;
-    }
-
     setLoading(true);
     try {
       const response = await cartAPI.getCart();

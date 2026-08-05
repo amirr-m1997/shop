@@ -1,6 +1,15 @@
 import axios from 'axios';
 
 const API_BASE_URL = '/api';
+const SESSION_KEY = 'guest_session_id';
+
+export const getGuestSessionId = () => localStorage.getItem(SESSION_KEY);
+
+export const setGuestSessionId = (id) => {
+  if (id) localStorage.setItem(SESSION_KEY, id);
+};
+
+export const clearGuestSessionId = () => localStorage.removeItem(SESSION_KEY);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -9,18 +18,28 @@ const api = axios.create({
   },
 });
 
-// Add token to requests if available
+// Add token + guest session id to requests if available
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Token ${token}`;
   }
+  const sessionId = getGuestSessionId();
+  if (sessionId) {
+    config.headers['X-Session-ID'] = sessionId;
+  }
   return config;
 });
 
-// Handle 401 responses - only redirect on non-auth endpoints
+// Persist a guest session id returned by the backend and handle 401 responses
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const sid = response.headers?.['x-session-id'];
+    if (sid) {
+      setGuestSessionId(sid);
+    }
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401) {
       const url = error.config?.url || '';
@@ -128,6 +147,7 @@ export const paymentsAPI = {
 export const authAPI = {
   login: (data) => api.post('/auth/login/', data),
   register: (data) => api.post('/auth/register/', data),
+  guestRegister: (data) => api.post('/auth/guest-register/', data),
   getUser: () => api.get('/auth/user/'),
   updateUser: (data) => api.put('/auth/user/', data),
   changePassword: (data) => api.post('/auth/change-password/', data),

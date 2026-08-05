@@ -20,7 +20,7 @@ const PromoBanners = () => (
             />
             <div className="absolute left-4 top-1/2 hidden h-36 w-36 -translate-y-1/2 rounded-full bg-gradient-to-br from-amber-200/50 to-stone-200/30 blur-2xl sm:block dark:from-amber-500/20 dark:to-neutral-700/20" />
             <div className="relative z-10 flex w-full items-center justify-between gap-4 p-6 sm:p-8">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1 text-right max-sm:text-center">
                 <span className="mb-2 inline-block text-xs font-bold uppercase tracking-widest text-amber-700/80 dark:text-amber-400/80">
                   تخفیف تابستانه
                 </span>
@@ -50,7 +50,7 @@ const PromoBanners = () => (
             <div className="absolute inset-0 bg-gradient-to-l from-sky-100/70 via-stone-50/90 to-stone-50 dark:from-sky-950/30 dark:via-neutral-900/95 dark:to-neutral-900" />
             <div className="absolute left-4 top-1/2 hidden h-36 w-36 -translate-y-1/2 rounded-full bg-gradient-to-br from-sky-200/40 to-violet-200/20 blur-2xl sm:block dark:from-sky-500/15 dark:to-violet-500/10" />
             <div className="relative z-10 flex w-full items-center justify-between gap-4 p-6 sm:p-8">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1 text-right max-sm:text-center">
                 <span className="mb-2 inline-block text-xs font-bold uppercase tracking-widest text-sky-700/80 dark:text-sky-400/80">
                   تازه‌های مد
                 </span>

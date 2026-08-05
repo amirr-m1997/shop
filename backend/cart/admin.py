@@ -14,8 +14,15 @@ class CartItemInline(admin.TabularInline):
 
 @admin.register(Cart)
 class CartAdmin(admin.ModelAdmin):
-    list_display = ['user', 'total_items', 'total_price', 'created_at']
+    list_display = ['customer', 'total_items', 'total_price', 'created_at']
+    search_fields = ['user__username', 'user__email', 'session_id']
     inlines = [CartItemInline]
+
+    @admin.display(description='کاربر')
+    def customer(self, obj):
+        if obj.user_id:
+            return obj.user.username
+        return f'مهمان ({obj.session_id or "بدون نشست"})'
 
 @admin.register(CartItem)
 class CartItemAdmin(admin.ModelAdmin):

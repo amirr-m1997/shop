@@ -44,7 +44,14 @@ const ProductActions = ({
       {addedToCart && (
         <div className="mt-4 flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
           <CheckCircle className="h-4 w-4 shrink-0" />
-          به سبد خرید اضافه شد
+          <span>
+            به سبد خرید اضافه شد.
+            {!isAuthenticated && (
+              <span className="block mt-1 text-emerald-600/90 dark:text-emerald-400/90">
+                میتوانید بدون ایجاد حساب ثبت سفارش کنید.
+              </span>
+            )}
+          </span>
         </div>
       )}
     </>

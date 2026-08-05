@@ -69,12 +69,12 @@ class OrderItemInline(admin.TabularInline):
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = [
-        'order_number', 'user', 'status_badge',
+        'order_number', 'customer', 'status_badge',
         'payment_status_badge', 'payment_method_display',
         'total_display', 'created_at_jalali'
     ]
     list_filter = ['status', 'payment_status', 'payment_method', 'created_at']
-    search_fields = ['order_number', 'user__username', 'user__email']
+    search_fields = ['order_number', 'user__username', 'user__email', 'guest_email']
     readonly_fields = [
         'order_number', 'subtotal', 'shipping_cost', 'tax', 'total',
         'created_at', 'updated_at'
@@ -87,6 +87,10 @@ class OrderAdmin(admin.ModelAdmin):
         ('اطلاعات سفارش', {
             'fields': ('order_number', 'user', 'shipping_address')
         }),
+        ('اطلاعات مهمان', {
+            'fields': ('guest_email', 'guest_phone', 'guest_session_id'),
+            'classes': ('collapse',),
+        }),
         ('وضعیت', {
             'fields': ('status', 'payment_status', 'payment_method')
         }),
@@ -97,6 +101,12 @@ class OrderAdmin(admin.ModelAdmin):
             'fields': ('notes', 'tracking_number', 'postal_tracking_code', 'created_at', 'updated_at')
         }),
     )
+
+    @admin.display(description='مشتری')
+    def customer(self, obj):
+        if obj.user_id:
+            return obj.user.username
+        return obj.guest_email or 'مهمان'
 
     @admin.display(description='وضعیت سفارش')
     def status_badge(self, obj):

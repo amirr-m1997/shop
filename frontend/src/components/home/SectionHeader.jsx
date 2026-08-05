@@ -9,7 +9,7 @@ const SectionHeader = ({
   <div className="mb-8 flex flex-col gap-4 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
     <div className="min-w-0">
       {eyebrow && (
-        <div className="mb-3 flex items-center gap-2.5">
+        <div className="mb-3 flex items-center justify-center gap-2.5 sm:justify-start">
           <div className={`h-7 w-1 rounded-full ${accent}`} />
           <span
             className={`text-xs font-bold uppercase tracking-widest ${
@@ -21,7 +21,7 @@ const SectionHeader = ({
         </div>
       )}
       <h2
-        className={`text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl ${
+        className={`text-center text-2xl font-bold tracking-tight sm:text-right sm:text-3xl md:text-4xl ${
           light ? 'text-white' : ''
         }`}
       >
@@ -29,7 +29,7 @@ const SectionHeader = ({
       </h2>
       {subtitle && (
         <p
-          className={`mt-2 max-w-lg text-sm leading-relaxed sm:text-base ${
+          className={`mt-2 max-w-lg text-center text-sm leading-relaxed sm:text-right sm:text-base ${
             light ? 'text-white/65' : 'text-muted-foreground'
           }`}
         >

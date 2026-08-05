@@ -13,6 +13,8 @@ class ShippingAddress(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name='shipping_addresses',
+        null=True,
+        blank=True,
         verbose_name="کاربر"
     )
     full_name = models.CharField(max_length=255, verbose_name="نام و نام خانوادگی")
@@ -65,9 +67,30 @@ class Order(models.Model):
     )
     user = models.ForeignKey(
         User,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name='orders',
+        null=True,
+        blank=True,
         verbose_name="کاربر"
+    )
+    guest_email = models.EmailField(
+        max_length=254,
+        null=True,
+        blank=True,
+        verbose_name="ایمیل مهمان"
+    )
+    guest_phone = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        verbose_name="تلفن مهمان"
+    )
+    guest_session_id = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name="شناسه نشست مهمان"
     )
     shipping_address = models.ForeignKey(
         ShippingAddress,
@@ -125,7 +148,8 @@ class Order(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"سفارش {self.order_number} - {self.user.username}"
+        customer = self.user.username if self.user_id else (self.guest_email or 'مهمان')
+        return f"سفارش {self.order_number} - {customer}"
 
     def save(self, *args, **kwargs):
         if not self.order_number:

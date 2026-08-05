@@ -7,8 +7,9 @@ from django.http import HttpResponseRedirect
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
 
 from .models import Payment
 from .serializers import PaymentSerializer, InitiatePaymentSerializer
@@ -100,20 +101,35 @@ def _error_message(code, errors=None):
     return msg
 
 
-def _build_metadata(user, order):
+def _build_metadata(order):
     metadata = {'order_id': str(order.order_number)}
-    if user.email:
-        metadata['email'] = user.email
+    email = order.guest_email if not order.user_id else (order.user.email or '')
+    if email:
+        metadata['email'] = email
     mobile = ''
-    try:
-        profile = user.profile
-        if profile and profile.phone:
-            mobile = str(profile.phone).strip()
-    except Exception:
-        pass
+    if order.user_id:
+        try:
+            profile = order.user.profile
+            if profile and profile.phone:
+                mobile = str(profile.phone).strip()
+        except Exception:
+            pass
+    if not mobile and order.guest_phone:
+        mobile = str(order.guest_phone).strip()
     if mobile:
         metadata['mobile'] = mobile
     return metadata
+
+
+def _get_order_for_payment(order_id, request):
+    """Resolve an order for payment: authenticated users own it via user,
+    guests own it via the X-Session-ID header."""
+    if request.user.is_authenticated:
+        return Order.objects.filter(id=order_id, user=request.user).first()
+    session_id = request.META.get('HTTP_X_SESSION_ID', '') or ''
+    if not session_id:
+        return None
+    return Order.objects.filter(id=order_id, guest_session_id=session_id).first()
 
 
 class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
@@ -126,9 +142,9 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([AllowAny])
+@throttle_classes([PaymentInitThrottle])
 def initiate_payment(request):
-    throttle_classes = [PaymentInitThrottle]
 
     serializer = InitiatePaymentSerializer(
         data=request.data, context={'request': request}
@@ -138,7 +154,8 @@ def initiate_payment(request):
     if not ZARINPAL_MERCHANT_ID or not UUID_RE.match(ZARINPAL_MERCHANT_ID.strip()):
         logger.warning(
             '[payment_init_invalid_merchant] user=%s ip=%s',
-            request.user.username, _get_client_ip(request),
+            request.user.username if request.user.is_authenticated else 'guest',
+            _get_client_ip(request),
         )
         return Response(
             {
@@ -152,10 +169,12 @@ def initiate_payment(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    order = Order.objects.get(
-        id=serializer.validated_data['order_id'],
-        user=request.user,
-    )
+    order = _get_order_for_payment(serializer.validated_data['order_id'], request)
+    if order is None:
+        return Response(
+            {'error': 'سفارش یافت نشد.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
 
     # Race condition guard: only pending_payment orders can be paid
     if not order.can_pay:
@@ -207,7 +226,7 @@ def initiate_payment(request):
     else:
         payment = Payment.objects.create(
             order=order,
-            user=request.user,
+            user=request.user if request.user.is_authenticated else None,
             amount=order.total,
             status='pending',
         )
@@ -223,7 +242,8 @@ def initiate_payment(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    log_payment_initiation(payment.id, order.id, amount, request.user.username, _get_client_ip(request))
+    customer = request.user.username if request.user.is_authenticated else 'guest'
+    log_payment_initiation(payment.id, order.id, amount, customer, _get_client_ip(request))
 
     payload = {
         'merchant_id': ZARINPAL_MERCHANT_ID.strip(),
@@ -231,7 +251,7 @@ def initiate_payment(request):
         'currency': 'IRT',
         'callback_url': f'{ZARINPAL_CALLBACK_URL}?payment_id={payment.id}',
         'description': f'پرداخت سفارش {order.order_number}',
-        'metadata': _build_metadata(request.user, order),
+        'metadata': _build_metadata(order),
     }
 
     try:
@@ -433,12 +453,36 @@ def payment_verify_callback(request):
 
             log_payment_verification(payment.id, order.id, 'success', ref_id=payment.ref_id)
 
+            # Queue background tasks for email notifications
             try:
-                from shop.email_service import send_payment_confirmation, send_invoice_email
-                send_payment_confirmation(order, payment)
-                send_invoice_email(order)
+                from django_q.tasks import async_task
+                # Queue payment confirmation email (high priority)
+                async_task(
+                    'payments.tasks.send_payment_confirmation_email',
+                    order.id,
+                    payment.id,
+                    priority=1,
+                )
+                # Queue invoice email (medium priority)
+                async_task(
+                    'payments.tasks.send_invoice_email_task',
+                    order.id,
+                    priority=2,
+                )
+                logger.info(
+                    '[email_tasks_queued] order=%s payment_id=%d',
+                    order.order_number, payment.id,
+                )
             except Exception as e:
-                logger.error('[email_send_error] order=%s error=%s', order.order_number, e)
+                # Fallback to direct email sending if task queue fails
+                logger.error('[email_task_queue_error] order=%s error=%s, falling back to direct send',
+                           order.order_number, e)
+                try:
+                    from shop.email_service import send_payment_confirmation, send_invoice_email
+                    send_payment_confirmation(order, payment)
+                    send_invoice_email(order)
+                except Exception as e2:
+                    logger.error('[email_send_error] order=%s error=%s', order.order_number, e2)
 
             return HttpResponseRedirect(
                 f'{FRONTEND_URL}/payment/callback'
@@ -472,17 +516,30 @@ def payment_verify_callback(request):
 
 
 @api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([AllowAny])
 def payment_status(request, payment_id):
     try:
-        payment = Payment.objects.select_related('order').get(
-            id=payment_id, user=request.user
-        )
+        payment = Payment.objects.select_related('order').get(id=payment_id)
     except Payment.DoesNotExist:
         return Response(
             {'error': 'پرداخت یافت نشد.'},
             status=status.HTTP_404_NOT_FOUND,
         )
+
+    order = payment.order
+    if request.user.is_authenticated:
+        if order.user_id != request.user.id:
+            return Response(
+                {'error': 'پرداخت یافت نشد.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+    else:
+        session_id = request.META.get('HTTP_X_SESSION_ID', '') or ''
+        if not order.guest_session_id or order.guest_session_id != session_id:
+            return Response(
+                {'error': 'پرداخت یافت نشد.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
     return Response({
         'status': payment.status,

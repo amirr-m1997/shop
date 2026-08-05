@@ -16,7 +16,8 @@ class Payment(models.Model):
         Order, on_delete=models.CASCADE, related_name='payment', verbose_name="سفارش"
     )
     user = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name='payments', verbose_name="کاربر"
+        User, on_delete=models.SET_NULL, related_name='payments',
+        null=True, blank=True, verbose_name="کاربر"
     )
     authority = models.CharField(
         max_length=100, blank=True, null=True, verbose_name="کد احراز هویت"

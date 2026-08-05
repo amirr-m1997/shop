@@ -6,12 +6,15 @@ import { Card, CardContent } from '../components/ui/Card';
 import EmptyState from '../components/ui/EmptyState';
 import { SEO } from '../lib/seo';
 import PaymentCallbackSkeleton from '../components/skeletons/PaymentCallbackSkeleton';
+import GuestAccountCard from '../components/GuestAccountCard';
+import { useAuth } from '../contexts/AuthContext';
 
 const PaymentCallbackPage = () => {
   const [searchParams] = useSearchParams();
   const refId = searchParams.get('ref_id');
   const error = searchParams.get('error');
   const orderNumber = searchParams.get('order_number');
+  const { isAuthenticated } = useAuth();
   const [status, setStatus] = useState('loading');
   const [paymentData, setPaymentData] = useState(null);
 
@@ -93,6 +96,10 @@ const PaymentCallbackPage = () => {
             <br />
             این کد را برای پیگیری سفارش خود نگه دارید.
           </div>
+
+          {!isAuthenticated && orderNumber && (
+            <GuestAccountCard orderNumber={orderNumber} />
+          )}
 
           <div className="flex flex-col gap-2">
             <Button asChild className="w-full rounded-xl">

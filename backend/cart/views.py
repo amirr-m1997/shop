@@ -1,50 +1,52 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from decimal import Decimal
 from .models import Cart, CartItem
 from .serializers import CartSerializer, AddToCartSerializer, UpdateCartItemSerializer
+from .services import get_or_create_cart, apply_session_header
 from products.models import Product, ProductVariant
 from orders.models import Coupon
 
 
+def _cart_qs():
+    return Cart.objects.prefetch_related(
+        'items__product', 'items__variant',
+        'items__product__images',
+        'items__variant__size',
+        'items__variant__color',
+    )
+
+
 class CartViewSet(viewsets.ModelViewSet):
     serializer_class = CartSerializer
-    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Cart.objects.filter(user=self.request.user).prefetch_related(
-            'items__product', 'items__variant',
-            'items__product__images',
-            'items__variant__size',
-            'items__variant__color',
-        )
+        cart, _ = get_or_create_cart(self.request)
+        return _cart_qs().filter(id=cart.id)
 
     def get_object(self):
-        cart, _created = Cart.objects.get_or_create(user=self.request.user)
+        cart, _ = get_or_create_cart(self.request)
         # همیشه از DB تازه بخوان تا بعد از add/update cache قدیمی prefetch نماند
-        return Cart.objects.prefetch_related(
-            'items__product', 'items__variant',
-            'items__product__images',
-            'items__variant__size',
-            'items__variant__color',
-        ).get(id=cart.id)
+        return _cart_qs().get(id=cart.id)
+
+    def _serialized_cart(self, status_code=status.HTTP_200_OK):
+        """سبد تازه از DB (بعد از هر تغییر)."""
+        cart, session_id = get_or_create_cart(self.request)
+        serializer = CartSerializer(cart, context={'request': self.request})
+        response = Response(serializer.data, status=status_code)
+        return apply_session_header(response, session_id)
 
     def list(self, request, *args, **kwargs):
-        cart = self.get_object()
+        cart, session_id = get_or_create_cart(request)
         serializer = self.get_serializer(cart)
-        return Response(serializer.data)
+        return apply_session_header(Response(serializer.data), session_id)
 
     def create(self, request, *args, **kwargs):
-        cart = self.get_object()
+        cart, session_id = get_or_create_cart(request)
         serializer = self.get_serializer(cart)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    def _serialized_cart(self):
-        """سبد تازه از DB (بعد از هر تغییر)."""
-        cart = self.get_object()
-        return CartSerializer(cart, context={'request': self.request}).data
+        response = Response(serializer.data, status=status.HTTP_201_CREATED)
+        return apply_session_header(response, session_id)
 
     @action(detail=False, methods=['post'])
     def add_item(self, request):
@@ -62,7 +64,7 @@ class CartViewSet(viewsets.ModelViewSet):
             if variant_id:
                 variant = ProductVariant.objects.get(id=variant_id, product=product)
 
-            cart, _ = Cart.objects.get_or_create(user=request.user)
+            cart, _ = get_or_create_cart(request)
 
             # Check stock
             available = variant.effective_stock if variant else product.stock
@@ -89,7 +91,7 @@ class CartViewSet(viewsets.ModelViewSet):
                 cart_item.save(update_fields=['quantity'])
 
             # مهم: دوباره از DB بخوان — prefetch قبلی آیتم جدید را ندارد
-            return Response(self._serialized_cart(), status=status.HTTP_201_CREATED)
+            return self._serialized_cart(status_code=status.HTTP_201_CREATED)
 
         except (Product.DoesNotExist, ProductVariant.DoesNotExist):
             return Response(
@@ -118,8 +120,9 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        cart, _ = get_or_create_cart(request)
         try:
-            cart_item = CartItem.objects.get(id=item_id, cart__user=request.user)
+            cart_item = CartItem.objects.get(id=item_id, cart=cart)
             available = cart_item.variant.effective_stock if cart_item.variant else cart_item.product.stock
             if quantity > available:
                 return Response(
@@ -128,7 +131,7 @@ class CartViewSet(viewsets.ModelViewSet):
                 )
             cart_item.quantity = quantity
             cart_item.save(update_fields=['quantity'])
-            return Response(self._serialized_cart())
+            return self._serialized_cart()
         except CartItem.DoesNotExist:
             return Response({'error': 'Cart item not found'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -140,18 +143,19 @@ class CartViewSet(viewsets.ModelViewSet):
                 {'error': 'شناسه آیتم سبد الزامی است'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        cart, _ = get_or_create_cart(request)
         try:
-            cart_item = CartItem.objects.get(id=item_id, cart__user=request.user)
+            cart_item = CartItem.objects.get(id=item_id, cart=cart)
             cart_item.delete()
-            return Response(self._serialized_cart())
+            return self._serialized_cart()
         except CartItem.DoesNotExist:
             return Response({'error': 'Cart item not found'}, status=status.HTTP_404_NOT_FOUND)
 
     @action(detail=False, methods=['delete'])
     def clear(self, request):
-        cart, _ = Cart.objects.get_or_create(user=request.user)
+        cart, _ = get_or_create_cart(request)
         cart.items.all().delete()
-        return Response(self._serialized_cart())
+        return self._serialized_cart()
 
     @action(detail=False, methods=['post'])
     def apply_coupon(self, request):
@@ -173,7 +177,8 @@ class CartViewSet(viewsets.ModelViewSet):
         except Coupon.DoesNotExist:
             return Response({'error': 'کد تخفیف نامعتبر است.'}, status=status.HTTP_404_NOT_FOUND)
 
-        valid, msg = coupon.is_valid(user=request.user)
+        user = request.user if request.user.is_authenticated else None
+        valid, msg = coupon.is_valid(user=user)
         if not valid:
             return Response({'error': msg}, status=status.HTTP_400_BAD_REQUEST)
 

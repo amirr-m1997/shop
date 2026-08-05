@@ -120,11 +120,6 @@ const ProductDetailPage = () => {
   };
 
   const handleAddToCart = async () => {
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
-
     if (!selectedSize || !selectedColor) {
       alert('لطفاً سایز و رنگ مورد نظر را انتخاب کنید.');
       return;

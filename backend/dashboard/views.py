@@ -379,8 +379,9 @@ def export_orders_csv(request):
 
     orders = Order.objects.select_related('user').all()
     for o in orders:
+        customer = o.user.username if o.user_id else (o.guest_email or 'مهمان')
         writer.writerow([
-            o.order_number, o.user.username, o.total,
+            o.order_number, customer, o.total,
             o.get_status_display(), o.get_payment_status_display(),
             o.get_payment_method_display(), o.created_at.strftime('%Y-%m-%d'),
         ])

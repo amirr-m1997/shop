@@ -65,17 +65,15 @@ const ReviewsSection = ({
                 </div>
               </div>
               <Input
-                placeholder="عنوان نظر"
+                placeholder="عنوان نظر (اختیاری)"
                 value={reviewTitle}
                 onChange={(e) => setReviewTitle(e.target.value)}
-                required
                 className="h-11 rounded-xl"
               />
               <textarea
-                placeholder="متن نظر خود را بنویسید..."
+                placeholder="متن نظر خود را بنویسید... (اختیاری)"
                 value={reviewComment}
                 onChange={(e) => setReviewComment(e.target.value)}
-                required
                 rows={4}
                 className="w-full resize-none rounded-xl border border-input bg-background px-3 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               />

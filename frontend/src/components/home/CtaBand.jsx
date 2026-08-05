@@ -10,7 +10,7 @@ const CtaBand = () => (
         <div className="pointer-events-none absolute -bottom-20 right-10 h-48 w-48 rounded-full bg-white/5 dark:bg-white/10 blur-2xl" />
 
         <div className="relative flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
-          <div>
+          <div className="w-full text-center sm:w-auto sm:text-right">
             <p className="mb-2 text-xs font-bold uppercase tracking-widest opacity-70">
               تجربه خرید لوکس
             </p>

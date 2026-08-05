@@ -1,4 +1,5 @@
 import uuid
+import re
 import logging
 
 from django.contrib.auth.models import User
@@ -9,7 +10,7 @@ from django.utils import timezone
 from datetime import timedelta
 
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
@@ -29,10 +30,13 @@ from shop.observability import (
     log_auth_success, log_auth_failure, log_auth_lockout,
     log_otp_request, log_otp_verification, log_password_reset,
 )
-from orders.models import ShippingAddress
+from orders.models import ShippingAddress, Order
 from orders.serializers import ShippingAddressSerializer
 
 logger = logging.getLogger('authentication')
+
+USERNAME_REGEX = re.compile(r'^[a-zA-Z][a-zA-Z0-9_]{2,29}$')
+USERNAME_ERROR = 'نام کاربری فقط میتواند شامل حروف انگلیسی، اعداد و خط زیر (_) باشد و با یک حرف انگلیسی شروع شود.'
 
 
 def _get_or_create_profile(user):
@@ -62,12 +66,43 @@ def _get_client_ip(request):
     return x_forwarded.split(',')[0].strip() if x_forwarded else request.META.get('REMOTE_ADDR', 'unknown')
 
 
+def _link_guest_orders_to_user(user):
+    """Claim every unclaimed guest order that used this user's email."""
+    if not user or not user.email:
+        return 0
+
+    from payments.models import Payment
+    orders = Order.objects.filter(
+        user__isnull=True,
+        guest_email__iexact=user.email.strip(),
+    )
+    claimed = orders.count()
+    for order in orders:
+        order.user = user
+        order.guest_email = None
+        order.guest_phone = None
+        order.guest_session_id = None
+        order.save(update_fields=['user', 'guest_email', 'guest_phone', 'guest_session_id', 'updated_at'])
+        Payment.objects.filter(order=order, user__isnull=True).update(user=user)
+        address = order.shipping_address
+        if address and not address.user_id:
+            address.user = user
+            address.save(update_fields=['user', 'updated_at'])
+
+    if claimed:
+        logger.info(
+            '[guest_orders_linked] user=%s user_id=%d count=%d',
+            user.username, user.id, claimed,
+        )
+    return claimed
+
+
 # --- Auth ---
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([RegisterThrottle])
 def register_view(request):
-    throttle_classes = [RegisterThrottle]
 
     username = request.data.get('username', '').strip()
     email = request.data.get('email', '').strip()
@@ -78,6 +113,9 @@ def register_view(request):
 
     if not username or not password:
         return Response({'error': 'نام کاربری و رمز عبور الزامی است'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not USERNAME_REGEX.match(username):
+        return Response({'error': USERNAME_ERROR}, status=status.HTTP_400_BAD_REQUEST)
 
     if User.objects.filter(username=username).exists():
         return Response({'error': 'این نام کاربری قبلاً استفاده شده است'}, status=status.HTTP_400_BAD_REQUEST)
@@ -91,6 +129,8 @@ def register_view(request):
     if phone:
         profile.phone = phone
         profile.save()
+
+    _link_guest_orders_to_user(user)
 
     token, _ = Token.objects.get_or_create(user=user)
 
@@ -116,8 +156,89 @@ def register_view(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([RegisterThrottle])
+def guest_register_view(request):
+
+    email = request.data.get('email', '').strip().lower()
+    password = request.data.get('password', '')
+    order_number = request.data.get('order_number', '').strip()
+
+    if not password:
+        return Response(
+            {'error': 'رمز عبور الزامی است'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if len(password) < 6:
+        return Response(
+            {'error': 'رمز عبور باید حداقل ۶ کاراکتر باشد'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not order_number:
+        return Response(
+            {'error': 'شماره سفارش الزامی است'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    order = Order.objects.filter(
+        order_number=order_number,
+        guest_email__isnull=False,
+        user__isnull=True,
+    ).first()
+    if not order:
+        return Response(
+            {'error': 'سفارش مهمان با این مشخصات یافت نشد.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    # Email comes from the guest order; a provided email must match it.
+    email = email or (order.guest_email or '').strip().lower()
+    if order.guest_email and order.guest_email.lower() != email:
+        return Response(
+            {'error': 'ایمیل وارد شده با ایمیل ثبت‌شده در سفارش مطابقت ندارد.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if User.objects.filter(email=email).exists() or User.objects.filter(username=email).exists():
+        return Response(
+            {'error': 'حسابی با این ایمیل از قبل وجود دارد. لطفاً وارد شوید.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    user = User.objects.create_user(
+        username=email, email=email, password=password,
+    )
+    _get_or_create_profile(user)
+
+    # Link the matched order and any other guest orders with the same email
+    _link_guest_orders_to_user(user)
+
+    token, _ = Token.objects.get_or_create(user=user)
+
+    ip_address = _get_client_ip(request)
+    LoginHistory.objects.create(
+        user=user,
+        ip_address=ip_address,
+        user_agent=request.META.get('HTTP_USER_AGENT', ''),
+    )
+
+    log_auth_success(email, user.id, ip_address, method='guest_register')
+    logger.info(
+        '[guest_register_success] user=%s user_id=%d order=%s ip=%s',
+        email, user.id, order_number, ip_address,
+    )
+
+    return Response({
+        'token': token.key,
+        'user': _user_data(user),
+    }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@throttle_classes([LoginThrottle])
 def login_view(request):
-    throttle_classes = [LoginThrottle]
 
     username = request.data.get('username', '').strip()
     password = request.data.get('password', '')
@@ -189,6 +310,8 @@ def login_view(request):
     clear_login_failures(identifier)
     clear_login_failures(ip_identifier)
 
+    _link_guest_orders_to_user(user)
+
     token, _ = Token.objects.get_or_create(user=user)
 
     # Record login history
@@ -230,7 +353,6 @@ def user_view(request):
         if User.objects.filter(email=email).exclude(id=request.user.id).exists():
             return Response({'error': 'این ایمیل قبلاً استفاده شده است'}, status=status.HTTP_400_BAD_REQUEST)
         request.user.email = email
-
     first_name = data.get('first_name', '').strip()
     if first_name is not None:
         request.user.first_name = first_name
@@ -240,6 +362,8 @@ def user_view(request):
         request.user.last_name = last_name
 
     request.user.save()
+
+    _link_guest_orders_to_user(request.user)
 
     profile = _get_or_create_profile(request.user)
 
@@ -264,8 +388,8 @@ def user_view(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([SendOtpThrottle])
 def send_verification_view(request):
-    throttle_classes = [SendOtpThrottle]
 
     verify_type = request.data.get('type', 'email')
     profile = _get_or_create_profile(request.user)
@@ -336,8 +460,8 @@ def send_verification_view(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([VerifyOtpThrottle])
 def verify_code_view(request):
-    throttle_classes = [VerifyOtpThrottle]
 
     code = request.data.get('code', '').strip()
     verify_type = request.data.get('type', 'email')
@@ -436,8 +560,8 @@ def logout_view(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([ForgotPasswordThrottle])
 def password_reset_request_view(request):
-    throttle_classes = [ForgotPasswordThrottle]
 
     email = request.data.get('email', '').strip()
     ip_address = _get_client_ip(request)
@@ -496,8 +620,8 @@ def password_reset_request_view(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([ResetPasswordThrottle])
 def password_reset_confirm_view(request):
-    throttle_classes = [ResetPasswordThrottle]
 
     token = request.data.get('token', '').strip()
     new_password = request.data.get('new_password', '')

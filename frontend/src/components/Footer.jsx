@@ -24,7 +24,7 @@ const FooterAccordion = ({ title, defaultOpen = false, children }) => {
     <div className="border-b border-border last:border-b-0 lg:border-b-0">
       <button
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between py-4 text-right lg:hidden"
+        className="flex w-full items-center justify-center gap-2 py-4 text-center lg:hidden"
         aria-expanded={open}
       >
         <span className="text-base font-bold">{title}</span>
@@ -140,12 +140,12 @@ const Footer = () => {
       <div className="container mx-auto px-4 py-8 sm:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-0 lg:gap-8">
           {/* Brand — always visible */}
-          <div className="pb-6 lg:pb-0">
+          <div className="pb-6 text-center lg:pb-0 lg:text-right">
             <h3 className="text-xl sm:text-2xl font-bold mb-3 lg:mb-4">{siteName}</h3>
             <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
               {siteDesc}
             </p>
-            <div className="flex gap-3">
+            <div className="flex justify-center gap-3 lg:justify-start">
               {instagramUrl && instagramUrl !== '#' && (
                 <a href={instagramUrl} target="_blank" rel="noopener noreferrer"
                   className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center hover:bg-muted/80 transition-all hover:scale-110" title="اینستاگرام">
@@ -169,10 +169,10 @@ const Footer = () => {
 
           {/* Quick Links — accordion on mobile */}
           <FooterAccordion title="دسترسی سریع">
-            <ul className="space-y-2.5 lg:space-y-3">
+            <ul className="space-y-2.5 text-center lg:space-y-3">
               {quickLinks.map((link, i) => (
                 <li key={i}>
-                  <Link to={link.to} className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2 group py-1">
+                  <Link to={link.to} className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2 group py-1">
                     <ChevronLeft className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                     {link.label}
                   </Link>
@@ -183,10 +183,10 @@ const Footer = () => {
 
           {/* Customer Service — accordion on mobile */}
           <FooterAccordion title="خدمات مشتریان">
-            <ul className="space-y-2.5 lg:space-y-3">
+            <ul className="space-y-2.5 text-center lg:space-y-3">
               {serviceLinks.map((link, i) => (
                 <li key={i}>
-                  <Link to={link.to} className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2 group py-1">
+                  <Link to={link.to} className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2 group py-1">
                     <ChevronLeft className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                     {link.label}
                   </Link>
@@ -197,8 +197,8 @@ const Footer = () => {
 
           {/* Contact — accordion on mobile */}
           <FooterAccordion title="تماس با ما">
-            <ul className="space-y-3.5 lg:space-y-4">
-              <li className="flex items-start gap-3">
+            <ul className="space-y-3.5 text-center lg:space-y-4">
+              <li className="flex items-start justify-center gap-3 lg:justify-start">
                 <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center shrink-0 mt-0.5">
                   <Phone className="h-4 w-4" />
                 </div>
@@ -207,7 +207,7 @@ const Footer = () => {
                   <p className="text-sm" dir="ltr">{phone}</p>
                 </div>
               </li>
-              <li className="flex items-start gap-3">
+              <li className="flex items-start justify-center gap-3 lg:justify-start">
                 <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center shrink-0 mt-0.5">
                   <Mail className="h-4 w-4" />
                 </div>
@@ -216,7 +216,7 @@ const Footer = () => {
                   <p className="text-sm" dir="ltr">{emailAddr}</p>
                 </div>
               </li>
-              <li className="flex items-start gap-3">
+              <li className="flex items-start justify-center gap-3 lg:justify-start">
                 <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center shrink-0 mt-0.5">
                   <MapPin className="h-4 w-4" />
                 </div>

@@ -125,9 +125,17 @@ def _draw_customer_info(c, y, width, order, font):
     left_x = 20 * mm
     right_x = width / 2 + 5 * mm
 
+    # Customer info for guests or authenticated users
+    if order.user_id:
+        customer_name = order.user.get_full_name() or order.user.username
+        customer_email = order.user.email or '—'
+    else:
+        customer_name = order.guest_email or 'مهمان'
+        customer_email = order.guest_email or '—'
+
     info_left = [
-        ('Name:', str(order.user.get_full_name() or order.user.username)),
-        ('Email:', str(order.user.email or '—')),
+        ('Name:', str(customer_name)),
+        ('Email:', str(customer_email)),
         ('Phone:', str(order.shipping_address.phone if order.shipping_address else '—')),
     ]
 

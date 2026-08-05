@@ -46,6 +46,7 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
     'x-device-fingerprint',
     'x-request-id',
+    'x-session-id',
 ]
 
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
@@ -74,6 +75,7 @@ INSTALLED_APPS = [
     'pages',
     'payments',
     'dashboard',
+    'django_q',
 ]
 
 MIDDLEWARE = [
@@ -228,6 +230,35 @@ else:
             'LOCATION': 'shop-security',
         }
     }
+
+# ─── Django-Q Configuration ─────────────────────────────────
+# Background task processing with Django-Q2.
+# Uses Redis as broker in production, ORM broker in development.
+
+Q_CLUSTER = {
+    'name': 'shop',
+    'workers': int(os.getenv('Q_WORKERS', '4')),
+    'recycle': 500,
+    'timeout': 60,
+    'compress': True,
+    'cpu_affinity': 1,
+    'save_limit': 250,
+    'queue_limit': 500,
+    'bulk': 10,
+    'acker': True,
+    'max_rss': 500,
+    'max_jitter': 8,
+    'log_level': 'INFO',
+}
+
+# Use Redis broker if REDIS_URL is set, otherwise use ORM
+if REDIS_URL:
+    Q_CLUSTER.update({
+        'redis': REDIS_URL,
+    })
+else:
+    # ORM broker uses Django's database (default)
+    Q_CLUSTER['orm'] = 'default'
 
 # ─── Security Settings ─────────────────────────────────────
 
@@ -466,9 +497,19 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'mkhmdyamyr8@gmail.com')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'xrlp ncjo aplz fiov')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'mkhmdyamyr8@gmail.com')
+
+# Environment variables required for email configuration
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+if not EMAIL_HOST_USER:
+    raise RuntimeError("EMAIL_HOST_USER environment variable is required!")
+
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+if not EMAIL_HOST_PASSWORD:
+    raise RuntimeError("EMAIL_HOST_PASSWORD environment variable is required!")
+
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
+if not DEFAULT_FROM_EMAIL:
+    raise RuntimeError("DEFAULT_FROM_EMAIL environment variable is required!")
 
 # ─── Zarinpal Payment Gateway ──────────────────────────────
 ZARINPAL_MERCHANT_ID = os.getenv('ZARINPAL_MERCHANT_ID', '')

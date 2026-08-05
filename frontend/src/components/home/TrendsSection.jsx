@@ -22,25 +22,16 @@ const TrendsSection = ({ styles }) => {
 
       <div className="container relative mx-auto px-4">
         <SectionHeader
-          eyebrow="استایل"
-          title={
-            <span className="flex items-center gap-2.5">
-              <Sparkles className="h-7 w-7 text-amber-500" />
-              ترندهای روز
-            </span>
-          }
-          subtitle="الهام از استایل‌های تازه — برای کسانی که جلوتر از زمان حرکت می‌کنند"
-          accent="bg-amber-400"
-          action={
-            <Link
-              to={`/style/${items[0]?.slug}`}
-              className="group inline-flex items-center gap-1.5 rounded-2xl border border-border bg-background/60 px-4 py-2.5 text-sm font-bold text-foreground backdrop-blur-md transition-all hover:bg-background"
-            >
-              استایل‌های ویژه
-              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
-            </Link>
-          }
-        />
+  eyebrow="استایل"
+  title={
+    <span className="inline-flex items-center gap-2.5">
+      <Sparkles className="h-7 w-7 text-amber-500" />
+      ترندهای روز
+    </span>
+  }
+  subtitle="الهام از استایل‌های تازه — برای کسانی که جلوتر از زمان حرکت می‌کنند"
+  accent="bg-amber-400"
+/>
 
         <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
           {items.map((item, idx) => (

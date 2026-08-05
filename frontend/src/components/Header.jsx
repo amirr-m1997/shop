@@ -109,6 +109,8 @@ const Header = () => {
 
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center space-x-5 space-x-reverse shrink-0" ref={dropdownRef}>
+            <Link to="/" className="text-sm font-medium hover:text-primary">صفحه اصلی</Link>
+            <Link to="/products" className="text-sm font-medium hover:text-primary">محصولات</Link>
             {navCategories.map(cat => (
               <div key={cat.id} className="relative">
                 {cat.children && cat.children.length > 0 ? (
@@ -290,6 +292,8 @@ const Header = () => {
         {mobileMenuOpen && (
           <div className="lg:hidden py-4 border-t">
             <nav className="flex flex-col space-y-1">
+              <Link to="/" className="text-sm font-medium hover:text-primary py-2" onClick={() => setMobileMenuOpen(false)}>صفحه اصلی</Link>
+              <Link to="/products" className="text-sm font-medium hover:text-primary py-2" onClick={() => setMobileMenuOpen(false)}>محصولات</Link>
               {navCategories.map(cat => (
                 <div key={cat.id}>
                   {cat.children && cat.children.length > 0 ? (

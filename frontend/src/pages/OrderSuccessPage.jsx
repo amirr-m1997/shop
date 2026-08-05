@@ -5,12 +5,15 @@ import { Button } from '../components/ui/Button';
 import { SEO } from '../lib/seo';
 import { Card, CardContent } from '../components/ui/Card';
 import CountdownTimer from '../components/CountdownTimer';
+import GuestAccountCard from '../components/GuestAccountCard';
+import { useAuth } from '../contexts/AuthContext';
 
 const OrderSuccessPage = () => {
   const [searchParams] = useSearchParams();
   const refId = searchParams.get('ref_id');
   const orderNumber = searchParams.get('order_number');
   const expiresAt = searchParams.get('expires_at');
+  const { isAuthenticated } = useAuth();
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text).catch(() => {});
@@ -67,6 +70,10 @@ const OrderSuccessPage = () => {
                 لطفاً هرچه سریع‌تر نسبت به پرداخت اقدام کنید. پس از اتمام این زمان، سفارش شما به‌صورت خودکار لغو می‌شود.
               </p>
             </div>
+          )}
+
+          {!isAuthenticated && orderNumber && (
+            <GuestAccountCard orderNumber={orderNumber} />
           )}
 
           <p className="text-muted-foreground mt-4 mb-8 text-sm">

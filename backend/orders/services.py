@@ -93,6 +93,7 @@ def expire_orders():
     failed_count = 0
 
     for order in expired_orders:
+        customer = order.user.username if order.user_id else (order.guest_email or 'مهمان')
         try:
             with transaction.atomic():
                 release_inventory(order)
@@ -104,7 +105,7 @@ def expire_orders():
             log_inventory_released(order.id, order.items.count(), reason='order_expired')
             logger.info(
                 '[order_expired] order_id=%d order_number=%s user=%s',
-                order.id, order.order_number, order.user.username,
+                order.id, order.order_number, customer,
             )
 
         except Exception as e:
@@ -112,11 +113,11 @@ def expire_orders():
             log_exception('orders', e, context={
                 'order_id': order.id,
                 'order_number': order.order_number,
-                'user': order.user.username,
+                'user': customer,
             })
             logger.exception(
                 '[order_expire_failed] order_id=%d order_number=%s user=%s',
-                order.id, order.order_number, order.user.username,
+                order.id, order.order_number, customer,
             )
 
     return cancelled_count, failed_count

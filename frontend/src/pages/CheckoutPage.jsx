@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CreditCard, Truck, Check, MapPin, Package, ShoppingBag,
   ArrowLeft, ArrowRight, ShieldCheck, Sparkles, Wallet,
-  Phone, Home, Plus, Loader2, Percent, X, CheckCircle2
+  Phone, Home, Plus, Loader2, Percent, X, CheckCircle2, Mail
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
@@ -12,6 +12,7 @@ import Skeleton from '../components/ui/Skeleton';
 import { Badge } from '../components/ui/Badge';
 import EmptyState from '../components/ui/EmptyState';
 import { useCart } from '../contexts/CartContext';
+import { useAuth } from '../contexts/AuthContext';
 import { ordersAPI, paymentsAPI, cartAPI } from '../services/api';
 import { formatPrice } from '../lib/formatPrice';
 import { PLACEHOLDER_IMG } from '../lib/placeholders';
@@ -23,6 +24,9 @@ const STEPS = [
   { id: 2, label: 'آدرس ارسال', icon: MapPin },
   { id: 3, label: 'پرداخت', icon: Wallet },
 ];
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_INVALID_MSG = 'فرمت ایمیل صحیح نیست؛ لطفاً یک ایمیل معتبر مانند example@mail.com وارد کنید.';
 
 const PAYMENT_METHODS = [
   {
@@ -188,22 +192,26 @@ const OrderSummary = ({ cart, subtotal, shipping, total, shippingConfig, coupon 
                 />
                 <Percent className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
               </div>
-              {coupon ? (
-                <button
-                  onClick={handleRemove}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-red-200 bg-red-50 text-red-500 transition-all hover:bg-red-100 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              ) : (
-                <button
-                  onClick={handleApply}
-                  disabled={!couponCode.trim() || couponLoading}
-                  className="h-11 shrink-0 rounded-2xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25 disabled:opacity-40 disabled:pointer-events-none"
-                >
-                  {couponLoading ? '...' : 'اعمال'}
-                </button>
-              )}
+              <button
+                onClick={handleApply}
+                disabled={!couponCode.trim() || couponLoading}
+                className="h-11 shrink-0 rounded-2xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25 disabled:opacity-40 disabled:pointer-events-none"
+              >
+                {couponLoading ? '...' : 'اعمال'}
+              </button>
+              <button
+                type="button"
+                onClick={handleRemove}
+                title="حذف کد تخفیف"
+                aria-label="حذف کد تخفیف"
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border-2 transition-all ${
+                  coupon
+                    ? 'border-red-500 bg-red-500 text-white shadow-lg shadow-red-500/25 hover:bg-red-600 hover:border-red-600'
+                    : 'border-red-300 bg-red-50 text-red-400 hover:bg-red-100 dark:border-red-900 dark:bg-red-950/40'
+                }`}
+              >
+                <X className="h-4 w-4" strokeWidth={2.5} />
+              </button>
             </div>
             {couponError && (
               <p className="text-sm font-medium text-red-500 flex items-center gap-2 px-1">
@@ -290,6 +298,7 @@ const CheckoutPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { cart, clearCart, coupon, removeCoupon, applyCoupon } = useCart();
+  const { isAuthenticated } = useAuth();
   const { config: shippingConfig } = useShippingConfig();
 
   const [step, setStep] = useState(1);
@@ -305,6 +314,11 @@ const CheckoutPage = () => {
     state: '',
     postal_code: '',
   });
+  const [guestInfo, setGuestInfo] = useState({
+    email: '',
+    phone: '',
+  });
+  const [guestEmailError, setGuestEmailError] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('online');
   const [orderNotes, setOrderNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -312,8 +326,14 @@ const CheckoutPage = () => {
   const [addrLoading, setAddrLoading] = useState(true);
 
   useEffect(() => {
-    fetchAddresses();
-  }, []);
+    if (isAuthenticated) {
+      fetchAddresses();
+    } else {
+      setAddrLoading(false);
+      setShowAddressForm(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const code = searchParams.get('coupon');
@@ -353,6 +373,12 @@ const CheckoutPage = () => {
     setNewAddress((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleGuestInfoChange = (e) => {
+    const { name, value } = e.target;
+    setGuestInfo((prev) => ({ ...prev, [name]: value }));
+    if (name === 'email') setGuestEmailError('');
+  };
+
   const handleAddAddress = async (e) => {
     if (e) e.preventDefault();
     setError('');
@@ -382,21 +408,61 @@ const CheckoutPage = () => {
   };
 
   const handlePlaceOrder = async () => {
-    if (!selectedAddress) {
-      setError('لطفاً آدرس ارسال را انتخاب کنید');
-      setStep(2);
-      return;
+    if (isAuthenticated) {
+      if (!selectedAddress) {
+        setError('لطفاً آدرس ارسال را انتخاب کنید');
+        setStep(2);
+        return;
+      }
+    } else {
+      if (!guestInfo.email || !guestInfo.email.trim()) {
+        setError('لطفاً ایمیل خود را برای پیگیری سفارش وارد کنید');
+        setGuestEmailError('لطفاً ایمیل خود را وارد کنید');
+        setStep(2);
+        return;
+      }
+      if (!EMAIL_REGEX.test(guestInfo.email.trim())) {
+        setError(EMAIL_INVALID_MSG);
+        setGuestEmailError(EMAIL_INVALID_MSG);
+        setStep(2);
+        return;
+      }
+      if (!newAddress.full_name || !newAddress.address_line1 || !newAddress.city) {
+        setError('لطفاً فیلدهای آدرس ارسال را تکمیل کنید');
+        setStep(2);
+        return;
+      }
+      if (!newAddress.postal_code || !/^\d{10}$/.test(newAddress.postal_code)) {
+        setError('کد پستی اجباری است و باید ۱۰ رقم باشد');
+        setStep(2);
+        return;
+      }
     }
 
     setLoading(true);
     setError('');
     try {
-      const orderRes = await ordersAPI.createOrder({
-        shipping_address_id: selectedAddress,
+      const payload = {
         payment_method: paymentMethod,
         notes: orderNotes,
         coupon_code: coupon?.code || '',
-      });
+      };
+      if (isAuthenticated) {
+        payload.shipping_address_id = selectedAddress;
+      } else {
+        payload.guest_email = guestInfo.email.trim();
+        payload.guest_phone = guestInfo.phone.trim();
+        payload.full_name = newAddress.full_name;
+        payload.phone = newAddress.phone || guestInfo.phone.trim();
+        payload.address_line1 = newAddress.address_line1;
+        payload.address_line2 = newAddress.address_line2;
+        payload.city = newAddress.city;
+        payload.state = newAddress.state;
+        payload.postal_code = newAddress.postal_code;
+        payload.country = 'Iran';
+      }
+
+      const orderRes = await ordersAPI.createOrder(payload);
       const orderId = orderRes.data.id;
 
       try {
@@ -422,6 +488,10 @@ const CheckoutPage = () => {
       let msg = 'ثبت سفارش ناموفق بود. لطفاً دوباره تلاش کنید.';
       if (typeof data === 'string') {
         msg = data;
+      } else if (data?.guest_email) {
+        const emailMsg = Array.isArray(data.guest_email) ? data.guest_email[0] : data.guest_email;
+        setGuestEmailError(emailMsg);
+        msg = emailMsg;
       } else if (data?.error) {
         msg = data.error;
       } else if (data?.detail) {
@@ -585,7 +655,120 @@ const CheckoutPage = () => {
                     </div>
                   ) : (
                     <>
-                      {shippingAddresses.length === 0 && showAddressForm && (
+                      {!isAuthenticated && (
+                        <>
+                          <div className="rounded-2xl border bg-muted/20 p-4 sm:p-5 mb-5">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Mail className="h-4 w-4 text-primary" />
+                              <h3 className="font-semibold text-sm">اطلاعات تماس</h3>
+                            </div>
+                            <p className="text-xs text-muted-foreground mb-3">
+                              ایمیل، تنها راه ارتباطی ما با شماست؛ آن را کاملاً دقیق و درست وارد کنید.
+                            </p>
+                            <p className="text-xs font-medium text-amber-600 dark:text-amber-400 mb-4 flex items-start gap-1.5">
+                              <span className="mt-0.5 shrink-0">⚠</span>
+                              لطفاً ایمیل را با دقت وارد کنید — پیگیری سفارش و فاکتور به همین ایمیل ارسال می‌شود.
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div className="md:col-span-2">
+                                <Input
+                                  name="email"
+                                  type="email"
+                                  dir="ltr"
+                                  placeholder="ایمیل *"
+                                  value={guestInfo.email}
+                                  onChange={handleGuestInfoChange}
+                                  aria-invalid={!!guestEmailError}
+                                  className={`rounded-xl text-left ${guestEmailError ? 'border-destructive focus-visible:ring-destructive/50' : ''}`}
+                                />
+                                {guestEmailError && (
+                                  <p className="mt-1.5 text-xs text-destructive flex items-start gap-1">
+                                    <span className="mt-0.5 shrink-0">⚠</span>
+                                    {guestEmailError}
+                                  </p>
+                                )}
+                              </div>
+                              <Input
+                                name="phone"
+                                dir="ltr"
+                                placeholder="شماره تماس (اختیاری)"
+                                value={guestInfo.phone}
+                                onChange={handleGuestInfoChange}
+                                className="rounded-xl text-left"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="rounded-2xl border bg-muted/20 p-4 sm:p-5 mb-5">
+                            <div className="flex items-center gap-2 mb-1">
+                              <MapPin className="h-4 w-4 text-primary" />
+                              <h3 className="font-semibold text-sm">آدرس ارسال</h3>
+                            </div>
+                            <p className="text-xs text-muted-foreground mb-4">
+                              محل تحویل سفارش را وارد کنید.
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <Input
+                                name="full_name"
+                                placeholder="نام و نام خانوادگی *"
+                                value={newAddress.full_name}
+                                onChange={handleAddressChange}
+                                className="md:col-span-2 rounded-xl"
+                              />
+                              <Input
+                                name="phone"
+                                placeholder="شماره تماس گیرنده"
+                                value={newAddress.phone}
+                                onChange={handleAddressChange}
+                                className="rounded-xl"
+                              />
+                              <Input
+                                name="city"
+                                placeholder="شهر *"
+                                value={newAddress.city}
+                                onChange={handleAddressChange}
+                                className="rounded-xl"
+                              />
+                              <Input
+                                name="address_line1"
+                                placeholder="آدرس اصلی (خیابان، کوچه، پلاک) *"
+                                value={newAddress.address_line1}
+                                onChange={handleAddressChange}
+                                className="md:col-span-2 rounded-xl"
+                              />
+                              <Input
+                                name="address_line2"
+                                placeholder="آدرس تکمیلی (واحد، طبقه) — اختیاری"
+                                value={newAddress.address_line2}
+                                onChange={handleAddressChange}
+                                className="md:col-span-2 rounded-xl"
+                              />
+                              <Input
+                                name="state"
+                                placeholder="استان"
+                                value={newAddress.state}
+                                onChange={handleAddressChange}
+                                className="rounded-xl"
+                              />
+                              <Input
+                                name="postal_code"
+                                placeholder="کد پستی (۱۰ رقم) *"
+                                inputMode="numeric"
+                                maxLength={10}
+                                value={newAddress.postal_code}
+                                onChange={handleAddressChange}
+                                dir="ltr"
+                                className="rounded-xl text-left"
+                              />
+                              <p className="text-[11px] text-muted-foreground -mt-1 md:col-span-2">
+                                کد پستی ۱۰ رقمی اجباری است.
+                              </p>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {isAuthenticated && shippingAddresses.length === 0 && showAddressForm && (
                         <div className="mb-5 rounded-2xl border border-dashed border-border/60 bg-gradient-to-br from-primary/[0.04] via-card to-muted/20 px-4 py-5 text-center">
                           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/10">
                             <MapPin className="h-5 w-5 text-primary/70" strokeWidth={1.5} />
@@ -597,7 +780,7 @@ const CheckoutPage = () => {
                         </div>
                       )}
 
-                      {shippingAddresses.length > 0 && (
+                      {isAuthenticated && shippingAddresses.length > 0 && (
                         <div className="space-y-3 mb-5">
                           {shippingAddresses.map((address) => {
                             const selected = selectedAddress === address.id;
@@ -655,7 +838,7 @@ const CheckoutPage = () => {
                         </div>
                       )}
 
-                      {!showAddressForm ? (
+                      {isAuthenticated && !showAddressForm ? (
                         <Button
                           type="button"
                           variant="outline"
@@ -665,7 +848,7 @@ const CheckoutPage = () => {
                           <Plus className="ml-2 h-4 w-4" />
                           افزودن آدرس جدید
                         </Button>
-                      ) : (
+                      ) : isAuthenticated ? (
                         <div className="rounded-2xl border bg-muted/20 p-4 sm:p-5 mb-5">
                           <div className="flex items-center justify-between mb-4">
                             <h3 className="font-semibold text-sm flex items-center gap-2">
@@ -740,7 +923,7 @@ const CheckoutPage = () => {
                             </Button>
                           </form>
                         </div>
-                      )}
+                      ) : null}
 
                       <div className="flex flex-col-reverse sm:flex-row gap-3">
                         <Button
@@ -756,9 +939,30 @@ const CheckoutPage = () => {
                           className="flex-1 rounded-xl h-12 font-bold shadow-md"
                           onClick={() => {
                             setError('');
+                            setGuestEmailError('');
+                            if (!isAuthenticated) {
+                              if (!guestInfo.email || !guestInfo.email.trim()) {
+                                setError('لطفاً ایمیل خود را وارد کنید');
+                                setGuestEmailError('لطفاً ایمیل خود را وارد کنید');
+                                return;
+                              }
+                              if (!EMAIL_REGEX.test(guestInfo.email.trim())) {
+                                setError(EMAIL_INVALID_MSG);
+                                setGuestEmailError(EMAIL_INVALID_MSG);
+                                return;
+                              }
+                              if (!newAddress.full_name || !newAddress.address_line1 || !newAddress.city) {
+                                setError('لطفاً فیلدهای آدرس ارسال را تکمیل کنید');
+                                return;
+                              }
+                              if (!newAddress.postal_code || !/^\d{10}$/.test(newAddress.postal_code)) {
+                                setError('کد پستی اجباری است و باید ۱۰ رقم باشد');
+                                return;
+                              }
+                            }
                             setStep(3);
                           }}
-                          disabled={!selectedAddress}
+                          disabled={isAuthenticated && !selectedAddress}
                         >
                           ادامه — روش پرداخت
                           <ArrowLeft className="mr-2 h-5 w-5" />

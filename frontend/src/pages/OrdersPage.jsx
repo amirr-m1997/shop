@@ -217,7 +217,7 @@ const OrdersPage = () => {
         </div>
 
         {/* ── Status Filters ── */}
-        <div className="mb-6 flex gap-2 overflow-x-auto pb-1 scrollbar-hide animate-fade-in-up">
+        <div className="mb-6 flex flex-wrap gap-2 pb-1 animate-fade-in-up">
           {statusFilters.map((sf) => {
             const count =
               sf.key === 'all'

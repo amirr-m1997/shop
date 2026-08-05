@@ -23,22 +23,25 @@ const CouponSection = ({ coupon, couponError, couponLoading, onApplyCoupon, onRe
           />
           <Percent className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
         </div>
-        {coupon ? (
-          <button
-            onClick={onRemoveCoupon}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-red-200 bg-red-50 text-red-500 transition-all hover:bg-red-100 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        ) : (
-          <button
-            onClick={handleApply}
-            disabled={!couponCode.trim() || couponLoading}
-            className="h-12 shrink-0 rounded-2xl bg-primary px-6 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25 disabled:opacity-40 disabled:pointer-events-none"
-          >
-            {couponLoading ? '...' : 'اعمال'}
-          </button>
-        )}
+        <button
+          onClick={handleApply}
+          disabled={!couponCode.trim() || couponLoading}
+          className="h-12 shrink-0 rounded-2xl bg-primary px-6 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25 disabled:opacity-40 disabled:pointer-events-none"
+        >
+          {couponLoading ? '...' : 'اعمال'}
+        </button>
+        <button
+          onClick={onRemoveCoupon}
+          title="حذف کد تخفیف"
+          aria-label="حذف کد تخفیف"
+          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border-2 transition-all ${
+            coupon
+              ? 'border-red-500 bg-red-500 text-white shadow-lg shadow-red-500/25 hover:bg-red-600 hover:border-red-600'
+              : 'border-red-300 bg-red-50 text-red-400 hover:bg-red-100 dark:border-red-900 dark:bg-red-950/40'
+          }`}
+        >
+          <X className="h-4 w-4" strokeWidth={2.5} />
+        </button>
       </div>
       {couponError && (
         <p className="mt-3 text-xs font-medium text-red-500 flex items-center gap-2 px-1">

@@ -141,7 +141,7 @@ class AdminOrderItemSerializer(serializers.ModelSerializer):
 
 
 class AdminOrderListSerializer(serializers.ModelSerializer):
-    user_username = serializers.CharField(source='user.username', read_only=True)
+    user_username = serializers.SerializerMethodField()
     items_count = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     payment_status_display = serializers.CharField(source='get_payment_status_display', read_only=True)
@@ -156,12 +156,17 @@ class AdminOrderListSerializer(serializers.ModelSerializer):
             'total', 'items_count', 'created_at', 'updated_at',
         ]
 
+    def get_user_username(self, obj):
+        if obj.user_id:
+            return obj.user.username
+        return obj.guest_email or 'مهمان'
+
     def get_items_count(self, obj):
         return obj.items.count()
 
 
 class AdminOrderDetailSerializer(serializers.ModelSerializer):
-    user_username = serializers.CharField(source='user.username', read_only=True)
+    user_username = serializers.SerializerMethodField()
     items = AdminOrderItemSerializer(many=True, read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     payment_status_display = serializers.CharField(source='get_payment_status_display', read_only=True)
@@ -179,6 +184,11 @@ class AdminOrderDetailSerializer(serializers.ModelSerializer):
             'notes', 'tracking_number', 'postal_tracking_code',
             'items', 'created_at', 'updated_at',
         ]
+
+    def get_user_username(self, obj):
+        if obj.user_id:
+            return obj.user.username
+        return obj.guest_email or 'مهمان'
 
     def get_shipping_address_detail(self, obj):
         if obj.shipping_address:

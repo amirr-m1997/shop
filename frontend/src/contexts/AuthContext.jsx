@@ -57,6 +57,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const guestRegister = async (password, orderNumber) => {
+    try {
+      const response = await authAPI.guestRegister({ password, order_number: orderNumber });
+      const { token, user: userData } = response.data;
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+      return { success: true };
+    } catch (err) {
+      const message = err.response?.data?.error || err.response?.data?.detail || 'خطا در ایجاد حساب';
+      setError(message);
+      throw new Error(message);
+    }
+  };
+
   const updateProfile = async (data) => {
     try {
       const response = await authAPI.updateUser(data);
@@ -103,6 +118,7 @@ export const AuthProvider = ({ children }) => {
       error,
       login,
       register,
+      guestRegister,
       logout,
       updateProfile,
       changePassword,
