@@ -1,6 +1,7 @@
 import random
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 class UserProfile(models.Model):
     ROLE_CHOICES = [
@@ -19,7 +20,9 @@ class UserProfile(models.Model):
     phone_verified = models.BooleanField(default=False, verbose_name="تلفن تأیید شده")
     email_verified = models.BooleanField(default=False, verbose_name="ایمیل تأیید شده")
     verification_code = models.CharField(max_length=6, blank=True, verbose_name="کد تأیید")
+    code_generated_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان تولید کد تأیید")
     reset_token = models.CharField(max_length=100, blank=True, default='', verbose_name="توکن بازیابی رمز")
+    reset_token_created_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان تولید توکن بازیابی")
     verification_type = models.CharField(
         max_length=10,
         choices=[('phone', 'تلفن'), ('email', 'ایمیل')],
@@ -52,8 +55,30 @@ class UserProfile(models.Model):
         code = str(random.randint(100000, 999999))
         self.verification_code = code
         self.verification_type = verify_type
+        self.code_generated_at = timezone.now()
         self.save()
         return code
+
+    @property
+    def verification_code_expired(self):
+        """True when the OTP is older than OTP_CODE_TTL_SECONDS."""
+        from accounts.security import OTP_CODE_TTL_SECONDS
+        if not self.verification_code or not self.code_generated_at:
+            return True
+        age = (timezone.now() - self.code_generated_at).total_seconds()
+        return age > OTP_CODE_TTL_SECONDS
+
+    @property
+    def reset_token_expired(self):
+        """True when the reset token is older than RESET_TOKEN_TTL_SECONDS."""
+        from accounts.security import RESET_TOKEN_TTL_SECONDS
+        if not self.reset_token:
+            return True
+        if not self.reset_token_created_at:
+            # Legacy tokens without a timestamp are rejected.
+            return True
+        age = (timezone.now() - self.reset_token_created_at).total_seconds()
+        return age > RESET_TOKEN_TTL_SECONDS
 
 
 class LoginHistory(models.Model):

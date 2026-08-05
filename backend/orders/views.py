@@ -16,7 +16,7 @@ from .serializers import (
     CreateOrderSerializer,
     WelcomeOfferSerializer,
 )
-from .services import reserve_inventory, release_inventory
+from .services import reserve_inventory, release_inventory, release_coupon_hold
 from cart.models import Cart, CartItem
 from cart.services import get_or_create_cart, get_session_id
 from pages.models import SiteSettings
@@ -173,6 +173,44 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             total = Decimal('0')
 
         with transaction.atomic():
+            # Re-validate stock while holding row locks so concurrent
+            # checkouts cannot oversell. The earlier check outside the
+            # transaction only provides fast user-friendly errors.
+            locked_products = {
+                p.id: p
+                for p in Product.objects.select_for_update().filter(
+                    id__in=[item.product_id for item in cart_items]
+                )
+            }
+            locked_variants = {
+                v.id: v
+                for v in ProductVariant.objects.select_for_update().filter(
+                    id__in=[item.variant_id for item in cart_items if item.variant_id]
+                )
+            }
+            for item in cart_items:
+                product = locked_products.get(item.product_id)
+                if product is None or not product.is_active:
+                    return Response(
+                        {'error': f'محصول «{item.product.name}» دیگر در دسترس نیست.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                variant = locked_variants.get(item.variant_id) if item.variant_id else None
+                available = (
+                    variant.stock
+                    if (variant is not None and variant.stock is not None)
+                    else product.stock
+                )
+                if available < item.quantity:
+                    log_inventory_insufficient(
+                        order_id=None, product_id=product.id,
+                        available=available, requested=item.quantity,
+                    )
+                    return Response(
+                        {'error': f'موجودی محصول «{product.name}» کافی نیست. (موجودی: {max(available, 0)})'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
             order = Order.objects.create(
                 user=request.user if not is_guest else None,
                 guest_email=serializer.validated_data.get('guest_email') if is_guest else None,
@@ -188,6 +226,7 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
                 total=total,
                 notes=serializer.validated_data.get('notes', ''),
                 expires_at=timezone.now() + timedelta(minutes=RESERVATION_MINUTES),
+                coupon=coupon,
             )
 
             for item_data in order_items_data:
@@ -196,8 +235,14 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             # Reserve inventory (decrement stock)
             reserve_inventory(order)
 
-            if coupon and not is_guest:
-                CouponUsage.objects.create(coupon=coupon, user=request.user, order=order)
+            # Hold the coupon: authenticated users get a CouponUsage row,
+            # guests only bump used_count. The hold is released again by
+            # release_coupon_hold() when the unpaid order expires or is
+            # cancelled, so customers never lose a coupon to a failed
+            # payment and guests cannot bypass max_uses.
+            if coupon:
+                if not is_guest:
+                    CouponUsage.objects.create(coupon=coupon, user=request.user, order=order)
                 Coupon.objects.filter(id=coupon.id).update(used_count=F('used_count') + 1)
 
             cart_items.delete()
@@ -248,6 +293,7 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
         with transaction.atomic():
             if order.status == 'pending_payment':
                 release_inventory(order)
+                release_coupon_hold(order)
                 log_inventory_released(order.id, order.items.count(), reason='order_cancelled')
 
             order.status = 'cancelled'
@@ -267,6 +313,7 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             async_task(
                 'orders.tasks.send_order_status_update_email',
                 order.id,
+                old_status,
                 priority=1,  # High priority for status updates
             )
             logger.info('[email_task_queued] order=%s task=send_order_status_update_email', order.order_number)

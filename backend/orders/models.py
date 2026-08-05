@@ -141,6 +141,14 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ثبت سفارش")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="تاریخ آخرین به‌روزرسانی")
     expires_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان انقضای رزرو")
+    coupon = models.ForeignKey(
+        'orders.Coupon',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='orders',
+        verbose_name="کوپن استفاده‌شده"
+    )
 
     class Meta:
         verbose_name = "سفارش"

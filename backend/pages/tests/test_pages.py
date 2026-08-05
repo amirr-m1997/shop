@@ -1,4 +1,5 @@
 from django.test import TestCase, override_settings
+from django.core.cache import cache
 from rest_framework.test import APITestCase
 from rest_framework import status
 from decimal import Decimal
@@ -20,6 +21,7 @@ from pages.models import FAQ, SiteSettings, Testimonial, SiteFeature, ContactInf
 
 class FAQListActiveOnlyTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/pages/faq/'
         self.active_faq = FAQ.objects.create(
             question='What is your return policy?', answer='30 days.', order=1, is_active=True
@@ -42,6 +44,7 @@ class FAQListActiveOnlyTest(APITestCase):
 
 class FAQDetailTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.faq = FAQ.objects.create(
             question='How to track my order?', answer='Use tracking link.', order=1, is_active=True
         )
@@ -61,6 +64,7 @@ class FAQDetailTest(APITestCase):
 
 class ContactInfoGetSingletonTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/pages/contact-info/'
 
     def test_contact_info_returns_singleton(self):
@@ -85,6 +89,7 @@ class ContactInfoGetSingletonTest(APITestCase):
 
 class SiteSettingsGetTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/pages/settings/'
 
     def test_site_settings_returns_data(self):
@@ -101,6 +106,7 @@ class SiteSettingsGetTest(APITestCase):
 
 class SiteSettingsCalculateShippingTest(TestCase):
     def setUp(self):
+        cache.clear()
         self.settings = SiteSettings.load()
         self.settings.free_shipping_threshold = Decimal('500000')
         self.settings.shipping_cost = Decimal('45000')
@@ -131,6 +137,7 @@ class SiteSettingsCalculateShippingTest(TestCase):
 
 class TestimonialPublicSeesApprovedFeaturedTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/pages/testimonials/'
         self.approved_featured = Testimonial.objects.create(
             name='Alice', text='Great shop!', rating=5,
@@ -164,6 +171,7 @@ class TestimonialPublicSeesApprovedFeaturedTest(APITestCase):
 
 class TestimonialStaffSeesAllTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user, self.token = create_admin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.url = '/api/pages/testimonials/'
@@ -186,6 +194,7 @@ class TestimonialStaffSeesAllTest(APITestCase):
 
 class SiteFeatureListActiveOnlyTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/pages/features/'
         self.active_feature = SiteFeature.objects.create(
             title='Free Shipping', description='Over 500k tomans', icon='Truck',
@@ -210,6 +219,7 @@ class SiteFeatureListActiveOnlyTest(APITestCase):
 
 class SiteFeatureDetailTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.feature = SiteFeature.objects.create(
             title='24/7 Support', description='Always available', icon='Headphones',
             order=1, is_active=True
@@ -226,6 +236,7 @@ class SiteFeatureDetailTest(APITestCase):
 
 class AboutStatsReturnsCorrectCountsTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/pages/about-stats/'
 
     def test_empty_database_returns_zeros(self):
@@ -280,6 +291,7 @@ class AboutStatsReturnsCorrectCountsTest(APITestCase):
 
 class HomeDataReturnsAllSectionsTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/pages/home/'
 
     def test_home_data_returns_all_keys(self):
@@ -320,15 +332,22 @@ class HomeDataReturnsAllSectionsTest(APITestCase):
 
 
 # ─── Sitemap XML Tests ─────────────────────────────────────
-# NOTE: The sitemap_xml view has a pre-existing bug:
-#   Category.objects.filter(is_active=True) — but Category has no is_active field.
-#   These tests are expected to 500 until the view is fixed.
 
-class SitemapXmlBugTest(APITestCase):
+class SitemapXmlTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/pages/sitemap.xml'
-        self.client.raise_request_exception = False
 
-    def test_sitemap_view_crashes_on_category_filter(self):
+    def test_sitemap_returns_xml(self):
         response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_sitemap_includes_categories_and_products(self):
+        cat = CategoryFactory(name='Menswear', slug='menswear')
+        product = ProductFactory(name='Blue Shirt', slug='blue-shirt',
+                                 category=cat, is_active=True)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = response.content.decode('utf-8')
+        self.assertIn('/category/menswear', body)
+        self.assertIn('/product/blue-shirt', body)

@@ -5,11 +5,13 @@ Covers registration, login, logout, profile, password management,
 OTP verification, password reset, login history, and shipping addresses.
 """
 import uuid
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
 from django.core.cache import cache
+from django.utils import timezone
 from rest_framework.test import APITestCase
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -53,6 +55,9 @@ def _addr_detail_url(pk):
 
 class RegistrationTests(APITestCase):
     """POST /api/auth/register/"""
+
+    def setUp(self):
+        cache.clear()
 
     def test_valid_registration_returns_token_and_user(self):
         data = {
@@ -503,10 +508,11 @@ class VerifyCodeTests(APITestCase):
         self.profile = UserProfileFactory(user=self.user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
 
-    def _set_code(self, code, verify_type='email'):
+    def _set_code(self, code, verify_type='email', generated_at=None):
         self.profile.refresh_from_db()
         self.profile.verification_code = code
         self.profile.verification_type = verify_type
+        self.profile.code_generated_at = generated_at or timezone.now()
         self.profile.save()
 
     def test_verify_valid_email_code(self):
@@ -536,6 +542,19 @@ class VerifyCodeTests(APITestCase):
             'type': 'email',
         }, format='json')
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_verify_expired_code_returns_400(self):
+        # Code generated 11 minutes ago is beyond the 10-minute TTL.
+        self._set_code('123456', 'email',
+                       generated_at=timezone.now() - timedelta(minutes=11))
+        resp = self.client.post(VERIFY_CODE_URL, {
+            'code': '123456',
+            'type': 'email',
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('منقضی', resp.data.get('error', ''))
+        self.profile.refresh_from_db()
+        self.assertFalse(self.profile.email_verified)
 
     def test_verify_wrong_type_returns_400(self):
         self._set_code('123456', 'email')
@@ -607,8 +626,15 @@ class PasswordResetTests(APITestCase):
     """POST /api/auth/password-reset/ and /password-reset-confirm/"""
 
     def setUp(self):
+        cache.clear()
         self.user = UserFactory(username='resetuser', email='reset@example.com')
         self.profile = UserProfileFactory(user=self.user)
+
+    def _set_token(self, token, created_at=None):
+        self.profile.refresh_from_db()
+        self.profile.reset_token = token
+        self.profile.reset_token_created_at = created_at or timezone.now()
+        self.profile.save(update_fields=['reset_token', 'reset_token_created_at'])
 
     @patch('accounts.views.send_mail')
     def test_password_reset_request_sends_email(self, mock_send):
@@ -640,8 +666,7 @@ class PasswordResetTests(APITestCase):
 
     def test_password_reset_confirm_valid_token(self):
         token = uuid.uuid4().hex[:40]
-        self.profile.reset_token = token
-        self.profile.save(update_fields=['reset_token'])
+        self._set_token(token)
         resp = self.client.post(RESET_CONFIRM_URL, {
             'token': token,
             'new_password': 'newsecure123',
@@ -650,6 +675,17 @@ class PasswordResetTests(APITestCase):
         self.assertIn('token', resp.data)
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password('newsecure123'))
+
+    def test_password_reset_confirm_expired_token_returns_400(self):
+        token = uuid.uuid4().hex[:40]
+        self._set_token(token, created_at=timezone.now() - timedelta(hours=25))
+        resp = self.client.post(RESET_CONFIRM_URL, {
+            'token': token,
+            'new_password': 'newsecure123',
+        }, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.reset_token, '')
 
     def test_password_reset_confirm_invalid_token_returns_400(self):
         resp = self.client.post(RESET_CONFIRM_URL, {
@@ -660,8 +696,7 @@ class PasswordResetTests(APITestCase):
 
     def test_password_reset_confirm_short_password_returns_400(self):
         token = uuid.uuid4().hex[:40]
-        self.profile.reset_token = token
-        self.profile.save(update_fields=['reset_token'])
+        self._set_token(token)
         resp = self.client.post(RESET_CONFIRM_URL, {
             'token': token,
             'new_password': '123',
@@ -670,8 +705,7 @@ class PasswordResetTests(APITestCase):
 
     def test_password_reset_confirm_clears_token(self):
         token = uuid.uuid4().hex[:40]
-        self.profile.reset_token = token
-        self.profile.save(update_fields=['reset_token'])
+        self._set_token(token)
         self.client.post(RESET_CONFIRM_URL, {
             'token': token,
             'new_password': 'newsecure123',
@@ -681,8 +715,7 @@ class PasswordResetTests(APITestCase):
 
     def test_password_reset_confirm_creates_new_token(self):
         token = uuid.uuid4().hex[:40]
-        self.profile.reset_token = token
-        self.profile.save(update_fields=['reset_token'])
+        self._set_token(token)
         resp = self.client.post(RESET_CONFIRM_URL, {
             'token': token,
             'new_password': 'newsecure123',

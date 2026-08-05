@@ -1,4 +1,5 @@
 from django.test import TestCase, TransactionTestCase
+from django.core.cache import cache
 from django.utils import timezone
 from decimal import Decimal
 from datetime import timedelta
@@ -36,6 +37,7 @@ def make_variant(product, stock=20, price_adjustment=Decimal('0')):
 
 class CartGetOrCreateTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user, self.token = create_user_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
 
@@ -51,14 +53,19 @@ class CartGetOrCreateTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['id'], cart.id)
 
-    def test_unauthenticated_user_cannot_access_cart(self):
+    def test_unauthenticated_user_gets_guest_cart(self):
+        # Guest carts are supported: anonymous requests get a session-based
+        # cart and the session id is returned via the X-Session-ID header.
         self.client.credentials()
         response = self.client.get('/api/cart/')
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total_items'], 0)
+        self.assertTrue(response.headers.get('X-Session-ID'))
 
 
 class CartAddItemTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user, self.token = create_user_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.category = make_category()
@@ -182,6 +189,7 @@ class CartAddItemTest(APITestCase):
 
 class CartUpdateItemTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user, self.token = create_user_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.cart = CartFactory(user=self.user)
@@ -244,6 +252,7 @@ class CartUpdateItemTest(APITestCase):
 
 class CartRemoveItemTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user, self.token = create_user_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.cart = CartFactory(user=self.user)
@@ -272,6 +281,7 @@ class CartRemoveItemTest(APITestCase):
 
 class CartClearTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user, self.token = create_user_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.cart = CartFactory(user=self.user)
@@ -296,6 +306,7 @@ class CartClearTest(APITestCase):
 
 class CartApplyCouponTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user, self.token = create_user_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.cart = CartFactory(user=self.user)
@@ -416,6 +427,7 @@ class CartApplyCouponTest(APITestCase):
 
 class CartTotalCalculationTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user, self.token = create_user_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.cart = CartFactory(user=self.user)
@@ -455,6 +467,7 @@ class CartTotalCalculationTest(APITestCase):
 
 class CartItemUniqueTogetherTest(TestCase):
     def setUp(self):
+        cache.clear()
         self.user = UserFactory()
         self.cart = CartFactory(user=self.user)
         self.category = make_category()

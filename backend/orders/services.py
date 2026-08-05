@@ -23,6 +23,41 @@ logger = logging.getLogger('orders')
 inventory_logger = logging.getLogger('inventory')
 
 
+def release_coupon_hold(order):
+    """
+    Release the coupon consumed by an order that never got paid.
+
+    A coupon is "held" when the order is created: authenticated users get a
+    CouponUsage row, guests only bump used_count. This reverses exactly one
+    hold and is idempotent — after release order.coupon is cleared so a
+    second call does nothing.
+    """
+    from django.db.models import F
+    from .models import Coupon, CouponUsage
+
+    if not order.coupon_id:
+        return False
+
+    coupon_id = order.coupon_id
+    usage_deleted, _ = CouponUsage.objects.filter(order=order).delete()
+
+    # Authenticated orders hold via their CouponUsage row; guest orders
+    # only bumped used_count at creation.
+    if usage_deleted or order.user_id is None:
+        Coupon.objects.filter(id=coupon_id, used_count__gt=0).update(
+            used_count=F('used_count') - 1
+        )
+
+    order.coupon = None
+    order.save(update_fields=['coupon', 'updated_at'])
+
+    logger.info(
+        '[coupon_hold_released] order_id=%d coupon_id=%d',
+        order.id, coupon_id,
+    )
+    return True
+
+
 def reserve_inventory(order):
     """
     Decrease stock for all items in an order.
@@ -41,8 +76,12 @@ def reserve_inventory(order):
                     id=item.product.id
                 ).update(stock=F('stock') - item.quantity)
             if item.variant:
+                # Only variants that track their own stock (stock IS NOT
+                # NULL) are decremented; inheriting variants rely on the
+                # product-level stock decremented above.
                 ProductVariant.objects.filter(
-                    id=item.variant.id
+                    id=item.variant.id,
+                    stock__isnull=False,
                 ).update(stock=F('stock') - item.quantity)
     return True
 
@@ -66,7 +105,8 @@ def release_inventory(order):
                 ).update(stock=F('stock') + item.quantity)
             if item.variant:
                 ProductVariant.objects.filter(
-                    id=item.variant.id
+                    id=item.variant.id,
+                    stock__isnull=False,
                 ).update(stock=F('stock') + item.quantity)
     return True
 
@@ -97,6 +137,7 @@ def expire_orders():
         try:
             with transaction.atomic():
                 release_inventory(order)
+                release_coupon_hold(order)
                 order.status = 'expired'
                 order.save(update_fields=['status', 'updated_at'])
 

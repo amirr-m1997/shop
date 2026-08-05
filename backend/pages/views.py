@@ -171,8 +171,8 @@ def sitemap_xml(request):
             'priority': priority,
         })
 
-    # Categories
-    for cat in Category.objects.filter(is_active=True):
+    # Categories (Category has no is_active flag — list them all)
+    for cat in Category.objects.all():
         urls.append({
             'loc': f'{site_url}/category/{cat.slug}',
             'lastmod': now,

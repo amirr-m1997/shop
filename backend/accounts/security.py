@@ -24,6 +24,8 @@ LOGIN_FAIL_PROGRESSIVE_DELAY = {
 CAPTCHA_REQUIRED_THRESHOLD = 5       # failures before CAPTCHA required
 OTP_FAIL_LOCKOUT_THRESHOLD = 5       # OTP verification failures before lock
 OTP_FAIL_LOCKOUT_DURATION = 300      # 5 minutes
+OTP_CODE_TTL_SECONDS = 600           # OTP codes valid for 10 minutes
+RESET_TOKEN_TTL_SECONDS = 24 * 3600  # password reset links valid for 24 hours
 
 
 # ─── Login Failure Tracking ────────────────────────────────

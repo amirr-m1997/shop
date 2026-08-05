@@ -16,6 +16,7 @@ from .serializers import (CategorySerializer, BrandSerializer, SizeSerializer, C
                           FabricSerializer, ProductListSerializer, ProductDetailSerializer,
                           ReviewSerializer, SizeGuideSerializer, HomepageSectionSerializer,
                           BannerSerializer, StyleLookSerializer, WishlistSerializer)
+from dashboard.permissions import IsAdminUser
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -109,7 +110,9 @@ class ProductFilter(django_filters.FilterSet):
         """فیلتر محصولات موجود در انبار"""
         if value:
             return queryset.filter(stock__gt=0)
-        return queryset.filter(stock=0)
+        # stock can go negative via reservations, so "out of stock"
+        # must cover stock <= 0, not only exactly zero.
+        return queryset.filter(stock__lte=0)
 
 
 class ProductPagination(PageNumberPagination):
@@ -685,7 +688,7 @@ class CategoriesByRootView(APIView):
 
 class AdminProductSearchView(APIView):
     """جستجوی سریع محصولات برای ادمین (با دیبانس ۱ ثانیه)"""
-    permission_classes = [AllowAny]
+    permission_classes = [permissions.IsAuthenticated, IsAdminUser]
 
     def get(self, request):
         q = request.query_params.get('q', '').strip()

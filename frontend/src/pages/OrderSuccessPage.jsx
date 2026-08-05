@@ -13,6 +13,7 @@ const OrderSuccessPage = () => {
   const refId = searchParams.get('ref_id');
   const orderNumber = searchParams.get('order_number');
   const expiresAt = searchParams.get('expires_at');
+  const paymentPending = searchParams.get('payment') === 'pending';
   const { isAuthenticated } = useAuth();
 
   const copyToClipboard = (text) => {
@@ -29,6 +30,13 @@ const OrderSuccessPage = () => {
           <p className="text-muted-foreground mb-2">
             ممنون از خرید شما. سفارش شما با موفقیت ثبت شد.
           </p>
+
+          {paymentPending && (
+            <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+              اتصال به درگاه پرداخت برقرار نشد. نگران نباشید — سفارش شما ثبت شده و
+              می‌توانید از بخش «سفارشات» دوباره پرداخت را انجام دهید.
+            </div>
+          )}
 
           {refId && (
             <div className="mt-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5">

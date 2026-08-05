@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.core.cache import cache
 from django.utils import timezone
 from decimal import Decimal
 from datetime import timedelta
@@ -42,6 +43,7 @@ def make_variant(product, stock=20, price_adjustment=Decimal('0')):
 
 class CreateOrderTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user, self.token = create_user_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.site_settings = SiteSettings.load()
@@ -168,6 +170,7 @@ class CreateOrderTest(APITestCase):
 
 class OrderTotalCalculationTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user, self.token = create_user_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.site_settings = SiteSettings.load()
@@ -219,6 +222,7 @@ class OrderTotalCalculationTest(APITestCase):
 
 class CancelOrderTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user, self.token = create_user_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.category = make_category()
@@ -289,6 +293,7 @@ class CancelOrderTest(APITestCase):
 
 class InventoryReserveReleaseTest(TestCase):
     def setUp(self):
+        cache.clear()
         self.category = make_category()
         self.product = ProductFactory(category=self.category, stock=50)
 
@@ -341,6 +346,7 @@ class InventoryReserveReleaseTest(TestCase):
 
 class CancelOrderReleasesInventoryTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user, self.token = create_user_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.category = make_category()
@@ -379,6 +385,7 @@ class CancelOrderReleasesInventoryTest(APITestCase):
 
 class ExpireOrdersTest(TestCase):
     def setUp(self):
+        cache.clear()
         self.category = make_category()
         self.product = ProductFactory(category=self.category, stock=50)
 
@@ -457,6 +464,7 @@ class ExpireOrdersTest(TestCase):
 
 class CouponTest(TestCase):
     def setUp(self):
+        cache.clear()
         self.user = UserFactory()
 
     def test_coupon_valid(self):
@@ -542,6 +550,7 @@ class CouponTest(TestCase):
 
 class WelcomeOfferTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user, self.token = create_user_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
 
@@ -614,6 +623,7 @@ class WelcomeOfferTest(APITestCase):
 
 class OrderModelPropertiesTest(TestCase):
     def setUp(self):
+        cache.clear()
         self.user = UserFactory()
 
     def test_order_is_expired_true(self):
@@ -703,6 +713,7 @@ class OrderModelPropertiesTest(TestCase):
 
 class OrderViewSetReadTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user, self.token = create_user_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
 

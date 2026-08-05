@@ -9,7 +9,7 @@ Handles all payment-related async operations:
 import logging
 from django_q.tasks import async_task
 
-logger = logging.getLogger('payments')
+logger = logging.getLogger('payment')
 
 
 def process_payment_verification(payment_id):

@@ -120,6 +120,9 @@ def register_view(request):
     if User.objects.filter(username=username).exists():
         return Response({'error': 'این نام کاربری قبلاً استفاده شده است'}, status=status.HTTP_400_BAD_REQUEST)
 
+    if email and User.objects.filter(email__iexact=email).exists():
+        return Response({'error': 'این ایمیل قبلاً استفاده شده است'}, status=status.HTTP_400_BAD_REQUEST)
+
     user = User.objects.create_user(
         username=username, email=email, password=password,
         first_name=first_name, last_name=last_name,
@@ -194,6 +197,11 @@ def guest_register_view(request):
 
     # Email comes from the guest order; a provided email must match it.
     email = email or (order.guest_email or '').strip().lower()
+    if not email:
+        return Response(
+            {'error': 'ایمیل برای ساخت حساب کاربری الزامی است.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
     if order.guest_email and order.guest_email.lower() != email:
         return Response(
             {'error': 'ایمیل وارد شده با ایمیل ثبت‌شده در سفارش مطابقت ندارد.'},
@@ -345,21 +353,26 @@ def user_view(request):
     if request.method == 'GET':
         return Response(_user_data(request.user))
 
-    # PUT - update profile
+    # PUT - update profile.
+    # Only fields present in the payload are updated so a partial PUT
+    # never wipes existing data.
     data = request.data
 
-    email = data.get('email', '').strip()
-    if email and email != request.user.email:
-        if User.objects.filter(email=email).exclude(id=request.user.id).exists():
-            return Response({'error': 'این ایمیل قبلاً استفاده شده است'}, status=status.HTTP_400_BAD_REQUEST)
-        request.user.email = email
-    first_name = data.get('first_name', '').strip()
-    if first_name is not None:
-        request.user.first_name = first_name
+    email = data.get('email')
+    if email is not None:
+        email = email.strip()
+        if email and email != request.user.email:
+            if User.objects.filter(email__iexact=email).exclude(id=request.user.id).exists():
+                return Response({'error': 'این ایمیل قبلاً استفاده شده است'}, status=status.HTTP_400_BAD_REQUEST)
+            request.user.email = email
 
-    last_name = data.get('last_name', '').strip()
+    first_name = data.get('first_name')
+    if first_name is not None:
+        request.user.first_name = first_name.strip()
+
+    last_name = data.get('last_name')
     if last_name is not None:
-        request.user.last_name = last_name
+        request.user.last_name = last_name.strip()
 
     request.user.save()
 
@@ -367,13 +380,12 @@ def user_view(request):
 
     profile = _get_or_create_profile(request.user)
 
-    phone = data.get('phone', '').strip()
+    phone = data.get('phone')
     if phone is not None:
+        phone = phone.strip()
         if phone != profile.phone:
             profile.phone = phone
             profile.phone_verified = False
-        else:
-            profile.phone = phone
 
     dob = data.get('date_of_birth')
     if dob is not None:
@@ -480,6 +492,15 @@ def verify_code_view(request):
 
     profile = _get_or_create_profile(request.user)
 
+    # Expired or missing codes are rejected before any comparison so an
+    # old code can never be brute-forced or reused.
+    if profile.verification_code_expired:
+        log_security_event('otp_verify_expired', request, f'user={request.user.username}')
+        return Response(
+            {'error': 'کد تأیید منقضی شده است. لطفاً کد جدیدی درخواست دهید.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     if profile.verification_code != code:
         fail_count = record_otp_failure(lock_id)
         log_security_event('otp_verify_failure', request, f'user={request.user.username}, count={fail_count}')
@@ -580,7 +601,8 @@ def password_reset_request_view(request):
     token = uuid.uuid4().hex[:40]
     profile = _get_or_create_profile(user)
     profile.reset_token = token
-    profile.save(update_fields=['reset_token'])
+    profile.reset_token_created_at = timezone.now()
+    profile.save(update_fields=['reset_token', 'reset_token_created_at'])
 
     reset_link = f'{settings.FRONTEND_URL}/reset-password?token={token}'
 
@@ -643,11 +665,22 @@ def password_reset_confirm_view(request):
         )
         return Response({'error': 'توکن نامعتبر یا منقضی شده است'}, status=status.HTTP_400_BAD_REQUEST)
 
+    if profile.reset_token_expired:
+        profile.reset_token = ''
+        profile.reset_token_created_at = None
+        profile.save(update_fields=['reset_token', 'reset_token_created_at'])
+        logger.warning(
+            '[password_reset_expired_token] ip=%s',
+            ip_address,
+        )
+        return Response({'error': 'توکن نامعتبر یا منقضی شده است'}, status=status.HTTP_400_BAD_REQUEST)
+
     user.set_password(new_password)
     user.save()
 
     profile.reset_token = ''
-    profile.save(update_fields=['reset_token'])
+    profile.reset_token_created_at = None
+    profile.save(update_fields=['reset_token', 'reset_token_created_at'])
 
     new_token = Token.objects.create(user=user)
 
