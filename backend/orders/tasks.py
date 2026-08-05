@@ -79,18 +79,24 @@ def send_payment_confirmation_email(order_id, payment_id):
         raise
 
 
-def send_order_status_update_email(order_id):
+def send_order_status_update_email(order_id, old_status):
     """
     Send order status update email.
     Called asynchronously when order status changes.
+
+    old_status is the status the order had before the change and is
+    required by shop.email_service.send_order_status_update.
     """
     from orders.models import Order
     from shop.email_service import send_order_status_update
 
-    logger.info('[task_started] task=send_order_status_update_email order_id=%d', order_id)
+    logger.info(
+        '[task_started] task=send_order_status_update_email order_id=%d old_status=%s',
+        order_id, old_status,
+    )
     try:
         order = Order.objects.select_related('user').get(id=order_id)
-        send_order_status_update(order)
+        send_order_status_update(order, old_status)
         logger.info(
             '[task_completed] task=send_order_status_update_email order_id=%d status=%s',
             order_id, order.status,

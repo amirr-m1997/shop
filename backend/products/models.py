@@ -255,7 +255,12 @@ class ProductVariant(models.Model):
     )
     size = models.ForeignKey(Size, on_delete=models.CASCADE, verbose_name="سایز")
     color = models.ForeignKey(Color, on_delete=models.CASCADE, verbose_name="رنگ")
-    stock = models.IntegerField(default=0, verbose_name="موجودی واریانت (خالی = از محصول ارث‌بری)")
+    stock = models.IntegerField(
+        null=True,
+        blank=True,
+        default=None,
+        verbose_name="موجودی واریانت (خالی = از محصول ارث‌بری)"
+    )
     price_adjustment = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -281,9 +286,16 @@ class ProductVariant(models.Model):
 
     @property
     def effective_stock(self):
-        if self.stock > 0:
-            return self.stock
-        return self.product.stock
+        """
+        Sellable stock of this variant.
+
+        stock=None  → inherit the product's aggregate stock.
+        stock=<int> → the variant tracks its own stock, so 0 genuinely
+        means "sold out" instead of silently falling back to the product.
+        """
+        if self.stock is not None:
+            return max(self.stock, 0)
+        return max(self.product.stock, 0)
 
     @property
     def effective_price(self):

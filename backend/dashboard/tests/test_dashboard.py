@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.core.cache import cache
 from rest_framework.test import APITestCase
 from rest_framework import status
 from decimal import Decimal
@@ -19,6 +20,7 @@ from accounts.models import UserProfile
 
 class AdminProductListTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/dashboard/products/'
         self.admin, self.token = create_admin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
@@ -47,6 +49,7 @@ class AdminProductListTest(APITestCase):
 
 class AdminProductCreateTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/dashboard/products/'
         self.admin, self.token = create_admin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
@@ -75,6 +78,7 @@ class AdminProductCreateTest(APITestCase):
 
 class AdminProductUpdateTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.admin, self.token = create_admin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         cat = Category.objects.create(name='Men', slug='men')
@@ -100,6 +104,7 @@ class AdminProductUpdateTest(APITestCase):
 
 class AdminProductDeleteTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.admin, self.token = create_superadmin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         cat = Category.objects.create(name='Men', slug='men')
@@ -125,6 +130,7 @@ class AdminProductDeleteTest(APITestCase):
 
 class AdminOrderListTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/dashboard/orders/'
         self.admin, self.token = create_admin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
@@ -143,6 +149,7 @@ class AdminOrderListTest(APITestCase):
 
 class AdminOrderUpdateStatusTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.admin, self.token = create_admin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.order = OrderFactory(status='pending_payment')
@@ -167,6 +174,7 @@ class AdminOrderUpdateStatusTest(APITestCase):
 
 class AdminOrderSuperAdminUpdateTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.admin, self.token = create_superadmin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.order = OrderFactory(status='pending_payment')
@@ -183,6 +191,7 @@ class AdminOrderSuperAdminUpdateTest(APITestCase):
 
 class DashboardStatsReturnsCorrectCountsTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/dashboard/stats/'
         self.admin, self.token = create_admin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
@@ -250,6 +259,7 @@ class DashboardStatsReturnsCorrectCountsTest(APITestCase):
 
 class IsAdminUserPermissionTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/dashboard/stats/'
 
     def test_admin_user_has_access(self):
@@ -271,6 +281,7 @@ class IsAdminUserPermissionTest(APITestCase):
 
 class IsSuperAdminPermissionTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/dashboard/users/'
 
     def test_super_admin_has_access(self):
@@ -294,6 +305,7 @@ class IsSuperAdminPermissionTest(APITestCase):
 
 class CanDeleteProductPermissionTest(APITestCase):
     def setUp(self):
+        cache.clear()
         cat = Category.objects.create(name='Men', slug='men')
         self.product = Product.objects.create(
             name='To Delete', slug='to-delete', description='desc',
@@ -320,6 +332,7 @@ class CanDeleteProductPermissionTest(APITestCase):
 
 class TodoCreateTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/dashboard/todos/'
         self.admin, self.token = create_admin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
@@ -343,6 +356,7 @@ class TodoCreateTest(APITestCase):
 
 class TodoListTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/dashboard/todos/'
         self.admin, self.token = create_admin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
@@ -360,6 +374,7 @@ class TodoListTest(APITestCase):
 
 class TodoUpdateTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.admin, self.token = create_admin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.todo = TodoItem.objects.create(
@@ -382,6 +397,7 @@ class TodoUpdateTest(APITestCase):
 
 class TodoDeleteTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.admin, self.token = create_admin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.todo = TodoItem.objects.create(
@@ -397,6 +413,7 @@ class TodoDeleteTest(APITestCase):
 
 class TodoUserScopedTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.admin, self.token = create_admin_with_token()
         self.other_admin, self.other_token = create_admin_with_token()
         self.todo = TodoItem.objects.create(
@@ -421,6 +438,7 @@ class TodoUserScopedTest(APITestCase):
 
 class NotificationListTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.url = '/api/dashboard/notifications/'
         self.admin, self.token = create_admin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
@@ -458,6 +476,7 @@ class NotificationListTest(APITestCase):
 
 class NotificationMarkReadTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.admin, self.token = create_admin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.notification = Notification.objects.create(
@@ -484,6 +503,7 @@ class NotificationMarkReadTest(APITestCase):
 
 class NotificationDeleteTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.admin, self.token = create_admin_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.notification = Notification.objects.create(

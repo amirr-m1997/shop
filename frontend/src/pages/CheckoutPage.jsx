@@ -465,6 +465,13 @@ const CheckoutPage = () => {
       const orderRes = await ordersAPI.createOrder(payload);
       const orderId = orderRes.data.id;
 
+      // The order is now created server-side and the cart is emptied on
+      // the backend regardless of what happens next, so sync local state.
+      const finishLocally = async () => {
+        try { await clearCart(); } catch { /* cart already emptied server-side */ }
+        removeCoupon();
+      };
+
       try {
         const payRes = await paymentsAPI.initiate({ order_id: orderId });
         if (payRes.data.gateway_url) {
@@ -472,14 +479,17 @@ const CheckoutPage = () => {
           return;
         }
       } catch (payErr) {
+        // Gateway initiation failed, but the order exists and is payable
+        // later from the orders list. Send the user to the success page
+        // instead of stranding them on an emptied checkout.
         console.error('Payment initiation error:', payErr);
-        setError(payErr.response?.data?.error || payErr.response?.data?.detail || 'اتصال به درگاه پرداخت ناموفق بود. سفارش ثبت شد — می‌توانید از پنل کاربری پرداخت کنید.');
-        setLoading(false);
+        await finishLocally();
+        const expiresAt = orderRes.data.expires_at || '';
+        navigate(`/order-success?order_number=${encodeURIComponent(orderRes.data.order_number)}&expires_at=${encodeURIComponent(expiresAt)}&payment=pending`);
         return;
       }
 
-      await clearCart();
-      removeCoupon();
+      await finishLocally();
       const expiresAt = orderRes.data.expires_at || '';
       navigate(`/order-success?order_number=${orderRes.data.order_number}&expires_at=${encodeURIComponent(expiresAt)}`);
     } catch (err) {

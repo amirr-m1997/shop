@@ -8,26 +8,69 @@ import { SEO } from '../lib/seo';
 import PaymentCallbackSkeleton from '../components/skeletons/PaymentCallbackSkeleton';
 import GuestAccountCard from '../components/GuestAccountCard';
 import { useAuth } from '../contexts/AuthContext';
+import { paymentsAPI } from '../services/api';
 
 const PaymentCallbackPage = () => {
   const [searchParams] = useSearchParams();
   const refId = searchParams.get('ref_id');
   const error = searchParams.get('error');
   const orderNumber = searchParams.get('order_number');
+  const paymentId = searchParams.get('payment_id');
   const { isAuthenticated } = useAuth();
   const [status, setStatus] = useState('loading');
   const [paymentData, setPaymentData] = useState(null);
 
   useEffect(() => {
+    let cancelled = false;
+
+    if (error) {
+      setStatus('failed');
+      return;
+    }
+
+    // When a payment_id is present we verify the result with the backend
+    // instead of trusting query params — anyone could craft a URL with a
+    // fake ref_id otherwise.
+    if (paymentId) {
+      setStatus('loading');
+      paymentsAPI
+        .getStatus(paymentId)
+        .then((res) => {
+          if (cancelled) return;
+          if (res.data?.status === 'success') {
+            setStatus('success');
+            setPaymentData({
+              ref_id: res.data.ref_id || refId,
+              order_number: res.data.order_number || orderNumber,
+            });
+          } else {
+            setStatus('failed');
+          }
+        })
+        .catch(() => {
+          if (cancelled) return;
+          // If verification itself fails (e.g. session lost), fall back to
+          // the gateway-provided params instead of showing a false failure.
+          if (refId) {
+            setStatus('success');
+            setPaymentData({ ref_id: refId, order_number: orderNumber });
+          } else {
+            setStatus('failed');
+          }
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    // Legacy callback URLs without payment_id.
     if (refId) {
       setStatus('success');
       setPaymentData({ ref_id: refId, order_number: orderNumber });
-    } else if (error) {
-      setStatus('failed');
     } else {
-      setStatus('loading');
+      setStatus('failed');
     }
-  }, [refId, error, orderNumber]);
+  }, [refId, error, orderNumber, paymentId]);
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text).catch(() => {});

@@ -78,19 +78,37 @@ def expire_pending_orders():
 
 def cleanup_expired_otps():
     """
-    Background task to cleanup expired OTP codes.
+    Background task to cleanup expired OTP codes and reset tokens.
     Scheduled to run every hour via Django-Q scheduler.
+
+    Verification codes and password-reset tokens live on UserProfile;
+    this task clears any that outlived their TTL so stale secrets never
+    linger in the database.
     """
     from django.utils import timezone
     from datetime import timedelta
-    from accounts.models import OTP
+    from accounts.models import UserProfile
+    from accounts.security import OTP_CODE_TTL_SECONDS, RESET_TOKEN_TTL_SECONDS
 
     logger.info('[task_started] task=cleanup_expired_otps')
     try:
-        cutoff = timezone.now() - timedelta(hours=24)
-        deleted, _ = OTP.objects.filter(created_at__lt=cutoff).delete()
-        logger.info('[task_completed] task=cleanup_expired_otps deleted=%d', deleted)
-        return {'deleted': deleted}
+        now = timezone.now()
+
+        code_cutoff = now - timedelta(seconds=OTP_CODE_TTL_SECONDS)
+        cleared_codes = UserProfile.objects.exclude(verification_code='').filter(
+            code_generated_at__lt=code_cutoff
+        ).update(verification_code='', verification_type='', code_generated_at=None)
+
+        token_cutoff = now - timedelta(seconds=RESET_TOKEN_TTL_SECONDS)
+        cleared_tokens = UserProfile.objects.exclude(reset_token='').filter(
+            reset_token_created_at__lt=token_cutoff
+        ).update(reset_token='', reset_token_created_at=None)
+
+        logger.info(
+            '[task_completed] task=cleanup_expired_otps cleared_codes=%d cleared_tokens=%d',
+            cleared_codes, cleared_tokens,
+        )
+        return {'cleared_codes': cleared_codes, 'cleared_tokens': cleared_tokens}
     except Exception as e:
         logger.exception('[task_failed] task=cleanup_expired_otps error=%s', e)
         raise

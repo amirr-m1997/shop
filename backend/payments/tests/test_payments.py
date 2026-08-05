@@ -1,5 +1,6 @@
 from django.test import TestCase, RequestFactory
 from django.utils import timezone
+from django.core.cache import cache
 from decimal import Decimal
 from datetime import timedelta
 from rest_framework.test import APITestCase
@@ -40,6 +41,7 @@ def make_variant(product, stock=20, price_adjustment=Decimal('0')):
 
 class InitiatePaymentTest(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user, self.token = create_user_with_token()
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
         self.category = make_category()
@@ -373,12 +375,26 @@ class PaymentStatusCheckTest(APITestCase):
         response = self.client.get(f'/api/payments/{payment.id}/status/')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_payment_status_unauthenticated(self):
+    def test_payment_status_unauthenticated_without_session_is_not_found(self):
+        # Without credentials AND without a matching guest X-Session-ID the
+        # payment is not revealed (404, not 401) so order/payment ids of
+        # other customers cannot be probed.
         self.client.credentials()
         order = OrderFactory(user=self.user)
         payment = PaymentFactory(order=order, user=self.user)
         response = self.client.get(f'/api/payments/{payment.id}/status/')
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_payment_status_guest_with_matching_session(self):
+        self.client.credentials()
+        order = OrderFactory(user=None, guest_session_id='sess-123', guest_email='g@x.com')
+        payment = PaymentFactory(order=order, user=None, status='success', ref_id='REF1')
+        response = self.client.get(
+            f'/api/payments/{payment.id}/status/',
+            HTTP_X_SESSION_ID='sess-123',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['status'], 'success')
 
 
 class PaymentViewSetTest(APITestCase):

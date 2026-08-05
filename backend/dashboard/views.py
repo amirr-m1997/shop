@@ -73,6 +73,7 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         instance = self.get_object()
+        old_status = instance.status
         allowed_fields = {'status', 'payment_status', 'postal_tracking_code', 'notes'}
         if not request.user.profile.is_super_admin:
             allowed_fields = {'status', 'postal_tracking_code'}
@@ -83,7 +84,38 @@ class AdminOrderViewSet(viewsets.ModelViewSet):
                     {'error': f'شما اجازه تغییر فیلد {field} را ندارید'},
                     status=status.HTTP_403_FORBIDDEN
                 )
-        return super().partial_update(request, *args, **kwargs)
+
+        response = super().partial_update(request, *args, **kwargs)
+
+        # Post-update side effects: release reserved inventory/coupon when
+        # an unpaid order is cancelled or expired from the admin panel,
+        # and notify the customer about any status change.
+        instance.refresh_from_db()
+        new_status = instance.status
+        if new_status != old_status:
+            if old_status == 'pending_payment' and new_status in ('cancelled', 'expired'):
+                from django.db import transaction
+                from orders.services import release_inventory, release_coupon_hold
+                with transaction.atomic():
+                    release_inventory(instance)
+                    release_coupon_hold(instance)
+
+            try:
+                from django_q.tasks import async_task
+                async_task(
+                    'orders.tasks.send_order_status_update_email',
+                    instance.id,
+                    old_status,
+                    priority=1,
+                )
+            except Exception:
+                try:
+                    from shop.email_service import send_order_status_update
+                    send_order_status_update(instance, old_status)
+                except Exception:
+                    pass
+
+        return response
 
 
 class AdminUserViewSet(viewsets.ModelViewSet):
