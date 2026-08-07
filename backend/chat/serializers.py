@@ -5,6 +5,11 @@ from .models import Conversation, Message, Notification
 from products.serializers import ProductListSerializer
 
 
+# Maximum length of a chat text message. Keeps messages from becoming huge
+# payloads while still being generous for normal conversation.
+MAX_MESSAGE_LENGTH = 2000
+
+
 class PublicUserSerializer(serializers.ModelSerializer):
     """اطلاعات عمومی یک کاربر برای جستجو و نمایش در گفتگو."""
     display_name = serializers.SerializerMethodField()
@@ -64,7 +69,7 @@ class MessageSerializer(serializers.ModelSerializer):
 
 
 class SendMessageSerializer(serializers.Serializer):
-    text = serializers.CharField(required=False, allow_blank=True)
+    text = serializers.CharField(required=False, allow_blank=True, max_length=MAX_MESSAGE_LENGTH)
     product_id = serializers.IntegerField(required=False, allow_null=True)
 
 

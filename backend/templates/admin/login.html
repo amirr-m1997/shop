@@ -1,5 +1,12 @@
 {% extends "admin/base_site.html" %}
-{% load static %}
+{% load i18n static %}
+
+{% block title %}ورود به پنل مدیریت{% endblock %}
+
+{% block bodyclass %}{{ block.super }} admin-login-page{% endblock %}
+
+{% block content_title %}{% endblock %}
+{% block breadcrumbs %}{% endblock %}
 
 {% block content %}
 <div class="admin-login-wrapper">
@@ -10,176 +17,39 @@
             <p class="admin-login-subtitle">برای ادامه وارد حساب کاربری خود شوید</p>
         </div>
 
-        {% if form.errors and not table %}
-            <div class="admin-login-error">
-                <p>نام کاربری یا رمز عبور اشتباه است. لطفاً دوباره تلاش کنید.</p>
-            </div>
+        {% if form.errors and not form.non_field_errors %}
+            <p class="admin-login-error">
+                {% if form.errors.items|length == 1 %}{% translate "Please correct the error below." %}{% else %}{% translate "Please correct the errors below." %}{% endif %}
+            </p>
         {% endif %}
 
-        {% if not table %}
-            <form method="post" action="{% url 'admin:login' %}" class="admin-login-form">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ next }}">
-                <div class="admin-form-group">
-                    <label for="id_username" class="admin-form-label">نام کاربری</label>
-                    <input type="text" name="username" id="id_username" class="admin-form-input" autofocus maxlength="254" required autofocus>
-                </div>
-                <div class="admin-form-group">
-                    <label for="id_password" class="admin-form-label">رمز عبور</label>
-                    <input type="password" name="password" id="id_password" class="admin-form-input" autocomplete="current-password" required>
-                </div>
-                <div class="admin-form-group admin-form-checkbox">
-                    <label for="id_remember" class="admin-form-checkbox-label">
-                        <input type="checkbox" name="remember" id="id_remember" class="admin-form-checkbox-input">
-                        <span class="admin-form-checkbox-text">مرا به خاطر بسپار</span>
-                    </label>
-                </div>
-                <button type="submit" class="admin-login-btn">ورود</button>
-            </form>
-        {% else %}
-            {% for row in table.rows %}
-                <tr{% if row.has_buttons %} class="has-buttons"{% endif %}>
-                    {% for cell in row.cells %}
-                        <td{% if not cell.first %} class="first"{% endif %}{% if not cell.last %} class="last"{% endif %}>
-                            {% if cell.is_link %}<a href="{{ cell.url_primary }}"{% if cell.url_anchor %} id="{{ cell.url_anchor }}"{% endif %}{% if cell.url_name %} name="{{ cell.url_name }}"{% endif %}{% if cell.url_name %} name="{{ cell.url_name }}"{% endif %}{% if cell.url_name %} name="{{ cell.url_name }}"{% endif %}>{% endif %}
-                            {{ cell.content }}
-                            {% if cell.is_link %}</a>{% endif %}
-                        </td>
-                    {% endfor %}
-                </tr>
+        {% if form.non_field_errors %}
+            {% for error in form.non_field_errors %}
+            <p class="admin-login-error">{{ error }}</p>
             {% endfor %}
         {% endif %}
+
+        <form action="{{ app_path }}" method="post" id="login-form" class="admin-login-form">
+            {% csrf_token %}
+            <div class="admin-form-row">
+                {{ form.username.label_tag }}
+                {{ form.username }}
+            </div>
+            <div class="admin-form-row">
+                {{ form.password.label_tag }}
+                {{ form.password }}
+                <input type="hidden" name="next" value="{{ next }}">
+            </div>
+            {% url 'admin_password_reset' as password_reset_url %}
+            {% if password_reset_url %}
+            <div class="admin-form-row admin-password-reset-link">
+                <a href="{{ password_reset_url }}">{% translate 'Forgotten your password or username?' %}</a>
+            </div>
+            {% endif %}
+            <div class="admin-form-row admin-submit-row">
+                <input type="submit" value="{% translate 'Log in' %}">
+            </div>
+        </form>
     </div>
 </div>
-
-<style>
-.admin-login-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: calc(100vh - 120px);
-    padding: 20px;
-}
-
-.admin-login-card {
-    width: 100%;
-    max-width: 400px;
-    background: #111827;
-    border: 1px solid rgba(255, 255, 255, .08);
-    border-radius: 16px;
-    padding: 36px;
-    box-shadow: 0 12px 40px rgba(2, 6, 23, .45);
-}
-
-.admin-login-header {
-    text-align: center;
-    margin-bottom: 28px;
-}
-
-.admin-login-logo {
-    font-size: 32px;
-    margin-bottom: 12px;
-    color: #3B82F6;
-}
-
-.admin-login-title {
-    font-size: 22px;
-    font-weight: 700;
-    color: #F8FAFC;
-    margin: 0 0 6px;
-}
-
-.admin-login-subtitle {
-    font-size: 13px;
-    color: #94A3B8;
-    margin: 0;
-}
-
-.admin-login-error {
-    background: rgba(239, 68, 68, .12);
-    border: 1px solid rgba(239, 68, 68, .3);
-    color: #fca5a5;
-    padding: 12px 16px;
-    border-radius: 10px;
-    margin-bottom: 20px;
-    font-size: 13px;
-    text-align: center;
-}
-
-.admin-form-group {
-    margin-bottom: 20px;
-}
-
-.admin-form-label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    color: #CBD5E1;
-    margin-bottom: 6px;
-}
-
-.admin-form-input {
-    width: 100%;
-    padding: 10px 12px;
-    background: #0B1220;
-    border: 1px solid rgba(255, 255, 255, .14);
-    border-radius: 10px;
-    color: #F8FAFC;
-    font-size: 14px;
-    font-family: 'Vazirmatn', 'Tahoma', sans-serif;
-    transition: all .18s ease;
-}
-
-.admin-form-input:focus {
-    outline: none;
-    border-color: #3B82F6;
-    background: #1A2235;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, .12);
-}
-
-.admin-form-input::placeholder {
-    color: #6B7A90;
-}
-
-.admin-form-checkbox {
-    display: flex;
-    align-items: center;
-}
-
-.admin-form-checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    font-size: 13px;
-    color: #CBD5E1;
-}
-
-.admin-form-checkbox-input {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-}
-
-.admin-login-btn {
-    width: 100%;
-    padding: 12px;
-    background: linear-gradient(135deg, #2563EB, #3B82F6);
-    color: #e0e7ff;
-    border: none;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: 700;
-    font-family: 'Vazirmatn', 'Tahoma', sans-serif;
-    cursor: pointer;
-    transition: all .18s ease;
-    box-shadow: 0 4px 14px rgba(59, 130, 246, .28);
-}
-
-.admin-login-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 18px rgba(59, 130, 246, .34);
-    filter: brightness(1.1);
-}
-</style>
 {% endblock %}

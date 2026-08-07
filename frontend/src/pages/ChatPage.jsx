@@ -2,15 +2,15 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import {
   MessageCircle, Send, Search, ArrowRight, ShoppingBag, Check, CheckCheck,
-  Plus, MessageSquare, Loader2, X, Heart, Smile, Paperclip, Gift,
-  MoreVertical, Eye, ShoppingCart, Star, Users, Crown, Filter,
+  MessageSquare, Loader2, X, Heart, Smile, Gift,
+  MoreVertical, Eye, ShoppingCart, Star, Users, Crown,
   Shirt, Footprints, Watch, Briefcase, UserCheck, Clock, User
 } from 'lucide-react';
 import { chatAPI, productsAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useToast } from '../components/ui/use-toast';
-import { formatRelativeDate, formatDateTime } from '../lib/formatDate';
+import { formatRelativeDate } from '../lib/formatDate';
 import { formatPrice } from '../lib/formatPrice';
 import { PLACEHOLDER_IMG } from '../lib/placeholders';
 import Skeleton from '../components/ui/Skeleton';
@@ -155,12 +155,12 @@ const MessageBubble = ({ message, isMine }) => {
           <p className="mb-1 px-1 text-[11px] font-semibold text-muted-foreground">{message.sender_name}</p>
         )}
         <div className="group relative">
-          <div
-            className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed transition-all ${
-              isMine
-                ? 'bg-gradient-to-br from-amber-500/90 to-yellow-700/80 text-black rounded-tr-md shadow-lg shadow-amber-500/10'
-                : 'bg-card/90 border border-border/60 text-foreground rounded-tl-md backdrop-blur-md'
-            }`}
+      <div
+        className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed transition-all ${
+          isMine
+            ? 'bg-[#effdde] dark:bg-[#2b5278] text-foreground rounded-tr-md shadow-sm'
+            : 'bg-card border border-border/60 text-foreground rounded-tl-md'
+        }`}
             onDoubleClick={() => typeof message.id === 'number' && setShowReactions(true)}
           >
             {isProduct && <ProductMessageCard product={message.product} />}
@@ -180,11 +180,11 @@ const MessageBubble = ({ message, isMine }) => {
               </button>
             )}
 
-            <div className={`mt-1 flex items-center justify-end gap-1 text-[10px] font-semibold ${isMine ? 'text-black/60' : 'text-muted-foreground'}`}>
+            <div className={`mt-1 flex items-center justify-end gap-1 text-[10px] font-semibold ${isMine ? 'text-emerald-700/80 dark:text-sky-200/70' : 'text-muted-foreground'}`}>
               <span dir="ltr">{timeStr}</span>
               {isMine && (
                 message.is_read
-                  ? <CheckCheck className="h-3.5 w-3.5 text-sky-600" />
+                  ? <CheckCheck className="h-3.5 w-3.5 text-sky-500 dark:text-sky-300" />
                   : <Check className="h-3.5 w-3.5 opacity-70" />
               )}
             </div>
@@ -407,7 +407,7 @@ export default function ChatPage() {
     setConvLoading(true);
     try {
       const res = await chatAPI.getMessages(id);
-      setMessages(Array.isArray(res.data) ? res.data : []);
+      setMessages(res.data?.results ?? (Array.isArray(res.data) ? res.data : []));
       await chatAPI.markRead(id);
       setConversations((prev) => prev.map((c) => (c.id === Number(id) ? { ...c, unread_count: 0 } : c)));
     } catch {
@@ -422,29 +422,52 @@ export default function ChatPage() {
     else setMessages([]);
   }, [activeId, loadMessages]);
 
-  /* Polling */
+  /* Polling — lightweight unread badge every 20s; only refresh conversations
+     and messages when the tab is visible to avoid burning the API quota. */
   useEffect(() => {
     if (!currentUserId) return undefined;
-    pollingRef.current = setInterval(async () => {
+    let cancelled = false;
+
+    const refresh = async ({ full = false } = {}) => {
+      if (document.hidden && !full) return;
       try {
-        const [cRes, uRes] = await Promise.all([chatAPI.getConversations(), chatAPI.getUnreadCount()]);
+        const uRes = await chatAPI.getUnreadCount();
+        if (cancelled) return;
+        window.dispatchEvent(new CustomEvent('chat:unread', { detail: uRes.data?.count || 0 }));
+
+        if (!full) return;
+
+        const cRes = await chatAPI.getConversations();
+        if (cancelled) return;
         const data = Array.isArray(cRes.data) ? cRes.data : (cRes.data?.results || []);
         setConversations(data);
         if (activeId) {
           const stillActive = data.some((c) => c.id === Number(activeId));
           if (stillActive) {
             const mRes = await chatAPI.getMessages(activeId);
-            setMessages(Array.isArray(mRes.data) ? mRes.data : []);
-            const otherUnread = (mRes.data || []).some((m) => !m.is_read && m.sender_id !== currentUserId);
+            if (cancelled) return;
+            const payload = mRes.data?.results ?? (Array.isArray(mRes.data) ? mRes.data : []);
+            setMessages(payload);
+            const otherUnread = payload.some((m) => !m.is_read && m.sender_id !== currentUserId);
             if (otherUnread) {
               await chatAPI.markRead(activeId);
             }
           }
         }
-        window.dispatchEvent(new CustomEvent('chat:unread', { detail: uRes.data?.count || 0 }));
       } catch { /* silent */ }
-    }, 5000);
-    return () => clearInterval(pollingRef.current);
+    };
+
+    // Refresh immediately on mount / when returning to the tab.
+    refresh({ full: true });
+    const onVisibility = () => { if (!document.hidden) refresh({ full: true }); };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    pollingRef.current = setInterval(() => refresh({ full: false }), 20000);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+      clearInterval(pollingRef.current);
+    };
   }, [activeId, currentUserId]);
 
   useEffect(() => {
@@ -562,7 +585,9 @@ export default function ChatPage() {
   };
 
   const filteredConversations = useMemo(() => {
-    if (filter === 'all') return conversations;
+    if (filter === 'friends') {
+      return conversations.filter((c) => c.status === 'accepted');
+    }
     return conversations;
   }, [conversations, filter]);
 
@@ -886,9 +911,9 @@ export default function ChatPage() {
                   </p>
                 </div>
               ) : active ? (
-                <div className="relative border-t border-border/50 bg-card/80 p-3 sm:p-4">
+                <div className="relative border-t border-border/50 bg-card/95 p-3 sm:p-4 backdrop-blur">
                   {showEmoji && (
-                    <div className="absolute bottom-full right-4 mb-2 flex flex-wrap gap-1 rounded-2xl border border-border/60 bg-popover p-2 shadow-2xl w-64">
+                    <div className="absolute right-4 bottom-full mb-2 flex flex-wrap gap-1 rounded-2xl border border-border/60 bg-popover p-2 shadow-2xl w-64">
                       {EMOJIS.map((e) => (
                         <button
                           key={e}
@@ -902,31 +927,16 @@ export default function ChatPage() {
                     </div>
                   )}
 
-                  <form onSubmit={handleSend} className="flex items-end gap-2">
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setShowEmoji((v) => !v)}
-                        className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${showEmoji ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' : 'bg-muted/50 text-muted-foreground hover:text-foreground'}`}
-                      >
-                        <Smile className="h-5 w-5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSendProductOpen(true)}
-                        className="hidden sm:flex h-10 items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 text-xs font-bold text-amber-600 dark:text-amber-400 transition hover:bg-amber-500/20"
-                      >
-                        <Gift className="h-3.5 w-3.5" />
-                        ارسال محصول
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSendProductOpen(true)}
-                        className="sm:hidden flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                      >
-                        <Gift className="h-5 w-5" />
-                      </button>
-                    </div>
+                  <form onSubmit={handleSend} className="flex items-center gap-2.5">
+                    {/* Send button — Telegram-style, on the leading side */}
+                    <button
+                      type="submit"
+                      disabled={sending || !text.trim()}
+                      aria-label="ارسال پیام"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500 text-white shadow-md shadow-sky-500/30 transition hover:bg-sky-600 disabled:bg-transparent disabled:text-muted-foreground disabled:shadow-none"
+                    >
+                      {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 -rotate-45" />}
+                    </button>
 
                     <div className="flex-1">
                       <textarea
@@ -935,23 +945,41 @@ export default function ChatPage() {
                         onChange={(e) => setText(e.target.value)}
                         placeholder="پیام خود را بنویسید..."
                         rows={1}
+                        maxLength={2000}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
                             handleSend();
                           }
                         }}
-                        className="w-full max-h-28 resize-none rounded-2xl border border-border/60 bg-secondary/40 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none transition focus:border-amber-500/40 focus:ring-1 focus:ring-amber-500/15"
+                        className="w-full max-h-28 resize-none rounded-2xl border border-border/60 bg-secondary/50 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none transition focus:border-sky-500/40 focus:ring-1 focus:ring-sky-500/15"
                       />
                     </div>
 
-                    <button
-                      type="submit"
-                      disabled={sending || !text.trim()}
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-700 text-black shadow-lg shadow-amber-500/25 transition hover:brightness-110 disabled:opacity-40 disabled:shadow-none"
-                    >
-                      {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 rotate-180" />}
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setShowEmoji((v) => !v)}
+                        className={`flex h-10 w-10 items-center justify-center rounded-full transition ${showEmoji ? 'bg-sky-500/20 text-sky-600 dark:text-sky-400' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'}`}
+                      >
+                        <Smile className="h-5 w-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSendProductOpen(true)}
+                        className="hidden sm:flex h-10 items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-500/10 px-3 text-xs font-bold text-sky-600 dark:text-sky-400 transition hover:bg-sky-500/20"
+                      >
+                        <Gift className="h-3.5 w-3.5" />
+                        ارسال محصول
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSendProductOpen(true)}
+                        className="sm:hidden flex h-10 w-10 items-center justify-center rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                      >
+                        <Gift className="h-5 w-5" />
+                      </button>
+                    </div>
                   </form>
                 </div>
               ) : null}

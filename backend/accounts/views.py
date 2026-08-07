@@ -57,6 +57,7 @@ def _user_data(user):
         'role': profile.role,
         'phone_verified': profile.phone_verified,
         'email_verified': profile.email_verified,
+        'avatar': profile.avatar.url if profile.avatar else '',
         'date_joined': user.date_joined,
     }
 
@@ -379,6 +380,27 @@ def user_view(request):
     if dob is not None:
         profile.date_of_birth = dob if dob else None
 
+    # Avatar upload (multipart/form-data) or explicit removal ("" / null).
+    if 'avatar' in data:
+        avatar = data.get('avatar')
+        if avatar in ('', None):
+            if profile.avatar:
+                profile.avatar.delete(save=False)
+            profile.avatar = None
+        elif getattr(avatar, 'size', None) is not None:
+            # Validate image type / size before replacing the old avatar.
+            content_type = getattr(avatar, 'content_type', '') or ''
+            if not content_type.startswith('image/'):
+                return Response({'error': 'فقط فایل تصویری مجاز است.'}, status=status.HTTP_400_BAD_REQUEST)
+            if avatar.size > settings.MAX_AVATAR_SIZE:
+                return Response(
+                    {'error': f'حجم تصویر نباید بیشتر از {settings.MAX_AVATAR_SIZE // (1024 * 1024)} مگابایت باشد.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if profile.avatar:
+                profile.avatar.delete(save=False)
+            profile.avatar = avatar
+
     profile.save()
 
     return Response(_user_data(request.user))
@@ -490,6 +512,14 @@ def verify_code_view(request):
     if profile.verification_type != verify_type:
         return Response({'error': 'نوع تأیید نامعتبر است'}, status=status.HTTP_400_BAD_REQUEST)
 
+    if profile.verification_code_expired:
+        clear_otp_failures(lock_id)
+        profile.verification_code = ''
+        profile.verification_type = ''
+        profile.save(update_fields=['verification_code', 'verification_type'])
+        log_security_event('otp_verify_expired', request, f'user={request.user.username}')
+        return Response({'error': 'کد تأیید منقضی شده است. لطفاً کد جدید درخواست کنید.'}, status=status.HTTP_400_BAD_REQUEST)
+
     # Success — clear OTP failures
     clear_otp_failures(lock_id)
 
@@ -580,7 +610,8 @@ def password_reset_request_view(request):
     token = uuid.uuid4().hex[:40]
     profile = _get_or_create_profile(user)
     profile.reset_token = token
-    profile.save(update_fields=['reset_token'])
+    profile.reset_token_created_at = timezone.now()
+    profile.save(update_fields=['reset_token', 'reset_token_created_at'])
 
     reset_link = f'{settings.FRONTEND_URL}/reset-password?token={token}'
 
@@ -640,6 +671,16 @@ def password_reset_confirm_view(request):
         logger.warning(
             '[password_reset_invalid_token] ip=%s',
             ip_address,
+        )
+        return Response({'error': 'توکن نامعتبر یا منقضی شده است'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if profile.reset_token_expired:
+        profile.reset_token = ''
+        profile.reset_token_created_at = None
+        profile.save(update_fields=['reset_token', 'reset_token_created_at'])
+        logger.warning(
+            '[password_reset_expired_token] user=%s ip=%s',
+            user.username, ip_address,
         )
         return Response({'error': 'توکن نامعتبر یا منقضی شده است'}, status=status.HTTP_400_BAD_REQUEST)
 
