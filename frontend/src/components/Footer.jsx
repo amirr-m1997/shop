@@ -51,6 +51,7 @@ const FooterAccordion = ({ title, defaultOpen = false, children }) => {
 const Footer = () => {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const [emailError, setEmailError] = useState('');
   const [contactInfo, setContactInfo] = useState(null);
 
   const currentYearJalali = (() => {
@@ -76,11 +77,22 @@ const Footer = () => {
 
   const handleSubscribe = (e) => {
     e.preventDefault();
-    if (email) {
-      setSubscribed(true);
-      setEmail('');
-      setTimeout(() => setSubscribed(false), 3000);
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const trimmed = email.trim();
+
+    if (!trimmed) {
+      setEmailError('لطفاً ایمیل خود را وارد کنید.');
+      return;
     }
+    if (!EMAIL_REGEX.test(trimmed)) {
+      setEmailError('فرمت ایمیل صحیح نیست؛ مثلاً name@example.com');
+      return;
+    }
+
+    setEmailError('');
+    setSubscribed(true);
+    setEmail('');
+    setTimeout(() => setSubscribed(false), 3000);
   };
 
   const siteName = contactInfo?.site_name || 'فروشگاه مد';
@@ -119,14 +131,25 @@ const Footer = () => {
               <h3 className="text-lg sm:text-xl font-bold mb-1">در جریان مد بمانید</h3>
               <p className="text-sm text-muted-foreground">کالکشن‌های جدید و پیشنهادهای اختصاصی، مستقیم برای شما.</p>
             </div>
-            <form onSubmit={handleSubscribe} className="flex gap-2 w-full md:w-auto max-w-md md:max-w-none">
-              <Input
-                type="email"
-                placeholder="نشانی ایمیل شما"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="bg-muted border-border text-foreground placeholder:text-muted-foreground focus:border-primary flex-1 md:w-72"
-              />
+            <form onSubmit={handleSubscribe} noValidate className="flex gap-2 w-full md:w-auto max-w-md md:max-w-none">
+              <div className="flex-1 md:w-72">
+                <Input
+                  type="email"
+                  placeholder="نشانی ایمیل شما"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (emailError) setEmailError('');
+                  }}
+                  aria-invalid={!!emailError}
+                  className={`bg-muted border-border text-foreground placeholder:text-muted-foreground focus:border-primary w-full ${emailError ? 'border-destructive focus-visible:ring-destructive/50' : ''}`}
+                />
+                {emailError && (
+                  <p className="mt-1.5 text-xs font-medium text-destructive" role="alert">
+                    {emailError}
+                  </p>
+                )}
+              </div>
               <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold shrink-0">
                 {subscribed ? <CheckCircle className="h-4 w-4" /> : <Send className="h-4 w-4 ml-1" />}
                 <span className="hidden sm:inline">{subscribed ? 'عضویت شما ثبت شد' : 'عضویت'}</span>

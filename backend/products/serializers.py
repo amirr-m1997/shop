@@ -172,6 +172,10 @@ class ReviewSerializer(serializers.ModelSerializer):
         fields = ['id', 'product', 'user', 'owner_name', 'rating', 'title', 'comment',
                   'is_verified_purchase', 'created_at']
         read_only_fields = ['user', 'is_verified_purchase']
+        extra_kwargs = {
+            'title': {'required': False, 'allow_blank': True},
+            'comment': {'required': False, 'allow_blank': True},
+        }
 
 
 class SizeGuideSerializer(serializers.ModelSerializer):

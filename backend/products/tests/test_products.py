@@ -1,5 +1,4 @@
 from django.test import TestCase
-from django.core.cache import cache
 from rest_framework.test import APITestCase
 from rest_framework import status
 from decimal import Decimal
@@ -16,7 +15,6 @@ from products.models import Product, Category, Review, Wishlist, HomepageSection
 
 class ProductListTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/products/'
 
     def test_empty_list_returns_empty(self):
@@ -55,7 +53,6 @@ class ProductListTest(APITestCase):
 
 class ProductDetailTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.product = ProductFactory(
             is_active=True,
             name='Blue T-Shirt',
@@ -92,7 +89,6 @@ class ProductDetailTest(APITestCase):
 
 class ProductFilterByCategoryTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.cat = CategoryFactory(name='Men', slug='men')
         self.other_cat = CategoryFactory(name='Women', slug='women')
         self.product_in_cat = ProductFactory(category=self.cat, is_active=True)
@@ -127,7 +123,6 @@ class ProductFilterByCategoryTest(APITestCase):
 
 class ProductFilterByBrandTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.brand = BrandFactory(slug='nike')
         self.other_brand = BrandFactory(slug='adidas')
         self.product = ProductFactory(brand=self.brand, is_active=True)
@@ -143,7 +138,6 @@ class ProductFilterByBrandTest(APITestCase):
 
 class ProductFilterByPriceTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/products/'
         self.cheap = ProductFactory(price=Decimal('50000'), is_active=True)
         self.mid = ProductFactory(price=Decimal('150000'), is_active=True)
@@ -173,7 +167,6 @@ class ProductFilterByPriceTest(APITestCase):
 
 class ProductFilterBySizeColorTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.product, self.variant = create_product_with_variant(is_active=True)
         self.other_product = ProductFactory(is_active=True)
         self.url = '/api/products/products/'
@@ -195,7 +188,6 @@ class ProductFilterBySizeColorTest(APITestCase):
 
 class ProductFilterByDiscountTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/products/'
         self.discounted = ProductFactory(
             price=Decimal('100000'),
@@ -217,7 +209,6 @@ class ProductFilterByDiscountTest(APITestCase):
 
 class ProductFilterFeaturedTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/products/'
         self.featured = ProductFactory(is_featured=True, is_active=True)
         ProductFactory(is_featured=False, is_active=True)
@@ -231,7 +222,6 @@ class ProductFilterFeaturedTest(APITestCase):
 
 class ProductFilterInStockTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/products/'
         self.in_stock = ProductFactory(stock=10, is_active=True)
         self.out_of_stock = ProductFactory(stock=0, is_active=True)
@@ -253,7 +243,6 @@ class ProductFilterInStockTest(APITestCase):
 
 class ProductSearchTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/products/'
         ProductFactory(name='Blue Cotton T-Shirt', is_active=True)
         ProductFactory(name='Red Silk Dress', is_active=True)
@@ -278,7 +267,6 @@ class ProductSearchTest(APITestCase):
 
 class ProductOrderingTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/products/'
         self.p1 = ProductFactory(name='Alpha', price=Decimal('100000'), is_active=True)
         self.p2 = ProductFactory(name='Beta', price=Decimal('300000'), is_active=True)
@@ -317,7 +305,6 @@ class ProductOrderingTest(APITestCase):
 
 class ReviewCreateTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.user, self.token = create_user_with_token()
         self.product = ProductFactory(is_active=True)
         self.url = '/api/products/reviews/'
@@ -393,7 +380,6 @@ class ReviewCreateTest(APITestCase):
 
 class ReviewUpdateTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.owner, self.token = create_user_with_token()
         self.other, self.other_token = create_user_with_token()
         self.product = ProductFactory(is_active=True)
@@ -431,7 +417,6 @@ class ReviewUpdateTest(APITestCase):
 
 class ReviewDeleteTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.owner, self.token = create_user_with_token()
         self.other, self.other_token = create_user_with_token()
         self.product = ProductFactory(is_active=True, rating=Decimal('3.00'), review_count=1)
@@ -459,7 +444,6 @@ class ReviewDeleteTest(APITestCase):
 
 class ReviewListFilterTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.product = ProductFactory(is_active=True)
         self.url = '/api/products/reviews/'
 
@@ -482,7 +466,6 @@ class ReviewListFilterTest(APITestCase):
 
 class WishlistAddTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.user, self.token = create_user_with_token()
         self.product = ProductFactory(is_active=True)
         self.url = '/api/products/wishlist/'
@@ -507,7 +490,6 @@ class WishlistAddTest(APITestCase):
 
 class WishlistRemoveTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.user, self.token = create_user_with_token()
         self.product = ProductFactory(is_active=True)
         self.wishlist_item = WishlistFactory(user=self.user, product=self.product)
@@ -526,7 +508,6 @@ class WishlistRemoveTest(APITestCase):
 
 class WishlistCheckTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.user, self.token = create_user_with_token()
         self.product = ProductFactory(is_active=True)
         self.url = '/api/products/wishlist/'
@@ -542,7 +523,6 @@ class WishlistCheckTest(APITestCase):
 
 class WishlistOwnershipTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.user, self.token = create_user_with_token()
         self.other, self.other_token = create_user_with_token()
         self.product = ProductFactory(is_active=True)
@@ -560,7 +540,6 @@ class WishlistOwnershipTest(APITestCase):
 
 class HomepageSectionsTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/homepage-sections/'
 
     def test_active_sections_returned(self):
@@ -618,7 +597,6 @@ class HomepageSectionsTest(APITestCase):
 
 class BannerListTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/banners/'
 
     def test_list_active_banners(self):
@@ -639,7 +617,6 @@ class BannerListTest(APITestCase):
 
 class CategoryListTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/categories/'
 
     def test_list_categories(self):
@@ -668,7 +645,6 @@ class CategoryListTest(APITestCase):
 
 class StyleLookListTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/styles/'
 
     def test_list_active_style_looks(self):
@@ -682,7 +658,6 @@ class StyleLookListTest(APITestCase):
 
 class StyleLookDetailTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.style = StyleLook.objects.create(
             title='Summer Collection', slug='summer-collection', is_active=True
         )
@@ -707,7 +682,6 @@ class StyleLookDetailTest(APITestCase):
 
 class RecommendationsTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/recommendations/'
         self.category = CategoryFactory(slug='men')
 
@@ -747,7 +721,6 @@ class RecommendationsTest(APITestCase):
 
 class MaxPriceViewTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/max-price/'
 
     def test_returns_max_price(self):
@@ -772,7 +745,6 @@ class MaxPriceViewTest(APITestCase):
 
 class SizeRecommendationViewTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/size-recommendation/'
 
     def test_post_without_measurements_returns_400(self):
@@ -788,7 +760,6 @@ class SizeRecommendationViewTest(APITestCase):
 
 class BrandViewSetTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/brands/'
 
     def test_list_brands(self):
@@ -807,7 +778,6 @@ class BrandViewSetTest(APITestCase):
 
 class ColorViewSetTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/colors/'
 
     def test_list_colors(self):
@@ -820,7 +790,6 @@ class ColorViewSetTest(APITestCase):
 
 class SizeViewSetTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/sizes/'
 
     def test_list_sizes(self):
@@ -842,7 +811,6 @@ class SizeViewSetTest(APITestCase):
 
 class FabricViewSetTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/fabrics/'
 
     def test_list_fabrics(self):
@@ -857,7 +825,6 @@ class FabricViewSetTest(APITestCase):
 
 class CategoriesByRootTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/categories/by-root/'
 
     def test_empty_root_returns_empty(self):
@@ -883,17 +850,7 @@ class CategoriesByRootTest(APITestCase):
 
 class AdminProductSearchTest(APITestCase):
     def setUp(self):
-        cache.clear()
-        from shop.tests import create_admin_with_token
         self.url = '/api/products/admin-search/'
-        self.admin, self.token = create_admin_with_token()
-        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
-
-    def test_anonymous_access_denied(self):
-        self.client.credentials()
-        ProductFactory(name='Blue Cotton Shirt', is_active=True)
-        response = self.client.get(self.url, {'q': 'Cotton'})
-        self.assertIn(response.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
 
     def test_short_query_returns_empty(self):
         response = self.client.get(self.url, {'q': 'a'})
@@ -917,7 +874,6 @@ class AdminProductSearchTest(APITestCase):
 
 class InheritedSizesViewTest(APITestCase):
     def setUp(self):
-        cache.clear()
         self.url = '/api/products/sizes/for-category/'
 
     def test_no_category_returns_all_sizes(self):

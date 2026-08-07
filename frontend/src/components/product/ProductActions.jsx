@@ -1,8 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/Button';
 import WishlistButton from '../WishlistButton';
+import SendToFriendButton from '../chat/SendToFriendButton';
 import FeedbackModal from '../ui/FeedbackModal';
 
 const ProductActions = ({
@@ -44,7 +45,20 @@ const ProductActions = ({
             className="!static !h-12 !w-12 rounded-2xl border border-border/60 bg-background/60 shadow-none"
           />
         </div>
+
+        <SendToFriendButton
+          product={product}
+          variant="text"
+          className="h-12 rounded-2xl border border-border/60 bg-background/60 shadow-none hover:border-primary/40 hover:bg-primary/5 hover:scale-105"
+        />
       </div>
+
+      {cartError && (
+        <p className="mt-3 flex items-start gap-2 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive" role="alert">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          {cartError}
+        </p>
+      )}
 
       <FeedbackModal
         open={addedToCart}
@@ -55,7 +69,8 @@ const ProductActions = ({
             ? 'محصول با موفقیت به سبد خرید شما اضافه شد. میتوانید بدون ایجاد حساب ثبت سفارش کنید.'
             : 'محصول با موفقیت به سبد خرید شما اضافه شد.'
         }
-        primaryLabel="ادامه خرید"
+        primaryLabel="بازگشت به همین محصول"
+        primaryClassName="bg-emerald-500 text-white hover:bg-emerald-600"
         onPrimary={onCloseSuccess}
         secondaryLabel="مشاهده سبد خرید"
         onSecondary={goToCart}

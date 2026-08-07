@@ -11,7 +11,6 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 """
 
 from pathlib import Path
-import logging
 import os
 from dotenv import load_dotenv
 
@@ -76,6 +75,7 @@ INSTALLED_APPS = [
     'pages',
     'payments',
     'dashboard',
+    'chat',
     'django_q',
 ]
 

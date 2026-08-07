@@ -7,18 +7,3 @@ python-decouple==3.8
 python-dotenv==1.0.0
 django-jalali>=7.0
 jdatetime>=5.0
-
-# Background task queue (used as `django_q` in INSTALLED_APPS)
-django-q2>=1.6,<2.0
-
-# HTTP client — Zarinpal payment gateway calls
-requests>=2.31
-
-# PDF invoice generation (shop/invoice.py)
-reportlab>=4.0,<6.0
-
-# Testing
-factory-boy>=3.3
-
-# Optional — error tracking in production (settings.py degrades gracefully without it)
-# sentry-sdk>=1.40

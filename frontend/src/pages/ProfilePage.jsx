@@ -5,7 +5,7 @@ import {
   Package, LogOut, Calendar, Eye, EyeOff, AlertTriangle,
   CheckCircle, Pencil, Shield, Cake, ShoppingCart, Heart,
   ChevronLeft, X, BadgeCheck, AlertCircle, Sparkles,
-  ShieldCheck, Star, History, Monitor, Globe, HeartOff, MapPinOff
+  ShieldCheck, Star, History, Monitor, Globe, HeartOff, MapPinOff, MessageCircle
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -563,6 +563,25 @@ const ProfilePage = () => {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* ── Left Column ── */}
           <div className="space-y-6 lg:col-span-2">
+            {/* ── Style Chat ── */}
+            <SectionCard delay={0.02}>
+              <Link to="/chat" className="group flex flex-col gap-4 p-5 sm:p-6 sm:flex-row sm:items-center">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-violet-500 text-white shadow-lg shadow-primary/20 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6">
+                  <MessageCircle className="h-7 w-7" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-2 text-base font-bold">
+                    استایل چت
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">جدید</span>
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    با دوستان خود گفتگو کنید و محصولات موردعلاقه‌تان را به اشتراک بگذارید.
+                  </p>
+                </div>
+                <ChevronLeft className="h-5 w-5 shrink-0 text-muted-foreground transition-all duration-300 group-hover:-translate-x-1 group-hover:text-primary" />
+              </Link>
+            </SectionCard>
+
             {/* ── Personal Info ── */}
             <SectionCard delay={0.08}>
               <SectionHead icon={User} title="اطلاعات شخصی" />
@@ -1150,7 +1169,7 @@ const ProfilePage = () => {
 
       {/* ── Logout Dialog ── */}
       <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
-        <DialogContent className="overflow-hidden rounded-3xl border-border/50 sm:max-w-md">
+        <DialogContent className="overflow-hidden rounded-3xl border-border/50 sm:max-w-md" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2.5 text-lg font-bold">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10">

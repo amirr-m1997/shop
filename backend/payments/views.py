@@ -488,7 +488,6 @@ def payment_verify_callback(request):
                 f'{FRONTEND_URL}/payment/callback'
                 f'?ref_id={data.get("ref_id", "")}'
                 f'&order_number={order.order_number}'
-                f'&payment_id={payment.id}'
             )
 
         msg = _error_message(code, errors)

@@ -37,6 +37,7 @@ const OrdersPage = lazy(() => import('./pages/OrdersPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const StylePage = lazy(() => import('./pages/StylePage'));
+const ChatPage = lazy(() => import('./pages/ChatPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 
@@ -124,6 +125,52 @@ function AuthRedirectHandler() {
   return null;
 }
 
+function AppShell() {
+  const location = useLocation();
+  const isChat = location.pathname.startsWith('/chat');
+
+  return (
+    <div className={`min-h-screen flex flex-col ${isChat ? 'bg-[#0a0a0c]' : ''}`}>
+      <Header />
+      <main className={`flex-1 ${isChat ? 'overflow-hidden' : ''}`}>
+        <Routes>
+          <Route path="/" element={<LazyPageLoader Component={HomePage} />} />
+          <Route path="/category/:category" element={<LazyPageLoader Component={ProductListingPage} />} />
+          <Route path="/products" element={<LazyPageLoader Component={ProductListingPage} />} />
+          <Route path="/product/:slug" element={<LazyPageLoader Component={ProductDetailPage} />} />
+          <Route path="/cart" element={<LazyPageLoader Component={CartPage} />} />
+          <Route path="/checkout" element={<LazyPageLoader Component={CheckoutPage} />} />
+          <Route path="/size-finder" element={<LazyPageLoader Component={SizeFinderPage} />} />
+          <Route path="/login" element={<LazyPageLoader Component={LoginPage} />} />
+          <Route path="/register" element={<LazyPageLoader Component={RegisterPage} />} />
+          <Route path="/forgot-password" element={<LazyPageLoader Component={ForgotPasswordPage} />} />
+          <Route path="/reset-password" element={<LazyPageLoader Component={ResetPasswordPage} />} />
+          <Route path="/profile" element={<LazyPageLoader Component={ProfilePage} />} />
+          <Route path="/orders" element={<LazyPageLoader Component={OrdersPage} />} />
+          <Route path="/new-arrivals" element={<LazyPageLoader Component={ProductListingPage} />} />
+          <Route path="/sale" element={<LazyPageLoader Component={ProductListingPage} />} />
+          <Route path="/trending" element={<LazyPageLoader Component={ProductListingPage} />} />
+          <Route path="/order-success" element={<LazyPageLoader Component={OrderSuccessPage} />} />
+          <Route path="/payment/callback" element={<LazyPageLoader Component={PaymentCallbackPage} />} />
+          <Route path="/order-failed" element={<LazyPageLoader Component={OrderFailedPage} />} />
+          <Route path="/contact" element={<LazyPageLoader Component={ContactPage} />} />
+          <Route path="/shipping" element={<LazyPageLoader Component={ShippingPage} />} />
+          <Route path="/returns" element={<LazyPageLoader Component={ReturnsPage} />} />
+          <Route path="/faq" element={<LazyPageLoader Component={FaqPage} />} />
+          <Route path="/about" element={<LazyPageLoader Component={AboutPage} />} />
+          <Route path="/blog" element={<LazyPageLoader Component={BlogPage} />} />
+          <Route path="/blog/:slug" element={<LazyPageLoader Component={BlogPostPage} />} />
+          <Route path="/style/:slug" element={<LazyPageLoader Component={StylePage} />} />
+          <Route path="/chat" element={<LazyPageLoader Component={ChatPage} />} />
+          <Route path="/chat/:conversationId" element={<LazyPageLoader Component={ChatPage} />} />
+          <Route path="*" element={<LazyPageLoader Component={NotFoundPage} />} />
+        </Routes>
+      </main>
+      {!isChat && <Footer />}
+    </div>
+  );
+}
+
 function App() {
   return (
     <HelmetProvider>
@@ -135,42 +182,7 @@ function App() {
               <ScrollRestoration />
               <AuthRedirectHandler />
               <DiscountPopup />
-              <div className="min-h-screen flex flex-col">
-                <Header />
-                <main className="flex-1">
-                  <Routes>
-                    <Route path="/" element={<LazyPageLoader Component={HomePage} />} />
-                    <Route path="/category/:category" element={<LazyPageLoader Component={ProductListingPage} />} />
-                    <Route path="/products" element={<LazyPageLoader Component={ProductListingPage} />} />
-                    <Route path="/product/:slug" element={<LazyPageLoader Component={ProductDetailPage} />} />
-                    <Route path="/cart" element={<LazyPageLoader Component={CartPage} />} />
-                    <Route path="/checkout" element={<LazyPageLoader Component={CheckoutPage} />} />
-                    <Route path="/size-finder" element={<LazyPageLoader Component={SizeFinderPage} />} />
-                    <Route path="/login" element={<LazyPageLoader Component={LoginPage} />} />
-                    <Route path="/register" element={<LazyPageLoader Component={RegisterPage} />} />
-                    <Route path="/forgot-password" element={<LazyPageLoader Component={ForgotPasswordPage} />} />
-                    <Route path="/reset-password" element={<LazyPageLoader Component={ResetPasswordPage} />} />
-                    <Route path="/profile" element={<LazyPageLoader Component={ProfilePage} />} />
-                    <Route path="/orders" element={<LazyPageLoader Component={OrdersPage} />} />
-                    <Route path="/new-arrivals" element={<LazyPageLoader Component={ProductListingPage} />} />
-                    <Route path="/sale" element={<LazyPageLoader Component={ProductListingPage} />} />
-                    <Route path="/trending" element={<LazyPageLoader Component={ProductListingPage} />} />
-                    <Route path="/order-success" element={<LazyPageLoader Component={OrderSuccessPage} />} />
-                    <Route path="/payment/callback" element={<LazyPageLoader Component={PaymentCallbackPage} />} />
-                    <Route path="/order-failed" element={<LazyPageLoader Component={OrderFailedPage} />} />
-                    <Route path="/contact" element={<LazyPageLoader Component={ContactPage} />} />
-                    <Route path="/shipping" element={<LazyPageLoader Component={ShippingPage} />} />
-                    <Route path="/returns" element={<LazyPageLoader Component={ReturnsPage} />} />
-                    <Route path="/faq" element={<LazyPageLoader Component={FaqPage} />} />
-                    <Route path="/about" element={<LazyPageLoader Component={AboutPage} />} />
-                    <Route path="/blog" element={<LazyPageLoader Component={BlogPage} />} />
-                    <Route path="/blog/:slug" element={<LazyPageLoader Component={BlogPostPage} />} />
-                    <Route path="/style/:slug" element={<LazyPageLoader Component={StylePage} />} />
-                    <Route path="*" element={<LazyPageLoader Component={NotFoundPage} />} />
-                  </Routes>
-                </main>
-                <Footer />
-              </div>
+              <AppShell />
             </Router>
           </WishlistProvider>
         </CartProvider>

@@ -162,3 +162,22 @@ export const authAPI = {
   updateAddress: (id, data) => api.put(`/auth/addresses/${id}/`, data),
   deleteAddress: (id) => api.delete(`/auth/addresses/${id}/`),
 };
+
+// Chat API (Style Chat / Friend Recommendation)
+export const chatAPI = {
+  searchUsers: (q) => api.get('/chat/users/search/', { params: { q } }),
+  getConversations: () => api.get('/chat/conversations/'),
+  getConversation: (id) => api.get(`/chat/conversations/${id}/`),
+  createConversation: (data) => api.post('/chat/conversations/', data),
+  acceptConversation: (id) => api.post(`/chat/conversations/${id}/accept/`, {}),
+  declineConversation: (id) => api.post(`/chat/conversations/${id}/decline/`, {}),
+  getMessages: (conversationId) => api.get(`/chat/conversations/${conversationId}/messages/`),
+  sendMessage: (conversationId, data) => api.post(`/chat/conversations/${conversationId}/send_message/`, data),
+  sendProduct: (conversationId, data) => api.post(`/chat/conversations/${conversationId}/send_product/`, data),
+  markRead: (conversationId) => api.post(`/chat/conversations/${conversationId}/mark_read/`, {}),
+  react: (messageId, reaction) => api.post(`/chat/messages/${messageId}/react/`, { reaction }),
+  favorite: (messageId) => api.post(`/chat/messages/${messageId}/favorite/`, {}),
+  getNotifications: () => api.get('/chat/notifications/'),
+  getUnreadCount: () => api.get('/chat/notifications/unread_count/'),
+  markAllNotificationsRead: () => api.post('/chat/notifications/mark_all_read/', {}),
+};

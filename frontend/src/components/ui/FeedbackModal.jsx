@@ -2,6 +2,7 @@ import React from 'react';
 import { CheckCircle2, XCircle, AlertCircle, Info, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter } from './Dialog';
 import { Button } from './Button';
+import { cn } from '../../lib/utils';
 
 const STYLES = {
   success: {
@@ -35,6 +36,7 @@ const FeedbackModal = ({
   children,
   primaryLabel,
   onPrimary,
+  primaryClassName,
   secondaryLabel = 'بستن',
   onSecondary,
 }) => {
@@ -61,7 +63,7 @@ const FeedbackModal = ({
         {children}
         <DialogFooter className="mt-6 gap-2 sm:justify-center">
           {primaryLabel && onPrimary && (
-            <Button size="lg" onClick={onPrimary} className="flex-1 sm:flex-none rounded-xl">
+            <Button size="lg" onClick={onPrimary} className={cn("flex-1 sm:flex-none rounded-xl", primaryClassName)}>
               {primaryLabel}
             </Button>
           )}

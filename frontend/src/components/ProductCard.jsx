@@ -5,6 +5,7 @@ import { formatPrice } from '../lib/formatPrice';
 import { PLACEHOLDER_IMG } from '../lib/placeholders';
 import WishlistButton from './WishlistButton';
 import ShareButton from './ShareButton';
+import SendToFriendButton from './chat/SendToFriendButton';
 
 const MAX_TILT = 6;
 const HOVER_Y = -10;
@@ -265,6 +266,11 @@ const ProductCard = ({
           <WishlistButton
             productId={product.id}
             className="!relative !top-0 !right-0 h-9 w-9 rounded-full bg-white/80 dark:bg-black/60 backdrop-blur-md shadow-sm"
+          />
+          <SendToFriendButton
+            product={product}
+            variant="icon"
+            className="!relative h-8 w-8 rounded-full bg-white/80 dark:bg-black/60 backdrop-blur-md shadow-sm hover:text-primary"
           />
           <ShareButton
             product={product}

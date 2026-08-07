@@ -29,6 +29,7 @@ class UserProfile(models.Model):
         blank=True,
         verbose_name="نوع تأیید"
     )
+    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True, verbose_name="تصویر پروفایل")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, Menu, Moon, Sun, X, LogOut, Package, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Search, ShoppingCart, User, Menu, Moon, Sun, X, LogOut, Package, AlertTriangle, ChevronDown, MessageCircle } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Badge } from './ui/Badge';
@@ -16,7 +16,7 @@ import {
 import { useTheme } from '../contexts/ThemeContext';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
-import { productsAPI } from '../services/api';
+import { productsAPI, chatAPI } from '../services/api';
 import CartDrawer from './CartDrawer';
 
 const Header = () => {
@@ -32,6 +32,7 @@ const Header = () => {
   const [openDropdown, setOpenDropdown] = useState(null);
   const [mobileExpandedCat, setMobileExpandedCat] = useState(null);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
+  const [unreadChat, setUnreadChat] = useState(0);
   const searchInputRef = useRef(null);
   const dropdownRef = useRef(null);
   const searchDebounceRef = useRef(null);
@@ -39,6 +40,25 @@ const Header = () => {
   const cartItemsCount = cart?.total_items || 0;
 
   const userFullName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.username || 'کاربر';
+
+  // Poll unread chat notifications while authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setUnreadChat(0);
+      return;
+    }
+    let cancelled = false;
+    const poll = () => {
+      chatAPI.getUnreadCount()
+        .then((res) => { if (!cancelled) setUnreadChat(res.data.count || 0); })
+        .catch(() => {});
+    };
+    poll();
+    const interval = setInterval(poll, 15000);
+    const onUnread = (e) => { if (!cancelled) setUnreadChat(e.detail ?? 0); };
+    window.addEventListener('chat:unread', onUnread);
+    return () => { cancelled = true; clearInterval(interval); window.removeEventListener('chat:unread', onUnread); };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     productsAPI.getCategories()
@@ -195,6 +215,23 @@ const Header = () => {
                 </Badge>
               )}
             </button>
+
+            {/* Style Chat */}
+            {isAuthenticated && (
+              <Link
+                to="/chat"
+                className="relative p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
+                title="استایل چت"
+                aria-label="استایل چت"
+              >
+                <MessageCircle className="h-5 w-5" />
+                {unreadChat > 0 && (
+                  <Badge className="absolute -top-1 -right-1 h-5 min-w-5 flex items-center justify-center p-0 px-1">
+                    {unreadChat > 99 ? '۹۹+' : unreadChat.toLocaleString('fa-IR')}
+                  </Badge>
+                )}
+              </Link>
+            )}
 
             {/* User Dropdown Menu */}
             {isAuthenticated ? (
@@ -355,6 +392,7 @@ const Header = () => {
                   <p className="text-sm font-semibold mb-2">{userFullName}</p>
                   <Link to="/profile" className="block text-sm text-muted-foreground mb-2" onClick={() => setMobileMenuOpen(false)}>پروفایل</Link>
                   <Link to="/orders" className="block text-sm text-muted-foreground mb-2" onClick={() => setMobileMenuOpen(false)}>سفارش‌های من</Link>
+                  <Link to="/chat" className="block text-sm text-muted-foreground mb-2" onClick={() => setMobileMenuOpen(false)}>استایل چت {unreadChat > 0 ? `(${unreadChat})` : ''}</Link>
                   <button onClick={handleLogout} className="text-sm text-destructive font-medium">خروج از حساب</button>
                 </div>
               )}

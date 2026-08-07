@@ -44,7 +44,7 @@ const ReviewsSection = ({
           ) : (
             <form onSubmit={handleSubmitReview} className="space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium">امتیاز</label>
+                <label className="mb-2 block text-sm font-medium">امتیاز <span className="text-destructive">*</span></label>
                 <div className="flex gap-1">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
@@ -64,12 +64,17 @@ const ReviewsSection = ({
                   ))}
                 </div>
               </div>
-              <Input
-                placeholder="عنوان نظر (اختیاری)"
-                value={reviewTitle}
-                onChange={(e) => setReviewTitle(e.target.value)}
-                className="h-11 rounded-xl"
-              />
+              <div>
+                <label className="mb-2 block text-sm text-muted-foreground">
+                  می‌توانید فقط با انتخاب ستاره‌ها نظر ثبت کنید؛ عنوان و توضیح اختیاری است.
+                </label>
+                <Input
+                  placeholder="عنوان نظر (اختیاری)"
+                  value={reviewTitle}
+                  onChange={(e) => setReviewTitle(e.target.value)}
+                  className="h-11 rounded-xl"
+                />
+              </div>
               <textarea
                 placeholder="متن نظر خود را بنویسید... (اختیاری)"
                 value={reviewComment}

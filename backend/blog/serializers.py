@@ -11,6 +11,7 @@ class BlogCategorySerializer(serializers.ModelSerializer):
 class BlogPostListSerializer(serializers.ModelSerializer):
     category_name = serializers.SerializerMethodField()
     author_name = serializers.SerializerMethodField()
+    image = serializers.SerializerMethodField()
 
     class Meta:
         model = BlogPost
@@ -22,10 +23,14 @@ class BlogPostListSerializer(serializers.ModelSerializer):
     def get_author_name(self, obj):
         return obj.author.username if obj.author else ''
 
+    def get_image(self, obj):
+        return obj.display_image
+
 
 class BlogPostDetailSerializer(serializers.ModelSerializer):
     category_name = serializers.SerializerMethodField()
     author_name = serializers.SerializerMethodField()
+    image = serializers.SerializerMethodField()
 
     class Meta:
         model = BlogPost
@@ -36,3 +41,6 @@ class BlogPostDetailSerializer(serializers.ModelSerializer):
 
     def get_author_name(self, obj):
         return obj.author.username if obj.author else ''
+
+    def get_image(self, obj):
+        return obj.display_image

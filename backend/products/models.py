@@ -314,8 +314,8 @@ class Review(models.Model):
         validators=[MinValueValidator(1), MaxValueValidator(5)],
         verbose_name="امتیاز"
     )
-    title = models.CharField(max_length=200, verbose_name="عنوان")
-    comment = models.TextField(verbose_name="نظر")
+    title = models.CharField(max_length=200, blank=True, verbose_name="عنوان")
+    comment = models.TextField(blank=True, verbose_name="نظر")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ثبت")
     is_verified_purchase = models.BooleanField(default=False, verbose_name="خرید تأیید شده")
 

@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CreditCard, Truck, Check, MapPin, Package, ShoppingBag,
   ArrowLeft, ArrowRight, ShieldCheck, Sparkles, Wallet,
-  Phone, Home, Plus, Loader2, Percent, X, CheckCircle2, Mail
+  Phone, Home, Plus, Loader2, Percent, X, CheckCircle2, Mail, AlertCircle
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
@@ -11,6 +11,8 @@ import { Input } from '../components/ui/Input';
 import Skeleton from '../components/ui/Skeleton';
 import { Badge } from '../components/ui/Badge';
 import EmptyState from '../components/ui/EmptyState';
+import PaymentLoadingOverlay from '../components/ui/PaymentLoadingOverlay';
+import { useToast } from '../components/ui/use-toast';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { ordersAPI, paymentsAPI, cartAPI } from '../services/api';
@@ -322,8 +324,10 @@ const CheckoutPage = () => {
   const [paymentMethod, setPaymentMethod] = useState('online');
   const [orderNotes, setOrderNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [addrLoading, setAddrLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -408,6 +412,7 @@ const CheckoutPage = () => {
   };
 
   const handlePlaceOrder = async () => {
+    if (isSubmitting) return;
     if (isAuthenticated) {
       if (!selectedAddress) {
         setError('لطفاً آدرس ارسال را انتخاب کنید');
@@ -440,6 +445,7 @@ const CheckoutPage = () => {
     }
 
     setLoading(true);
+    setIsSubmitting(true);
     setError('');
     try {
       const payload = {
@@ -475,6 +481,7 @@ const CheckoutPage = () => {
       try {
         const payRes = await paymentsAPI.initiate({ order_id: orderId });
         if (payRes.data.gateway_url) {
+          // Keep the overlay visible while the browser redirects to the gateway.
           window.location.href = payRes.data.gateway_url;
           return;
         }
@@ -516,8 +523,14 @@ const CheckoutPage = () => {
         }
       }
       setError(msg);
+      toast({
+        title: 'خطا در ثبت سفارش',
+        description: msg,
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -667,112 +680,181 @@ const CheckoutPage = () => {
                     <>
                       {!isAuthenticated && (
                         <>
-                          <div className="rounded-2xl border bg-muted/20 p-4 sm:p-5 mb-5">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Mail className="h-4 w-4 text-primary" />
-                              <h3 className="font-semibold text-sm">اطلاعات تماس</h3>
-                            </div>
-                            <p className="text-xs text-muted-foreground mb-3">
-                              ایمیل، تنها راه ارتباطی ما با شماست؛ آن را کاملاً دقیق و درست وارد کنید.
-                            </p>
-                            <p className="text-xs font-medium text-amber-600 dark:text-amber-400 mb-4 flex items-start gap-1.5">
-                              <span className="mt-0.5 shrink-0">⚠</span>
-                              لطفاً ایمیل را با دقت وارد کنید — پیگیری سفارش و فاکتور به همین ایمیل ارسال می‌شود.
-                            </p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              <div className="md:col-span-2">
-                                <Input
-                                  name="email"
-                                  type="email"
-                                  dir="ltr"
-                                  placeholder="ایمیل *"
-                                  value={guestInfo.email}
-                                  onChange={handleGuestInfoChange}
-                                  aria-invalid={!!guestEmailError}
-                                  className={`rounded-xl text-left ${guestEmailError ? 'border-destructive focus-visible:ring-destructive/50' : ''}`}
-                                />
-                                {guestEmailError && (
-                                  <p className="mt-1.5 text-xs text-destructive flex items-start gap-1">
-                                    <span className="mt-0.5 shrink-0">⚠</span>
-                                    {guestEmailError}
-                                  </p>
-                                )}
+                          {/* ── اطلاعات تماس ── */}
+                          <div className="mb-5 overflow-hidden rounded-2xl border bg-muted/20">
+                            <div className="flex items-center gap-2.5 border-b bg-gradient-to-l from-primary/[0.05] to-transparent px-4 py-3.5 sm:px-5">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 ring-1 ring-primary/10">
+                                <Mail className="h-4 w-4 text-primary" />
                               </div>
-                              <Input
-                                name="phone"
-                                dir="ltr"
-                                placeholder="شماره تماس (اختیاری)"
-                                value={guestInfo.phone}
-                                onChange={handleGuestInfoChange}
-                                className="rounded-xl text-left"
-                              />
+                              <div className="min-w-0">
+                                <h3 className="text-sm font-bold">اطلاعات تماس</h3>
+                                <p className="truncate text-[11px] text-muted-foreground">
+                                  ایمیل، تنها راه ارتباطی ما با شماست؛ آن را کاملاً دقیق وارد کنید.
+                                </p>
+                              </div>
+                            </div>
+                            <div className="space-y-3.5 p-4 sm:p-5">
+                              {guestEmailError && (
+                                <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3.5 py-2.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                                  <span className="mt-0.5 shrink-0">⚠</span>
+                                  لطفاً ایمیل را با دقت وارد کنید — پیگیری سفارش و فاکتور به همین ایمیل ارسال می‌شود.
+                                </div>
+                              )}
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div>
+                                  <label htmlFor="guest-email" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                    ایمیل <span className="text-destructive">*</span>
+                                  </label>
+                                  <Input
+                                    id="guest-email"
+                                    name="email"
+                                    type="email"
+                                    dir="ltr"
+                                    placeholder="example@mail.com"
+                                    value={guestInfo.email}
+                                    onChange={handleGuestInfoChange}
+                                    aria-invalid={!!guestEmailError}
+                                    className={`rounded-xl text-left ${guestEmailError ? 'border-destructive focus-visible:ring-destructive/50' : ''}`}
+                                  />
+                                  {guestEmailError && (
+                                    <p className="mt-1.5 flex items-start gap-1 text-xs text-destructive">
+                                      <span className="mt-0.5 shrink-0">⚠</span>
+                                      {guestEmailError}
+                                    </p>
+                                  )}
+                                </div>
+                                <div>
+                                  <label htmlFor="guest-phone" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                    شماره تماس <span className="text-muted-foreground/60">(اختیاری)</span>
+                                  </label>
+                                  <Input
+                                    id="guest-phone"
+                                    name="phone"
+                                    dir="ltr"
+                                    placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+                                    value={guestInfo.phone}
+                                    onChange={handleGuestInfoChange}
+                                    className="rounded-xl text-left"
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </div>
 
-                          <div className="rounded-2xl border bg-muted/20 p-4 sm:p-5 mb-5">
-                            <div className="flex items-center gap-2 mb-1">
-                              <MapPin className="h-4 w-4 text-primary" />
-                              <h3 className="font-semibold text-sm">آدرس ارسال</h3>
+                          {/* ── آدرس ارسال ── */}
+                          <div className="mb-5 overflow-hidden rounded-2xl border bg-muted/20">
+                            <div className="flex items-center gap-2.5 border-b bg-gradient-to-l from-blue-500/[0.05] to-transparent px-4 py-3.5 sm:px-5">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 ring-1 ring-blue-500/10">
+                                <MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                              </div>
+                              <div className="min-w-0">
+                                <h3 className="text-sm font-bold">آدرس ارسال</h3>
+                                <p className="truncate text-[11px] text-muted-foreground">
+                                  محل تحویل سفارش را وارد کنید.
+                                </p>
+                              </div>
                             </div>
-                            <p className="text-xs text-muted-foreground mb-4">
-                              محل تحویل سفارش را وارد کنید.
-                            </p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              <Input
-                                name="full_name"
-                                placeholder="نام و نام خانوادگی *"
-                                value={newAddress.full_name}
-                                onChange={handleAddressChange}
-                                className="md:col-span-2 rounded-xl"
-                              />
-                              <Input
-                                name="phone"
-                                placeholder="شماره تماس گیرنده"
-                                value={newAddress.phone}
-                                onChange={handleAddressChange}
-                                className="rounded-xl"
-                              />
-                              <Input
-                                name="city"
-                                placeholder="شهر *"
-                                value={newAddress.city}
-                                onChange={handleAddressChange}
-                                className="rounded-xl"
-                              />
-                              <Input
-                                name="address_line1"
-                                placeholder="آدرس اصلی (خیابان، کوچه، پلاک) *"
-                                value={newAddress.address_line1}
-                                onChange={handleAddressChange}
-                                className="md:col-span-2 rounded-xl"
-                              />
-                              <Input
-                                name="address_line2"
-                                placeholder="آدرس تکمیلی (واحد، طبقه) — اختیاری"
-                                value={newAddress.address_line2}
-                                onChange={handleAddressChange}
-                                className="md:col-span-2 rounded-xl"
-                              />
-                              <Input
-                                name="state"
-                                placeholder="استان"
-                                value={newAddress.state}
-                                onChange={handleAddressChange}
-                                className="rounded-xl"
-                              />
-                              <Input
-                                name="postal_code"
-                                placeholder="کد پستی (۱۰ رقم) *"
-                                inputMode="numeric"
-                                maxLength={10}
-                                value={newAddress.postal_code}
-                                onChange={handleAddressChange}
-                                dir="ltr"
-                                className="rounded-xl text-left"
-                              />
-                              <p className="text-[11px] text-muted-foreground -mt-1 md:col-span-2">
-                                کد پستی ۱۰ رقمی اجباری است.
-                              </p>
+                            <div className="p-4 sm:p-5">
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div className="sm:col-span-2">
+                                  <label htmlFor="addr-fullname" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                    نام و نام خانوادگی <span className="text-destructive">*</span>
+                                  </label>
+                                  <Input
+                                    id="addr-fullname"
+                                    name="full_name"
+                                    placeholder="مثلاً علی محمدی"
+                                    value={newAddress.full_name}
+                                    onChange={handleAddressChange}
+                                    className="rounded-xl"
+                                  />
+                                </div>
+                                <div>
+                                  <label htmlFor="addr-phone" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                    شماره تماس گیرنده
+                                  </label>
+                                  <Input
+                                    id="addr-phone"
+                                    name="phone"
+                                    placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+                                    value={newAddress.phone}
+                                    onChange={handleAddressChange}
+                                    dir="ltr"
+                                    className="rounded-xl text-left"
+                                  />
+                                </div>
+                                <div>
+                                  <label htmlFor="addr-postal" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                    کد پستی <span className="text-destructive">*</span>
+                                  </label>
+                                  <Input
+                                    id="addr-postal"
+                                    name="postal_code"
+                                    placeholder="۱۰ رقم"
+                                    inputMode="numeric"
+                                    maxLength={10}
+                                    value={newAddress.postal_code}
+                                    onChange={handleAddressChange}
+                                    dir="ltr"
+                                    className="rounded-xl text-left"
+                                  />
+                                </div>
+                                <div>
+                                  <label htmlFor="addr-state" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                    استان
+                                  </label>
+                                  <Input
+                                    id="addr-state"
+                                    name="state"
+                                    placeholder="مثلاً تهران"
+                                    value={newAddress.state}
+                                    onChange={handleAddressChange}
+                                    className="rounded-xl"
+                                  />
+                                </div>
+                                <div>
+                                  <label htmlFor="addr-city" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                    شهر <span className="text-destructive">*</span>
+                                  </label>
+                                  <Input
+                                    id="addr-city"
+                                    name="city"
+                                    placeholder="مثلاً تهران"
+                                    value={newAddress.city}
+                                    onChange={handleAddressChange}
+                                    className="rounded-xl"
+                                  />
+                                </div>
+                                <div className="sm:col-span-2">
+                                  <label htmlFor="addr-line1" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                    آدرس اصلی <span className="text-destructive">*</span>
+                                  </label>
+                                  <Input
+                                    id="addr-line1"
+                                    name="address_line1"
+                                    placeholder="خیابان، کوچه، پلاک"
+                                    value={newAddress.address_line1}
+                                    onChange={handleAddressChange}
+                                    className="rounded-xl"
+                                  />
+                                </div>
+                                <div className="sm:col-span-2">
+                                  <label htmlFor="addr-line2" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                    آدرس تکمیلی <span className="text-muted-foreground/60">(اختیاری)</span>
+                                  </label>
+                                  <Input
+                                    id="addr-line2"
+                                    name="address_line2"
+                                    placeholder="واحد، طبقه"
+                                    value={newAddress.address_line2}
+                                    onChange={handleAddressChange}
+                                    className="rounded-xl"
+                                  />
+                                </div>
+                                <p className="-mt-0.5 text-[11px] text-muted-foreground sm:col-span-2">
+                                  کد پستی ۱۰ رقمی اجباری است.
+                                </p>
+                              </div>
                             </div>
                           </div>
                         </>
@@ -859,9 +941,9 @@ const CheckoutPage = () => {
                           افزودن آدرس جدید
                         </Button>
                       ) : isAuthenticated ? (
-                        <div className="rounded-2xl border bg-muted/20 p-4 sm:p-5 mb-5">
-                          <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-semibold text-sm flex items-center gap-2">
+                        <div className="overflow-hidden rounded-2xl border bg-muted/20 mb-5">
+                          <div className="flex items-center justify-between border-b px-4 py-3.5 sm:px-5">
+                            <h3 className="text-sm font-bold flex items-center gap-2">
                               <Plus className="h-4 w-4" />
                               آدرس جدید
                             </h3>
@@ -878,57 +960,103 @@ const CheckoutPage = () => {
                               </button>
                             )}
                           </div>
-                          <form onSubmit={handleAddAddress} className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <Input
-                              name="full_name"
-                              placeholder="نام و نام خانوادگی *"
-                              value={newAddress.full_name}
-                              onChange={handleAddressChange}
-                              className="md:col-span-2 rounded-xl"
-                            />
-                            <Input
-                              name="phone"
-                              placeholder="شماره تماس *"
-                              value={newAddress.phone}
-                              onChange={handleAddressChange}
-                              className="rounded-xl"
-                            />
-                            <Input
-                              name="city"
-                              placeholder="شهر *"
-                              value={newAddress.city}
-                              onChange={handleAddressChange}
-                              className="rounded-xl"
-                            />
-                            <Input
-                              name="address_line1"
-                              placeholder="آدرس اصلی (خیابان، کوچه، پلاک) *"
-                              value={newAddress.address_line1}
-                              onChange={handleAddressChange}
-                              className="md:col-span-2 rounded-xl"
-                            />
-                            <Input
-                              name="address_line2"
-                              placeholder="آدرس تکمیلی (واحد، طبقه) — اختیاری"
-                              value={newAddress.address_line2}
-                              onChange={handleAddressChange}
-                              className="md:col-span-2 rounded-xl"
-                            />
-                            <Input
-                              name="state"
-                              placeholder="استان"
-                              value={newAddress.state}
-                              onChange={handleAddressChange}
-                              className="rounded-xl"
-                            />
-                            <Input
-                              name="postal_code"
-                              placeholder="کد پستی"
-                              value={newAddress.postal_code}
-                              onChange={handleAddressChange}
-                              className="rounded-xl"
-                            />
-                            <Button type="submit" className="md:col-span-2 rounded-xl mt-1">
+                          <form onSubmit={handleAddAddress} className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 sm:p-5">
+                            <div className="sm:col-span-2">
+                              <label htmlFor="addr-new-fullname" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                نام و نام خانوادگی <span className="text-destructive">*</span>
+                              </label>
+                              <Input
+                                id="addr-new-fullname"
+                                name="full_name"
+                                placeholder="مثلاً علی محمدی"
+                                value={newAddress.full_name}
+                                onChange={handleAddressChange}
+                                className="rounded-xl"
+                              />
+                            </div>
+                            <div>
+                              <label htmlFor="addr-new-phone" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                شماره تماس <span className="text-destructive">*</span>
+                              </label>
+                              <Input
+                                id="addr-new-phone"
+                                name="phone"
+                                placeholder="۰۹۱۲۳۴۵۶۷۸۹"
+                                value={newAddress.phone}
+                                onChange={handleAddressChange}
+                                dir="ltr"
+                                className="rounded-xl text-left"
+                              />
+                            </div>
+                            <div>
+                              <label htmlFor="addr-new-postal" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                کد پستی
+                              </label>
+                              <Input
+                                id="addr-new-postal"
+                                name="postal_code"
+                                placeholder="۱۰ رقم"
+                                inputMode="numeric"
+                                maxLength={10}
+                                value={newAddress.postal_code}
+                                onChange={handleAddressChange}
+                                dir="ltr"
+                                className="rounded-xl text-left"
+                              />
+                            </div>
+                            <div>
+                              <label htmlFor="addr-new-state" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                استان
+                              </label>
+                              <Input
+                                id="addr-new-state"
+                                name="state"
+                                placeholder="مثلاً تهران"
+                                value={newAddress.state}
+                                onChange={handleAddressChange}
+                                className="rounded-xl"
+                              />
+                            </div>
+                            <div>
+                              <label htmlFor="addr-new-city" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                شهر <span className="text-destructive">*</span>
+                              </label>
+                              <Input
+                                id="addr-new-city"
+                                name="city"
+                                placeholder="مثلاً تهران"
+                                value={newAddress.city}
+                                onChange={handleAddressChange}
+                                className="rounded-xl"
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label htmlFor="addr-new-line1" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                آدرس اصلی <span className="text-destructive">*</span>
+                              </label>
+                              <Input
+                                id="addr-new-line1"
+                                name="address_line1"
+                                placeholder="خیابان، کوچه، پلاک"
+                                value={newAddress.address_line1}
+                                onChange={handleAddressChange}
+                                className="rounded-xl"
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label htmlFor="addr-new-line2" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                                آدرس تکمیلی <span className="text-muted-foreground/60">(اختیاری)</span>
+                              </label>
+                              <Input
+                                id="addr-new-line2"
+                                name="address_line2"
+                                placeholder="واحد، طبقه"
+                                value={newAddress.address_line2}
+                                onChange={handleAddressChange}
+                                className="rounded-xl"
+                              />
+                            </div>
+                            <Button type="submit" className="sm:col-span-2 rounded-xl mt-1">
                               ذخیره آدرس
                             </Button>
                           </form>
@@ -978,6 +1106,12 @@ const CheckoutPage = () => {
                           <ArrowLeft className="mr-2 h-5 w-5" />
                         </Button>
                       </div>
+                      {error && step === 2 && (
+                        <p className="mt-3 flex items-start gap-2 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive" role="alert">
+                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                          {error}
+                        </p>
+                      )}
                     </>
                   )}
                 </CardContent>
@@ -1087,7 +1221,7 @@ const CheckoutPage = () => {
                       variant="outline"
                       className="rounded-xl sm:w-auto"
                       onClick={() => setStep(2)}
-                      disabled={loading}
+                      disabled={isSubmitting}
                     >
                       <ArrowRight className="ml-2 h-4 w-4" />
                       بازگشت
@@ -1097,11 +1231,12 @@ const CheckoutPage = () => {
                       className="flex-1 rounded-xl h-12 font-bold shadow-md hover:shadow-lg transition-all"
                       onClick={handlePlaceOrder}
                       disabled={loading}
+                      aria-busy={isSubmitting}
                     >
-                      {loading ? (
+                      {isSubmitting ? (
                         <>
                           <Loader2 className="ml-2 h-5 w-5 animate-spin" />
-                          در حال ثبت سفارش...
+                          در حال انتقال...
                         </>
                       ) : (
                         <>
@@ -1111,6 +1246,12 @@ const CheckoutPage = () => {
                       )}
                     </Button>
                   </div>
+                  {error && step === 3 && (
+                    <p className="mt-3 flex items-start gap-2 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive" role="alert">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                      {error}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -1127,6 +1268,8 @@ const CheckoutPage = () => {
           />
         </div>
       </div>
+
+      {isSubmitting && <PaymentLoadingOverlay />}
     </div>
   );
 };
