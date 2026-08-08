@@ -41,12 +41,13 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    if (error.response?.status === 401) {
-      const url = error.config?.url || '';
-      const isAuthRequest = url.includes('/auth/');
-      const pathname = window.location.pathname;
-      const isAuthPage = pathname.includes('/login') || pathname.includes('/register') || pathname.includes('/forgot-password') || pathname.includes('/reset-password');
+    const status = error.response?.status;
+    const url = error.config?.url || '';
+    const pathname = window.location.pathname;
+    const isAuthPage = pathname.includes('/login') || pathname.includes('/register') || pathname.includes('/forgot-password') || pathname.includes('/reset-password');
 
+    if (status === 401) {
+      const isAuthRequest = url.includes('/auth/');
       if (!isAuthPage) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -54,6 +55,14 @@ api.interceptors.response.use(
           window.dispatchEvent(new CustomEvent('auth:unauthorized'));
         }
       }
+    } else if (status === 429) {
+      // A 429 is a throttle, not an auth failure — never wipe the session.
+      // Surface a global event so the app can show a friendly message
+      // instead of silently breaking polling.
+      const retryAfter = error.response?.headers?.['retry-after'];
+      window.dispatchEvent(new CustomEvent('api:throttled', {
+        detail: { url, retryAfter: retryAfter ? Number(retryAfter) : null },
+      }));
     }
     return Promise.reject(error);
   }
@@ -149,7 +158,13 @@ export const authAPI = {
   register: (data) => api.post('/auth/register/', data),
   guestRegister: (data) => api.post('/auth/guest-register/', data),
   getUser: () => api.get('/auth/user/'),
-  updateUser: (data) => api.put('/auth/user/', data),
+  updateUser: (data) => {
+    // File uploads (avatar) must be sent as multipart/form-data.
+    if (data instanceof FormData) {
+      return api.put('/auth/user/', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+    }
+    return api.put('/auth/user/', data);
+  },
   changePassword: (data) => api.post('/auth/change-password/', data),
   logout: () => api.post('/auth/logout/'),
   passwordReset: (data) => api.post('/auth/password-reset/', data),
@@ -171,6 +186,10 @@ export const chatAPI = {
   createConversation: (data) => api.post('/chat/conversations/', data),
   acceptConversation: (id) => api.post(`/chat/conversations/${id}/accept/`, {}),
   declineConversation: (id) => api.post(`/chat/conversations/${id}/decline/`, {}),
+  cancelConversation: (id) => api.post(`/chat/conversations/${id}/cancel/`, {}),
+  clearConversation: (id) => api.post(`/chat/conversations/${id}/clear/`, {}),
+  blockConversation: (id) => api.post(`/chat/conversations/${id}/block/`, {}),
+  unblockConversation: (id) => api.post(`/chat/conversations/${id}/unblock/`, {}),
   getMessages: (conversationId) => api.get(`/chat/conversations/${conversationId}/messages/`),
   sendMessage: (conversationId, data) => api.post(`/chat/conversations/${conversationId}/send_message/`, data),
   sendProduct: (conversationId, data) => api.post(`/chat/conversations/${conversationId}/send_product/`, data),

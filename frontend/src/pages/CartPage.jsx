@@ -70,7 +70,7 @@ const CartPage = () => {
   const itemCount = cart.total_items || cart.items.length;
 
   return (
-    <div className="relative min-h-[70vh] pb-28 lg:pb-12">
+    <div className="relative min-h-[70vh] pb-44 lg:pb-12">
       <SEO title="سبد خرید" noIndex />
       <AmbientBg />
 

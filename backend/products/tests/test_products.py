@@ -4,7 +4,7 @@ from rest_framework import status
 from decimal import Decimal
 
 from shop.tests import (
-    UserFactory, CategoryFactory, BrandFactory, ProductFactory,
+    UserFactory, UserProfileFactory, CategoryFactory, BrandFactory, ProductFactory,
     ProductVariantFactory, SizeFactory, ColorFactory, FabricFactory,
     ReviewFactory, WishlistFactory, create_user_with_token, create_product_with_variant,
 )
@@ -851,6 +851,9 @@ class CategoriesByRootTest(APITestCase):
 class AdminProductSearchTest(APITestCase):
     def setUp(self):
         self.url = '/api/products/admin-search/'
+        self.admin, self.token = create_user_with_token(username='adminsearch')
+        UserProfileFactory(user=self.admin, role='admin')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
 
     def test_short_query_returns_empty(self):
         response = self.client.get(self.url, {'q': 'a'})

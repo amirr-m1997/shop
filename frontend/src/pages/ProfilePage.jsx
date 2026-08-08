@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   User, Mail, Lock, Save, Plus, Trash2, MapPin, Phone,
@@ -144,6 +144,8 @@ const getGreeting = () => {
   return 'شب بخیر';
 };
 
+const STYLE_PREFERENCE_OPTIONS = ['مینیمال', 'لوکس', 'مونوکروم', 'استریت', 'کلاسیک', 'مدرن', 'اسپرت', 'رمانتیک'];
+
 /* ─── Main ─── */
 const ProfilePage = () => {
   const { user, isAuthenticated, updateProfile, changePassword, logout } = useAuth();
@@ -153,7 +155,7 @@ const ProfilePage = () => {
 
   /* ── Profile ── */
   const [profileForm, setProfileForm] = useState({
-    first_name: '', last_name: '', email: '', phone: '', date_of_birth: '',
+    first_name: '', last_name: '', email: '', phone: '', date_of_birth: '', style_preferences: [],
   });
   const [profileMsg, setProfileMsg] = useState('');
   const [profileErr, setProfileErr] = useState('');
@@ -226,6 +228,48 @@ const ProfilePage = () => {
 
   const greeting = useMemo(() => getGreeting(), []);
 
+  /* ── Avatar upload ── */
+  const fileInputRef = useRef(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setProfileErr('فقط فایل تصویری مجاز است.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setProfileErr('حجم تصویر نباید بیشتر از ۲ مگابایت باشد.');
+      return;
+    }
+    setAvatarUploading(true);
+    setProfileErr('');
+    setProfileMsg('');
+    try {
+      const form = new FormData();
+      form.append('avatar', file);
+      await updateProfile(form);
+      setProfileMsg('تصویر پروفایل به‌روزرسانی شد');
+      setTimeout(() => setProfileMsg(''), 3000);
+    } catch (err) {
+      setProfileErr(err.message);
+    } finally {
+      setAvatarUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    try {
+      const form = new FormData();
+      form.append('avatar', '');
+      await updateProfile(form);
+    } catch (err) {
+      setProfileErr(err.message);
+    }
+  };
+
   /* ── Load data ── */
   useEffect(() => {
     if (!isAuthenticated) { navigate('/login'); return; }
@@ -236,6 +280,7 @@ const ProfilePage = () => {
         email: user.email || '',
         phone: user.phone || '',
         date_of_birth: user.date_of_birth || '',
+        style_preferences: Array.isArray(user.style_preferences) ? [...user.style_preferences] : [],
       });
     }
   }, [user, isAuthenticated, navigate]);
@@ -365,14 +410,56 @@ const ProfilePage = () => {
             {/* Avatar */}
             <div className="relative group">
               <div className="absolute -inset-1 rounded-3xl bg-gradient-to-br from-primary via-violet-500 to-blue-500 opacity-70 blur-[2px] transition-opacity duration-500 group-hover:opacity-100" />
-              <div className="relative flex h-24 w-24 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-primary to-primary/85 text-3xl font-black text-primary-foreground shadow-2xl shadow-primary/30 ring-4 ring-background sm:h-28 sm:w-28 sm:text-4xl transition-transform duration-500 group-hover:scale-[1.02]">
-                {initials}
-              </div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary to-primary/85 text-3xl font-black text-primary-foreground shadow-2xl shadow-primary/30 ring-4 ring-background transition-transform duration-500 hover:scale-[1.02] focus:outline-none focus:ring-offset-2 sm:h-28 sm:w-28 sm:text-4xl"
+                title="تغییر تصویر پروفایل"
+              >
+                {user?.avatar ? (
+                  <img src={user.avatar} alt={displayName} className="h-full w-full object-cover" />
+                ) : (
+                  initials
+                )}
+                {avatarUploading && (
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-xs font-bold text-white">
+                    در حال بارگذاری…
+                  </span>
+                )}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
               {(user?.phone_verified || user?.email_verified) && (
                 <div className="absolute -bottom-1 -left-1 flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-white shadow-lg ring-4 ring-background">
                   <BadgeCheck className="h-4 w-4" />
                 </div>
               )}
+              <div className="pointer-events-none absolute -bottom-2 left-1/2 flex -translate-x-1/2 gap-1 rounded-full border border-border/60 bg-background/95 px-2 py-1 text-[10px] font-bold opacity-0 shadow-md backdrop-blur transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                  className="hover:text-primary"
+                >
+                  تغییر
+                </button>
+                {user?.avatar && (
+                  <>
+                    <span className="text-muted-foreground">•</span>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleRemoveAvatar(); }}
+                      className="hover:text-destructive"
+                    >
+                      حذف
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Info */}
@@ -653,6 +740,35 @@ const ProfilePage = () => {
                       )}
                     </Field>
                   </div>
+
+                  <Field label="سبک‌های پوشش مورد علاقه" hint="چند مورد را انتخاب کنید؛ در گفتگو به دیگران نمایش داده می‌شود">
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {STYLE_PREFERENCE_OPTIONS.map((tag) => {
+                        const active = profileForm.style_preferences.includes(tag);
+                        return (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() =>
+                              setProfileForm({
+                                ...profileForm,
+                                style_preferences: active
+                                  ? profileForm.style_preferences.filter((t) => t !== tag)
+                                  : [...profileForm.style_preferences, tag],
+                              })
+                            }
+                            className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                              active
+                                ? 'border-amber-500/50 bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                                : 'border-border/60 bg-muted/40 text-muted-foreground hover:border-amber-500/30 hover:text-foreground'
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </Field>
 
                   <Button
                     type="submit"

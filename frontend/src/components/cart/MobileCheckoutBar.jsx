@@ -4,7 +4,7 @@ import { Button } from '../ui/Button';
 import { formatPrice } from '../../lib/formatPrice';
 
 const MobileCheckoutBar = ({ total, itemCount, discount, coupon }) => (
-  <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/85 p-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_40px_-12px_rgba(0,0,0,0.15)] backdrop-blur-xl lg:hidden">
+  <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-40 border-t border-border/60 bg-background/85 p-4 shadow-[0_-8px_40px_-12px_rgba(0,0,0,0.15)] backdrop-blur-xl lg:hidden">
     <div className="mx-auto flex max-w-lg items-center gap-4">
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium text-muted-foreground">

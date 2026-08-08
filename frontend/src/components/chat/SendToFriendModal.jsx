@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Send, Search, Loader2, CheckCircle, MessageCircle, Users, MessagesSquare } from 'lucide-react';
+import { Send, Search, Loader2, CheckCircle, MessageCircle, Users } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from '../ui/Dialog';
@@ -29,7 +29,7 @@ const Avatar = ({ user, size = 40 }) => (
  * ارسال محصول به دوست از طریق استایل چت.
  */
 const SendToFriendModal = ({ product, open, onOpenChange }) => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -82,7 +82,7 @@ const SendToFriendModal = ({ product, open, onOpenChange }) => {
       try {
         const res = await chatAPI.searchUsers(query);
         setResults(res.data.results);
-      } catch (e) { /* silent */ }
+      } catch { /* silent */ }
       finally { setSearching(false); }
     }, 400);
     return () => clearTimeout(t);
@@ -93,15 +93,40 @@ const SendToFriendModal = ({ product, open, onOpenChange }) => {
     setSending(true);
     try {
       let targetConvId = selected.conversation_id;
+      let convStatus = selected.conversation_status || null;
       if (!targetConvId) {
         const createRes = await chatAPI.createConversation({ user_id: selected.id });
         targetConvId = createRes.data?.id;
+        convStatus = createRes.data?.status;
       }
+
+      // If the conversation is still pending, the product can't be delivered
+      // until the other side accepts. We send the request and explain instead
+      // of surfacing a confusing 403.
+      if (convStatus === 'pending') {
+        setSelected((prev) => prev ? { ...prev, conversation_id: targetConvId, conversation_status: 'pending' } : prev);
+        toast({
+          title: 'درخواست گفتگو ارسال شد',
+          description: 'به محض پذیرش درخواست توسط دوستتان، می‌توانید محصول را برای او بفرستید.',
+        });
+        onOpenChange(false);
+        navigate(`/chat/${targetConvId}`);
+        return;
+      }
+      if (convStatus === 'declined') {
+        toast({
+          title: 'امکان ارسال نیست',
+          description: 'این درخواست گفتگو رد شده است.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       await chatAPI.sendProduct(targetConvId, {
         product_id: product.id,
         text: message.trim(),
       });
-      setSelected((prev) => prev ? { ...prev, conversation_id: targetConvId } : prev);
+      setSelected((prev) => prev ? { ...prev, conversation_id: targetConvId, conversation_status: 'accepted' } : prev);
       setSent(true);
     } catch (e) {
       const errMsg = e.response?.data?.error || 'ارسال محصول ممکن نشد. دوباره تلاش کنید.';

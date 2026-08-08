@@ -130,9 +130,15 @@ function AppShell() {
   const isChat = location.pathname.startsWith('/chat');
 
   return (
-    <div className={`min-h-screen flex flex-col ${isChat ? 'bg-[#0a0a0c]' : ''}`}>
+    <div
+      className={`flex flex-col ${
+        isChat
+          ? 'h-screen overflow-hidden'
+          : 'min-h-screen pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-0'
+      }`}
+    >
       <Header />
-      <main className={`flex-1 ${isChat ? 'overflow-hidden' : ''}`}>
+      <main className={`flex-1 ${isChat ? 'min-h-0 overflow-hidden' : ''}`}>
         <Routes>
           <Route path="/" element={<LazyPageLoader Component={HomePage} />} />
           <Route path="/category/:category" element={<LazyPageLoader Component={ProductListingPage} />} />

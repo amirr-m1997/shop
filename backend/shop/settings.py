@@ -166,6 +166,10 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Maximum avatar upload size (bytes).
+MAX_AVATAR_SIZE = int(os.getenv('MAX_AVATAR_SIZE', str(2 * 1024 * 1024)))
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('DATA_UPLOAD_MAX_MEMORY_SIZE', str(5 * 1024 * 1024)))
+
 # ─── Django REST Framework ─────────────────────────────────
 
 REST_FRAMEWORK = {
@@ -199,6 +203,8 @@ REST_FRAMEWORK = {
         'payment_verify': '5/min',
         'payment_webhook': '60/min',
         'coupon_apply': '20/min',
+        # Chat write endpoints (send message/product, create conversation, etc.)
+        'chat_send': '30/min',
     },
 
     # ── Exception handler for consistent throttle/lockout responses ──
@@ -260,6 +266,13 @@ if REDIS_URL:
 else:
     # ORM broker uses Django's database (default)
     Q_CLUSTER['orm'] = 'default'
+
+# ─── Chat / Notifications retention ─────────────────────────
+# Read notifications are pruned after this many days; all notifications
+# (read or unread) are pruned after NOTIFICATION_MAX_RETENTION_DAYS.
+# The `clear_old_notifications` management command enforces these limits.
+NOTIFICATION_READ_RETENTION_DAYS = int(os.getenv('NOTIFICATION_READ_RETENTION_DAYS', '14'))
+NOTIFICATION_MAX_RETENTION_DAYS = int(os.getenv('NOTIFICATION_MAX_RETENTION_DAYS', '90'))
 
 # ─── Security Settings ─────────────────────────────────────
 

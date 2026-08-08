@@ -30,6 +30,7 @@ class UserProfile(models.Model):
         verbose_name="نوع تأیید"
     )
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True, verbose_name="تصویر پروفایل")
+    style_preferences = models.JSONField(default=list, blank=True, verbose_name="ترجیحات سبک پوشاک")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
