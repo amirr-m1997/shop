@@ -170,9 +170,19 @@ const ProductDetailPage = () => {
   const closeSuccessModal = () => setAddedToCart(false);
   const closeErrorModal = () => setCartError('');
 
-  const images = product?.images?.length
+  const productImages = product?.images?.length
     ? product.images
-    : [{ id: 0, image: PLACEHOLDER_IMG }];
+    : [{ id: 0, image: PLACEHOLDER_IMG, color: null }];
+
+  const colorImages = productImages.filter((image) => String(image.color) === String(selectedColor));
+  const uncategorizedImages = productImages.filter((image) => image.color == null);
+  const images = (selectedColor && colorImages.length > 0 ? colorImages : uncategorizedImages.length > 0 ? uncategorizedImages : productImages)
+    .slice()
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  useEffect(() => {
+    setSelectedImage(0);
+  }, [selectedColor, product?.id]);
 
   const goImage = (dir) => {
     setSelectedImage((prev) => {

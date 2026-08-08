@@ -1,5 +1,5 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -10,7 +10,7 @@ from django.http import HttpResponse
 from datetime import timedelta, datetime
 import csv
 
-from products.models import Product, ProductImage, ProductVariant, Category, Brand
+from products.models import Product, ProductImage, ProductVariant, Category, Brand, Color
 from orders.models import Order, OrderItem
 from django.contrib.auth.models import User
 from accounts.models import UserProfile
@@ -37,7 +37,9 @@ class AdminProductViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        qs = Product.objects.select_related('category', 'brand', 'fabric').prefetch_related('images', 'variants')
+        qs = Product.objects.select_related('category', 'brand', 'fabric').prefetch_related(
+            'images__color', 'variants__size', 'variants__color'
+        )
         return qs
 
     def get_serializer_class(self):
@@ -52,6 +54,27 @@ class AdminProductViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=['post'], url_path='images/(?P<image_id>[0-9]+)/color')
+    def set_image_color(self, request, pk=None, image_id=None):
+        product = self.get_object()
+        image = product.images.filter(id=image_id).first()
+        if not image:
+            return Response({'error': 'تصویر یافت نشد'}, status=status.HTTP_404_NOT_FOUND)
+
+        color_id = request.data.get('color')
+        if color_id in [None, '', 'null']:
+            image.color = None
+        else:
+            try:
+                color = Color.objects.get(id=color_id)
+            except (Color.DoesNotExist, ValueError):
+                return Response({'error': 'رنگ معتبر نیست'}, status=status.HTTP_400_BAD_REQUEST)
+            image.color = color
+        image.save(update_fields=['color'])
+
+        from .serializers import AdminProductImageSerializer
+        return Response(AdminProductImageSerializer(image).data)
 
 
 class AdminOrderViewSet(viewsets.ModelViewSet):

@@ -42,6 +42,7 @@ export const dashboardAPI = {
   getBrands: () => api.get('/dashboard/brands/'),
   toggleProductActive: (id) => api.post(`/dashboard/products/${id}/toggle-active/`),
   bulkAction: (data) => api.post('/dashboard/bulk-action/', data),
+  getColors: () => api.get('/products/colors/'),
 };
 
 // Products API

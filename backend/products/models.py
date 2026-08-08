@@ -232,6 +232,14 @@ class ProductImage(models.Model):
         related_name='images',
         verbose_name="محصول"
     )
+    color = models.ForeignKey(
+        Color,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='product_images',
+        verbose_name="رنگ مرتبط"
+    )
     image = models.ImageField(upload_to='products/', verbose_name="تصویر")
     alt_text = models.CharField(max_length=200, blank=True, verbose_name="متن جایگزین")
     order = models.IntegerField(default=0, verbose_name="ترتیب")

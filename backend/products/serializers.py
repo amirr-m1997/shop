@@ -56,9 +56,12 @@ class FabricSerializer(serializers.ModelSerializer):
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
+    color_name = serializers.CharField(source='color.name', read_only=True)
+    color_hex = serializers.CharField(source='color.hex_code', read_only=True)
+
     class Meta:
         model = ProductImage
-        fields = ['id', 'image', 'alt_text', 'order', 'is_primary']
+        fields = ['id', 'color', 'color_name', 'color_hex', 'image', 'alt_text', 'order', 'is_primary']
 
 
 class ProductVariantSerializer(serializers.ModelSerializer):

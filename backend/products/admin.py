@@ -27,6 +27,7 @@ class ProductImageInline(admin.TabularInline):
     extra = 1
     verbose_name = "تصویر محصول"
     verbose_name_plural = "تصاویر محصول"
+    fields = ['color', 'image', 'alt_text', 'order', 'is_primary']
 
 
 class ProductVariantForm(forms.ModelForm):

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { ArrowRight, Upload, X } from 'lucide-react';
-import { productsAPI, dashboardAPI } from '../services/api';
+import api, { productsAPI, dashboardAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
 export default function ProductFormPage() {
@@ -12,8 +12,11 @@ export default function ProductFormPage() {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
+  const [colors, setColors] = useState([]);
   const [images, setImages] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
+  const [pendingImageColors, setPendingImageColors] = useState({});
+  const [savingImageColorId, setSavingImageColorId] = useState(null);
 
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm();
 
@@ -24,12 +27,14 @@ export default function ProductFormPage() {
 
   const loadMeta = async () => {
     try {
-      const [catRes, brandRes] = await Promise.all([
+      const [catRes, brandRes, colorRes] = await Promise.all([
         dashboardAPI.getCategories(),
         dashboardAPI.getBrands(),
+        dashboardAPI.getColors(),
       ]);
       setCategories(catRes.data);
       setBrands(brandRes.data);
+      setColors(colorRes.data.results || colorRes.data || []);
     } catch {}
   };
 
@@ -54,9 +59,26 @@ export default function ProductFormPage() {
       setValue('is_new_arrival', p.is_new_arrival);
       setValue('is_trending', p.is_trending);
       if (p.images) setExistingImages(p.images);
+      setPendingImageColors({});
     } catch {
       toast.error('خطا در بارگذاری محصول');
       navigate('/products');
+    }
+  };
+
+  const handleSetExistingImageColor = async (imageId, colorId) => {
+    if (!isEdit) return;
+    setSavingImageColorId(imageId);
+    try {
+      const res = await api.post(`/dashboard/products/${id}/images/${imageId}/color/`, {
+        color: colorId || null,
+      });
+      setExistingImages((prev) => prev.map((img) => (img.id === imageId ? res.data : img)));
+      toast.success('رنگ تصویر ذخیره شد');
+    } catch {
+      toast.error('خطا در ذخیره رنگ تصویر');
+    } finally {
+      setSavingImageColorId(null);
     }
   };
 
@@ -74,8 +96,10 @@ export default function ProductFormPage() {
         }
       });
 
-      images.forEach((img) => {
+      images.forEach((img, index) => {
         formData.append('new_images', img);
+        const colorId = pendingImageColors[index] || '';
+        formData.append('new_image_colors', colorId);
       });
 
       if (isEdit) {
@@ -276,17 +300,36 @@ export default function ProductFormPage() {
 
         {/* Images */}
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100 mb-4">
-            تصاویر
-          </h2>
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+              تصاویر
+            </h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              برای تعویض عکس گالری با انتخاب رنگ، هر تصویر را به رنگ مرتبطش وصل کنید.
+            </p>
+          </div>
           {existingImages.length > 0 && (
-            <div className="flex gap-3 mb-4 flex-wrap">
+            <div className="grid gap-3 mb-5 sm:grid-cols-2 lg:grid-cols-3">
               {existingImages.map((img, i) => (
-                <div key={i} className="relative h-20 w-20 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600">
-                  <img src={img.image} alt="" className="h-full w-full object-cover" />
-                  {img.is_primary && (
-                    <span className="absolute top-1 right-1 text-[10px] bg-blue-500 text-white px-1 rounded">اصلی</span>
-                  )}
+                <div key={i} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                  <div className="relative h-36 w-full overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-700">
+                    <img src={img.image} alt="" className="h-full w-full object-cover" />
+                    {img.is_primary && (
+                      <span className="absolute top-1 right-1 text-[10px] bg-blue-500 text-white px-1.5 py-0.5 rounded">اصلی</span>
+                    )}
+                  </div>
+                  <label className="mt-3 block text-xs font-medium text-slate-600 dark:text-slate-300">رنگ تصویر</label>
+                  <select
+                    value={img.color || ''}
+                    disabled={savingImageColorId === img.id}
+                    onChange={(e) => handleSetExistingImageColor(img.id, e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 px-2 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">مشترک / بدون رنگ</option>
+                    {colors.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
                 </div>
               ))}
             </div>
@@ -298,24 +341,59 @@ export default function ProductFormPage() {
               type="file"
               multiple
               accept="image/*"
-              onChange={(e) => setImages([...images, ...Array.from(e.target.files)])}
+              onChange={(e) => {
+                const files = Array.from(e.target.files);
+                setImages([...images, ...files]);
+                setPendingImageColors((prev) => {
+                  const next = { ...prev };
+                  files.forEach((_, idx) => {
+                    next[images.length + idx] = '';
+                  });
+                  return next;
+                });
+              }}
               className="hidden"
             />
           </label>
           {images.length > 0 && (
-            <div className="mt-3 flex gap-2 flex-wrap">
-              {images.map((img, i) => (
-                <div key={i} className="relative h-16 w-16 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600">
-                  <img src={URL.createObjectURL(img)} alt="" className="h-full w-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => setImages(images.filter((_, idx) => idx !== i))}
-                    className="absolute top-0.5 left-0.5 bg-red-500 text-white rounded-full p-0.5"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {images.map((img, i) => {
+                const objectUrl = URL.createObjectURL(img);
+                return (
+                  <div key={`${img.name}-${img.lastModified}-${i}`} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+                    <div className="relative h-36 w-full overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-700">
+                      <img src={objectUrl} alt="" className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          URL.revokeObjectURL(objectUrl);
+                          setImages((prev) => prev.filter((_, idx) => idx !== i));
+                          setPendingImageColors((prev) => {
+                            const entries = Object.entries(prev)
+                              .filter(([idx]) => Number(idx) !== i)
+                              .map(([idx, value]) => [Number(idx) > i ? Number(idx) - 1 : Number(idx), value]);
+                            return Object.fromEntries(entries);
+                          });
+                        }}
+                        className="absolute top-1 left-1 bg-red-500 text-white rounded-full p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <label className="mt-3 block text-xs font-medium text-slate-600 dark:text-slate-300">رنگ تصویر</label>
+                    <select
+                      value={pendingImageColors[i] || ''}
+                      onChange={(e) => setPendingImageColors((prev) => ({ ...prev, [i]: e.target.value }))}
+                      className="mt-1 w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 px-2 py-2 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">مشترک / بدون رنگ</option>
+                      {colors.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

@@ -38,9 +38,12 @@ class BrandBriefSerializer(serializers.ModelSerializer):
 
 
 class AdminProductImageSerializer(serializers.ModelSerializer):
+    color_name = serializers.CharField(source='color.name', read_only=True)
+    color_hex = serializers.CharField(source='color.hex_code', read_only=True)
+
     class Meta:
         model = ProductImage
-        fields = ['id', 'image', 'alt_text', 'order', 'is_primary']
+        fields = ['id', 'color', 'color_name', 'color_hex', 'image', 'alt_text', 'order', 'is_primary']
 
 
 class AdminProductVariantSerializer(serializers.ModelSerializer):
@@ -102,6 +105,16 @@ class AdminProductDetailSerializer(serializers.ModelSerializer):
     brand_name = serializers.SerializerMethodField()
     fabric_name = serializers.SerializerMethodField()
     discount_percentage = serializers.ReadOnlyField()
+    new_images = serializers.ListField(
+        child=serializers.ImageField(allow_empty_file=False, use_url=False),
+        required=False,
+        write_only=True,
+    )
+    new_image_colors = serializers.ListField(
+        child=serializers.CharField(required=False, allow_blank=True, allow_null=True),
+        required=False,
+        write_only=True,
+    )
 
     class Meta:
         model = Product
@@ -112,6 +125,7 @@ class AdminProductDetailSerializer(serializers.ModelSerializer):
             'sku', 'stock', 'is_active', 'is_featured',
             'is_new_arrival', 'is_trending',
             'rating', 'review_count', 'images', 'variants',
+            'new_images', 'new_image_colors',
             'created_at', 'updated_at',
         ]
 
@@ -120,6 +134,49 @@ class AdminProductDetailSerializer(serializers.ModelSerializer):
 
     def get_fabric_name(self, obj):
         return obj.fabric.name if obj.fabric else None
+
+    def _save_new_images(self, product, validated_data):
+        new_images = validated_data.pop('new_images', [])
+        new_image_colors = validated_data.pop('new_image_colors', [])
+        if not new_images:
+            return
+
+        for index, image_file in enumerate(new_images):
+            color_id = None
+            if index < len(new_image_colors):
+                raw_color = new_image_colors[index]
+                if raw_color not in [None, '', 'null']:
+                    try:
+                        color_id = int(raw_color)
+                    except (TypeError, ValueError):
+                        color_id = None
+            color = None
+            if color_id:
+                color = Color.objects.filter(id=color_id).first()
+            order = product.images.count() + index
+            ProductImage.objects.create(
+                product=product,
+                image=image_file,
+                color=color,
+                order=order,
+                is_primary=product.images.count() == 0 and index == 0,
+            )
+
+    def create(self, validated_data):
+        new_images = validated_data.pop('new_images', [])
+        new_image_colors = validated_data.pop('new_image_colors', [])
+        product = Product.objects.create(**validated_data)
+        self._save_new_images(product, {'new_images': new_images, 'new_image_colors': new_image_colors})
+        return product
+
+    def update(self, instance, validated_data):
+        new_images = validated_data.pop('new_images', [])
+        new_image_colors = validated_data.pop('new_image_colors', [])
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        self._save_new_images(instance, {'new_images': new_images, 'new_image_colors': new_image_colors})
+        return instance
 
 
 class AdminOrderItemSerializer(serializers.ModelSerializer):
