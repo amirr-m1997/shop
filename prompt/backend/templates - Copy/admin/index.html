@@ -30,7 +30,7 @@
                             <a class="text-primary-600 dark:text-primary-400 hover:underline"
                                href="{% url 'admin:orders_order_change' order.pk %}">{{ order.order_number }}</a>
                         </td>
-                        <td class="py-2">{% if order.user %}{{ order.user.get_full_name|default:order.user.username }}{% else %}مهمان{% endif %}</td>
+                        <td class="py-2">{{ order.user.get_full_name|default:order.user.username }}</td>
                         <td class="py-2">{{ order.get_status_display }}</td>
                         <td class="py-2">{{ order.total|floatformat:0 }} تومان</td>
                     </tr>

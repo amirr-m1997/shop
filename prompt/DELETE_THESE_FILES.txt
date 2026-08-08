@@ -1,0 +1,8 @@
+این دو فایل باید از ریپو حذف بشن (چون با Unfold تداخل دارن و دیگه لازم نیستن):
+
+backend/templates/admin/base_site.html
+backend/templates/admin/login.html
+
+(اختیاری) این دو فایل هم دیگه استفاده نمی‌شن، می‌تونید نگه دارید یا پاک کنید:
+backend/static/admin/css/custom_admin.css
+backend/static/admin/js/admin-experience.js

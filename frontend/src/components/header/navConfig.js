@@ -11,6 +11,7 @@ export const STATIC_NAV = [
   { id: 'blog', label: 'مجله', href: '/blog' },
   { id: 'size', label: 'راهنمای سایز', href: '/size-finder' },
   { id: 'about', label: 'درباره ما', href: '/about' },
+  { id: 'contact', label: 'تماس با ما', href: '/contact' },
 ];
 
 /** Horizontal chips under mobile search */
@@ -31,6 +32,8 @@ export const DESKTOP_STATIC_AFTER = [
   { id: 'sale', label: 'حراج', href: '/sale', accent: true },
   { id: 'blog', label: 'مجله', href: '/blog' },
   { id: 'size', label: 'راهنمای سایز', href: '/size-finder' },
+  { id: 'about', label: 'درباره ما', href: '/about' },
+  { id: 'contact', label: 'تماس با ما', href: '/contact' },
 ];
 
 /** Group children into columns for mega menu */

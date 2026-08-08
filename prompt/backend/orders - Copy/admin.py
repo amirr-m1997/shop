@@ -1,7 +1,6 @@
 from django.contrib import admin
-from unfold.admin import ModelAdmin, TabularInline
-from unfold.decorators import display
-
+from django.utils.html import format_html
+from django.utils import timezone
 from .models import ShippingAddress, Order, OrderItem, Coupon, CouponUsage, WelcomeClaim
 
 try:
@@ -20,10 +19,10 @@ def to_jalali(dt):
 # ──────────────── آدرس ارسال ────────────────
 
 @admin.register(ShippingAddress)
-class ShippingAddressAdmin(ModelAdmin):
+class ShippingAddressAdmin(admin.ModelAdmin):
     list_display = [
         'full_name', 'user', 'phone', 'city', 'state',
-        'is_default', 'created_at_jalali'
+        'is_default_badge', 'created_at_jalali'
     ]
     list_filter = ['is_default', 'city', 'state', 'created_at']
     search_fields = ['full_name', 'phone', 'user__username', 'city']
@@ -44,14 +43,18 @@ class ShippingAddressAdmin(ModelAdmin):
         }),
     )
 
-    @display(description='تاریخ ایجاد')
+    @admin.display(description='پیش‌فرض', boolean=True)
+    def is_default_badge(self, obj):
+        return obj.is_default
+
+    @admin.display(description='تاریخ ایجاد')
     def created_at_jalali(self, obj):
         return to_jalali(obj.created_at)
 
 
 # ──────────────── سفارش ────────────────
 
-class OrderItemInline(TabularInline):
+class OrderItemInline(admin.TabularInline):
     model = OrderItem
     extra = 0
     readonly_fields = ['product', 'quantity', 'price', 'total_price']
@@ -63,34 +66,15 @@ class OrderItemInline(TabularInline):
         return False
 
 
-STATUS_LABELS = {
-    'pending_payment': 'warning',
-    'pending': 'warning',
-    'processing': 'info',
-    'shipped': 'primary',
-    'delivered': 'success',
-    'cancelled': 'danger',
-    'expired': 'danger',
-    'returned': 'danger',
-}
-
-PAYMENT_STATUS_LABELS = {
-    'unpaid': 'danger',
-    'paid': 'success',
-    'refunded': 'warning',
-}
-
-
 @admin.register(Order)
-class OrderAdmin(ModelAdmin):
+class OrderAdmin(admin.ModelAdmin):
     list_display = [
-        'order_number', 'user', 'status_badge',
+        'order_number', 'customer', 'status_badge',
         'payment_status_badge', 'payment_method_display',
         'total_display', 'created_at_jalali'
     ]
     list_filter = ['status', 'payment_status', 'payment_method', 'created_at']
-    list_filter_submit = True
-    search_fields = ['order_number', 'user__username', 'user__email']
+    search_fields = ['order_number', 'user__username', 'user__email', 'guest_email']
     readonly_fields = [
         'order_number', 'subtotal', 'shipping_cost', 'tax', 'total',
         'created_at', 'updated_at'
@@ -103,6 +87,10 @@ class OrderAdmin(ModelAdmin):
         ('اطلاعات سفارش', {
             'fields': ('order_number', 'user', 'shipping_address')
         }),
+        ('اطلاعات مهمان', {
+            'fields': ('guest_email', 'guest_phone', 'guest_session_id'),
+            'classes': ('collapse',),
+        }),
         ('وضعیت', {
             'fields': ('status', 'payment_status', 'payment_method')
         }),
@@ -114,23 +102,54 @@ class OrderAdmin(ModelAdmin):
         }),
     )
 
-    @display(description='وضعیت سفارش', label=STATUS_LABELS)
+    @admin.display(description='مشتری')
+    def customer(self, obj):
+        if obj.user_id:
+            return obj.user.username
+        return obj.guest_email or 'مهمان'
+
+    @admin.display(description='وضعیت سفارش')
     def status_badge(self, obj):
-        return obj.status, obj.get_status_display()
+        colors = {
+            'pending_payment': '#f97316',
+            'pending': '#f59e0b',
+            'processing': '#3b82f6',
+            'shipped': '#8b5cf6',
+            'delivered': '#10b981',
+            'cancelled': '#ef4444',
+            'expired': '#6b7280',
+            'returned': '#6b7280',
+        }
+        color = colors.get(obj.status, '#6b7280')
+        return format_html(
+            '<span style="background:{}; color:white; padding:4px 12px; '
+            'border-radius:12px; font-size:12px;">{}</span>',
+            color, obj.get_status_display()
+        )
 
-    @display(description='وضعیت پرداخت', label=PAYMENT_STATUS_LABELS)
+    @admin.display(description='وضعیت پرداخت')
     def payment_status_badge(self, obj):
-        return obj.payment_status, obj.get_payment_status_display()
+        colors = {
+            'unpaid': '#ef4444',
+            'paid': '#10b981',
+            'refunded': '#f59e0b',
+        }
+        color = colors.get(obj.payment_status, '#6b7280')
+        return format_html(
+            '<span style="background:{}; color:white; padding:4px 12px; '
+            'border-radius:12px; font-size:12px;">{}</span>',
+            color, obj.get_payment_status_display()
+        )
 
-    @display(description='روش پرداخت')
+    @admin.display(description='روش پرداخت')
     def payment_method_display(self, obj):
         return obj.get_payment_method_display()
 
-    @display(description='مبلغ کل', ordering='total')
+    @admin.display(description='مبلغ کل')
     def total_display(self, obj):
-        return f"{obj.total:,.0f} تومان"
+        return f"{obj.total:,.0f} "
 
-    @display(description='تاریخ ثبت', ordering='created_at')
+    @admin.display(description='تاریخ ثبت')
     def created_at_jalali(self, obj):
         return to_jalali(obj.created_at)
 
@@ -157,7 +176,7 @@ class OrderAdmin(ModelAdmin):
 
 
 @admin.register(OrderItem)
-class OrderItemAdmin(ModelAdmin):
+class OrderItemAdmin(admin.ModelAdmin):
     list_display = ['order', 'product', 'quantity', 'price', 'total_price']
     list_filter = ['order__status', 'order__created_at']
     search_fields = ['order__order_number', 'product__name']
@@ -166,7 +185,7 @@ class OrderItemAdmin(ModelAdmin):
 
 # ──────────────── کوپن تخفیف ────────────────
 
-class CouponUsageInline(TabularInline):
+class CouponUsageInline(admin.TabularInline):
     model = CouponUsage
     extra = 0
     readonly_fields = ['user', 'used_at', 'order']
@@ -177,14 +196,13 @@ class CouponUsageInline(TabularInline):
 
 
 @admin.register(Coupon)
-class CouponAdmin(ModelAdmin):
+class CouponAdmin(admin.ModelAdmin):
     list_display = [
         'code', 'discount_type', 'value_display', 'min_amount_display',
-        'is_welcome_offer', 'is_active', 'usage_progress',
+        'is_welcome_offer_badge', 'is_active_badge', 'usage_progress',
         'valid_from_jalali', 'valid_until_jalali'
     ]
     list_filter = ['is_active', 'is_welcome_offer', 'discount_type', 'valid_from', 'valid_until']
-    list_filter_submit = True
     search_fields = ['code']
     inlines = [CouponUsageInline]
     fieldsets = (
@@ -199,32 +217,40 @@ class CouponAdmin(ModelAdmin):
         }),
     )
 
-    @display(description='مقدار')
+    @admin.display(description='مقدار')
     def value_display(self, obj):
         if obj.discount_type == 'percentage':
             return f"{obj.value:,.0f}٪"
         return f"{obj.value:,.0f} تومان"
 
-    @display(description='حداقل خرید')
+    @admin.display(description='حداقل خرید')
     def min_amount_display(self, obj):
         return f"{obj.min_amount:,.0f} تومان" if obj.min_amount else '—'
 
-    @display(description='میزان استفاده')
+    @admin.display(description='خوش‌آمد', boolean=True)
+    def is_welcome_offer_badge(self, obj):
+        return obj.is_welcome_offer
+
+    @admin.display(description='وضعیت', boolean=True)
+    def is_active_badge(self, obj):
+        return obj.is_active
+
+    @admin.display(description='میزان استفاده')
     def usage_progress(self, obj):
         max_uses = obj.max_uses or '∞'
         return f"{obj.used_count} / {max_uses}"
 
-    @display(description='اعتبار از')
+    @admin.display(description='اعتبار از')
     def valid_from_jalali(self, obj):
         return to_jalali(obj.valid_from)
 
-    @display(description='اعتبار تا')
+    @admin.display(description='اعتبار تا')
     def valid_until_jalali(self, obj):
         return to_jalali(obj.valid_until)
 
 
 @admin.register(CouponUsage)
-class CouponUsageAdmin(ModelAdmin):
+class CouponUsageAdmin(admin.ModelAdmin):
     list_display = ['coupon', 'user', 'used_at_jalali', 'order']
     list_filter = ['used_at', 'coupon']
     search_fields = ['coupon__code', 'user__username']
@@ -235,13 +261,13 @@ class CouponUsageAdmin(ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
-    @display(description='تاریخ استفاده')
+    @admin.display(description='تاریخ استفاده')
     def used_at_jalali(self, obj):
         return to_jalali(obj.used_at)
 
 
 @admin.register(WelcomeClaim)
-class WelcomeClaimAdmin(ModelAdmin):
+class WelcomeClaimAdmin(admin.ModelAdmin):
     list_display = ['user', 'coupon', 'claimed_at_jalali']
     list_filter = ['claimed_at', 'coupon']
     search_fields = ['user__username', 'user__email', 'coupon__code']
@@ -253,6 +279,6 @@ class WelcomeClaimAdmin(ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
-    @display(description='تاریخ دریافت')
+    @admin.display(description='تاریخ دریافت')
     def claimed_at_jalali(self, obj):
         return to_jalali(obj.claimed_at)

@@ -35,7 +35,7 @@ const MobileHeader = ({
   ];
 
   return (
-    <div className="lg:hidden">
+    <div className="md:hidden">
       {/* Top bar — hamburger on RIGHT (RTL start) */}
       <div
         className={cn(

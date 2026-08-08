@@ -1,6 +1,4 @@
 from django.contrib import admin
-from unfold.admin import ModelAdmin, TabularInline
-from unfold.decorators import display
 from django.contrib.admin import widgets as admin_widgets
 from django import forms
 from django.conf import settings
@@ -24,11 +22,12 @@ def to_jalali(dt):
     return jdatetime.datetime.fromgregorian(datetime=dt).strftime('%Y/%m/%d - %H:%M')
 
 
-class ProductImageInline(TabularInline):
+class ProductImageInline(admin.TabularInline):
     model = ProductImage
     extra = 1
     verbose_name = "تصویر محصول"
     verbose_name_plural = "تصاویر محصول"
+    fields = ['color', 'image', 'alt_text', 'order', 'is_primary']
 
 
 class ProductVariantForm(forms.ModelForm):
@@ -37,7 +36,7 @@ class ProductVariantForm(forms.ModelForm):
         fields = '__all__'
 
 
-class ProductVariantInline(TabularInline):
+class ProductVariantInline(admin.TabularInline):
     model = ProductVariant
     form = ProductVariantForm
     extra = 1
@@ -81,7 +80,7 @@ class ProductVariantInline(TabularInline):
 
 
 @admin.register(Category)
-class CategoryAdmin(ModelAdmin):
+class CategoryAdmin(admin.ModelAdmin):
     list_display = ['name', 'parent', 'order']
     list_filter = ['parent']
     search_fields = ['name']
@@ -89,27 +88,27 @@ class CategoryAdmin(ModelAdmin):
 
 
 @admin.register(Brand)
-class BrandAdmin(ModelAdmin):
+class BrandAdmin(admin.ModelAdmin):
     list_display = ['name', 'slug']
     search_fields = ['name']
     prepopulated_fields = {'slug': ('name',)}
 
 
 @admin.register(Size)
-class SizeAdmin(ModelAdmin):
+class SizeAdmin(admin.ModelAdmin):
     list_display = ['name', 'category']
     list_filter = ['category']
     search_fields = ['name']
 
 
 @admin.register(Color)
-class ColorAdmin(ModelAdmin):
+class ColorAdmin(admin.ModelAdmin):
     list_display = ['name', 'hex_code']
     search_fields = ['name']
 
 
 @admin.register(Fabric)
-class FabricAdmin(ModelAdmin):
+class FabricAdmin(admin.ModelAdmin):
     list_display = ['name']
     search_fields = ['name']
 
@@ -142,8 +141,8 @@ class ProductAdminForm(forms.ModelForm):
 
 
 @admin.register(Product)
-class ProductAdmin(ModelAdmin):
-    list_display = ['product_thumbnail', 'product_name_link', 'category', 'brand', 'price', 'compare_price_display', 'stock_badge', 'is_active', 'is_featured', 'rating', 'created_at_jalali']
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ['product_thumbnail', 'product_name_link', 'category', 'brand', 'price', 'compare_price_display', 'stock', 'is_active', 'is_featured', 'rating', 'created_at_jalali']
     list_filter = ['category', 'brand', 'main_category', 'is_active', 'is_featured', 'is_new_arrival', 'is_trending']
     search_fields = ['name', 'sku', 'description']
     inlines = [ProductImageInline, ProductVariantInline]
@@ -173,36 +172,33 @@ class ProductAdmin(ModelAdmin):
         }),
     )
 
-    @display(description='تصویر', image=True)
+    @admin.display(description='تصویر')
     def product_thumbnail(self, obj):
         img = obj.images.filter(is_primary=True).first() or obj.images.first()
         if img and img.image:
-            return img.image.url
-        return None
+            return format_html(
+                '<img class="product-thumb" src="{}" data-preview="{}" />',
+                img.image.url, img.image.url
+            )
+        return '-'
 
-    @display(description='نام محصول')
+    @admin.display(description='نام محصول')
     def product_name_link(self, obj):
         url = f'{settings.FRONTEND_URL}/product/{obj.slug}'
-        return format_html('<a href="{}" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline">{}</a>', url, obj.name)
+        return format_html('<a href="{}" target="_blank">{}</a>', url, obj.name)
 
-    @display(description='قیمت اصلی / تخفیف')
+    @admin.display(description='قیمت اصلی / تخفیف')
     def compare_price_display(self, obj):
         if obj.compare_price:
             discount = obj.discount_percentage
             return format_html(
-                '<span class="line-through text-base-400">{}</span> '
-                '<span class="text-red-600 dark:text-red-400 font-semibold">-{}%</span>',
+                '<span style="text-decoration:line-through; color:#999;">{}</span> '
+                '<span style="color:#ef4444; font-weight:bold;">-{}%</span>',
                 f'{obj.compare_price:,.0f}', discount
             )
         return '-'
 
-    @display(description='موجودی', label={0: 'danger'})
-    def stock_badge(self, obj):
-        if obj.stock <= 5:
-            return obj.stock, f'{obj.stock} (کم)' if obj.stock else 'ناموجود'
-        return obj.stock, str(obj.stock)
-
-    @display(description='تاریخ ایجاد', ordering='created_at')
+    @admin.display(description='تاریخ ایجاد')
     def created_at_jalali(self, obj):
         return to_jalali(obj.created_at)
 
@@ -250,7 +246,7 @@ class ProductAdmin(ModelAdmin):
 
 
 @admin.register(Review)
-class ReviewAdmin(ModelAdmin):
+class ReviewAdmin(admin.ModelAdmin):
     list_display = ['product', 'user', 'rating', 'is_verified_purchase', 'created_at']
     list_filter = ['rating', 'is_verified_purchase']
     search_fields = ['product__name', 'user__username']
@@ -258,7 +254,7 @@ class ReviewAdmin(ModelAdmin):
 
 
 @admin.register(SizeGuide)
-class SizeGuideAdmin(ModelAdmin):
+class SizeGuideAdmin(admin.ModelAdmin):
     list_display = ['category', 'size', 'gender', 'product_type', 'chest', 'waist', 'hips', 'length',
                     'height_min', 'height_max', 'weight_min', 'weight_max']
     list_filter = ['category', 'gender', 'product_type']
@@ -278,7 +274,7 @@ class SizeGuideAdmin(ModelAdmin):
 
 
 @admin.register(HomepageSection)
-class HomepageSectionAdmin(ModelAdmin):
+class HomepageSectionAdmin(admin.ModelAdmin):
     list_display = ['title', 'filter_type', 'filter_value', 'order', 'is_active']
     list_filter = ['filter_type', 'is_active']
     list_editable = ['order', 'is_active']
@@ -286,7 +282,7 @@ class HomepageSectionAdmin(ModelAdmin):
 
 
 @admin.register(Banner)
-class BannerAdmin(ModelAdmin):
+class BannerAdmin(admin.ModelAdmin):
     list_display = ['title', 'link', 'order', 'is_active']
     list_filter = ['is_active']
     list_editable = ['order', 'is_active']
@@ -295,7 +291,7 @@ class BannerAdmin(ModelAdmin):
 
 
 @admin.register(StyleLook)
-class StyleLookAdmin(ModelAdmin):
+class StyleLookAdmin(admin.ModelAdmin):
     list_display = ['title', 'link', 'order', 'is_active', 'product_count']
     list_filter = ['is_active']
     list_editable = ['order', 'is_active']
@@ -310,7 +306,7 @@ class StyleLookAdmin(ModelAdmin):
 
 
 @admin.register(Wishlist)
-class WishlistAdmin(ModelAdmin):
+class WishlistAdmin(admin.ModelAdmin):
     list_display = ['user', 'product', 'created_at']
     list_filter = ['created_at']
     search_fields = ['user__username', 'product__name']

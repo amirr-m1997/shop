@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import {
   X, ChevronDown, Home, ShoppingBag, Sparkles, Tag,
-  BookOpen, Ruler, Info, Heart, MessageCircle, User, LogOut, Package, Moon, Sun
+  BookOpen, Ruler, Info, Heart, MessageCircle, User, LogOut, Package, Moon, Sun, Phone
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { STATIC_NAV } from './navConfig';
@@ -16,6 +16,7 @@ const ICON_MAP = {
   blog: BookOpen,
   size: Ruler,
   about: Info,
+  contact: Phone,
 };
 
 /**
