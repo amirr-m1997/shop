@@ -29,6 +29,7 @@ class ProductImageInline(TabularInline):
     extra = 1
     verbose_name = "تصویر محصول"
     verbose_name_plural = "تصاویر محصول"
+    fields = ['color', 'image', 'alt_text', 'order', 'is_primary']
 
 
 class ProductVariantForm(forms.ModelForm):
@@ -143,7 +144,8 @@ class ProductAdminForm(forms.ModelForm):
 
 @admin.register(Product)
 class ProductAdmin(ModelAdmin):
-    list_display = ['product_thumbnail', 'product_name_link', 'category', 'brand', 'price', 'compare_price_display', 'stock_badge', 'is_active', 'is_featured', 'rating', 'created_at_jalali']
+    list_display = ['product_thumbnail', 'product_title_cell', 'category', 'brand', 'price', 'compare_price_display', 'stock_badge', 'active_badge', 'created_at_jalali']
+    list_display_links = ['product_thumbnail']
     list_filter = ['category', 'brand', 'main_category', 'is_active', 'is_featured', 'is_new_arrival', 'is_trending']
     search_fields = ['name', 'sku', 'description']
     inlines = [ProductImageInline, ProductVariantInline]
@@ -181,9 +183,15 @@ class ProductAdmin(ModelAdmin):
         return None
 
     @display(description='نام محصول')
-    def product_name_link(self, obj):
+    def product_title_cell(self, obj):
         url = f'{settings.FRONTEND_URL}/product/{obj.slug}'
-        return format_html('<a href="{}" target="_blank" class="text-primary-600 dark:text-primary-400 hover:underline">{}</a>', url, obj.name)
+        meta = f'کد: {obj.sku}' if obj.sku else f'شناسه: {obj.id}'
+        return format_html(
+            '<div class="admin-product-title"><a href="{}" target="_blank">{}</a><span>{}</span></div>',
+            url,
+            obj.name,
+            meta
+        )
 
     @display(description='قیمت اصلی / تخفیف')
     def compare_price_display(self, obj):
@@ -201,6 +209,10 @@ class ProductAdmin(ModelAdmin):
         if obj.stock <= 5:
             return obj.stock, f'{obj.stock} (کم)' if obj.stock else 'ناموجود'
         return obj.stock, str(obj.stock)
+
+    @display(description='وضعیت', boolean=True)
+    def active_badge(self, obj):
+        return obj.is_active
 
     @display(description='تاریخ ایجاد', ordering='created_at')
     def created_at_jalali(self, obj):

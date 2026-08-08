@@ -15,21 +15,3 @@
     <script src="{% static 'admin/js/admin-experience.js' %}" defer></script>
 {% endblock %}
 
-{% block nav-sidebar %}
-    <button class="sticky toggle-nav-sidebar" id="toggle-nav-sidebar" type="button" aria-label="باز و بسته کردن ناوبری"></button>
-    <nav class="sticky" id="nav-sidebar" aria-label="ناوبری مدیریت">
-        <div class="admin-sidebar-tools">
-            <label class="admin-sidebar-search" for="admin-sidebar-search">
-                <span aria-hidden="true">⌕</span>
-                <input id="admin-sidebar-search" type="search" placeholder="جستجو در مدیریت…" autocomplete="off">
-            </label>
-            <div class="admin-sidebar-shortcuts" aria-label="میانبرها">
-                <button class="sidebar-shortcut is-active" type="button" data-sidebar-view="all">همه</button>
-                <button class="sidebar-shortcut" type="button" data-sidebar-view="favorites">نشان‌شده‌ها</button>
-                <button class="sidebar-shortcut" type="button" data-sidebar-view="recent">اخیراً دیده‌شده</button>
-            </div>
-        </div>
-        <div id="admin-sidebar-dynamic"></div>
-        {% include 'admin/app_list.html' with app_list=available_apps show_changelinks=False %}
-    </nav>
-{% endblock %}

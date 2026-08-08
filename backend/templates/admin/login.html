@@ -1,55 +1,47 @@
-{% extends "admin/base_site.html" %}
-{% load i18n static %}
+{% extends "admin/login.html" %}
+{% load i18n static unfold %}
 
-{% block title %}ورود به پنل مدیریت{% endblock %}
+{% block title %}ورود به پنل مدیریت | فروشگاه مد{% endblock %}
 
-{% block bodyclass %}{{ block.super }} admin-login-page{% endblock %}
-
-{% block content_title %}{% endblock %}
-{% block breadcrumbs %}{% endblock %}
+{% block extrastyle %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'admin/css/custom_admin.css' %}">
+{% endblock %}
 
 {% block content %}
-<div class="admin-login-wrapper">
-    <div class="admin-login-card">
-        <div class="admin-login-header">
-            <div class="admin-login-logo">◈</div>
-            <h1 class="admin-login-title">ورود به پنل مدیریت</h1>
-            <p class="admin-login-subtitle">برای ادامه وارد حساب کاربری خود شوید</p>
+    {% include "unfold/helpers/unauthenticated_title.html" with title="ورود به پنل مدیریت" subtitle="مدیریت لاکچری فروشگاه، سفارش‌ها و محتوا" %}
+
+    {% include "unfold/helpers/messages.html" %}
+
+    {% if form.errors or form.non_field_errors %}
+        <div class="flex flex-col gap-4 mb-6 *:mb-0">
+            {% include "unfold/helpers/messages/errornote.html" with errors=form.errors %}
+            {% include "unfold/helpers/messages/error.html" with errors=form.non_field_errors %}
+        </div>
+    {% endif %}
+
+    <form action="{{ app_path }}" method="post" id="login-form" class="admin-auth-form">
+        {% csrf_token %}
+        <div class="admin-field">
+            <label for="id_username">نام کاربری</label>
+            {{ form.username }}
+        </div>
+        <div class="admin-field">
+            <label for="id_password">رمز عبور</label>
+            {{ form.password }}
         </div>
 
-        {% if form.errors and not form.non_field_errors %}
-            <p class="admin-login-error">
-                {% if form.errors.items|length == 1 %}{% translate "Please correct the error below." %}{% else %}{% translate "Please correct the errors below." %}{% endif %}
-            </p>
-        {% endif %}
+        <div class="flex flex-col gap-3 mt-6">
+            {% component "unfold/components/button.html" with submit=1 variant="primary" class="submit-row w-full" %}
+                ورود به پنل
+            {% endcomponent %}
 
-        {% if form.non_field_errors %}
-            {% for error in form.non_field_errors %}
-            <p class="admin-login-error">{{ error }}</p>
-            {% endfor %}
-        {% endif %}
-
-        <form action="{{ app_path }}" method="post" id="login-form" class="admin-login-form">
-            {% csrf_token %}
-            <div class="admin-form-row">
-                {{ form.username.label_tag }}
-                {{ form.username }}
-            </div>
-            <div class="admin-form-row">
-                {{ form.password.label_tag }}
-                {{ form.password }}
-                <input type="hidden" name="next" value="{{ next }}">
-            </div>
             {% url 'admin_password_reset' as password_reset_url %}
             {% if password_reset_url %}
-            <div class="admin-form-row admin-password-reset-link">
-                <a href="{{ password_reset_url }}">{% translate 'Forgotten your password or username?' %}</a>
-            </div>
+                {% component "unfold/components/button.html" with href=password_reset_url variant="secondary" class="w-full" %}
+                    فراموشی رمز عبور
+                {% endcomponent %}
             {% endif %}
-            <div class="admin-form-row admin-submit-row">
-                <input type="submit" value="{% translate 'Log in' %}">
-            </div>
-        </form>
-    </div>
-</div>
+        </div>
+    </form>
 {% endblock %}

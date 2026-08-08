@@ -84,7 +84,7 @@ PAYMENT_STATUS_LABELS = {
 @admin.register(Order)
 class OrderAdmin(ModelAdmin):
     list_display = [
-        'order_number', 'user', 'status_badge',
+        'order_number', 'customer_cell', 'status_badge',
         'payment_status_badge', 'payment_method_display',
         'total_display', 'created_at_jalali'
     ]
@@ -113,6 +113,13 @@ class OrderAdmin(ModelAdmin):
             'fields': ('notes', 'tracking_number', 'postal_tracking_code', 'created_at', 'updated_at')
         }),
     )
+
+    @display(description='مشتری')
+    def customer_cell(self, obj):
+        from django.utils.html import format_html
+        name = obj.user.get_full_name() or obj.user.username if obj.user else 'مهمان'
+        email = obj.user.email if obj.user else (obj.guest_email or obj.guest_phone or '')
+        return format_html('<div class="admin-customer-cell"><strong>{}</strong><span>{}</span></div>', name, email)
 
     @display(description='وضعیت سفارش', label=STATUS_LABELS)
     def status_badge(self, obj):

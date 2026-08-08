@@ -2,61 +2,199 @@
 {% load i18n unfold %}
 
 {% block content %}
-<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-    {% for card in kpi_cards %}
-        {% component "unfold/components/card.html" with icon=card.icon %}
-            <p class="text-font-subtle-light dark:text-font-subtle-dark text-sm mb-1">{{ card.title }}</p>
-            <p class="text-2xl font-semibold text-font-important-light dark:text-font-important-dark">{{ card.value }}</p>
+<div class="admin-dashboard">
+    <div class="admin-dashboard-intro">
+        <div>
+            <p class="admin-eyebrow">میز کار مدیریت</p>
+            <h2>نمای کلی فروشگاه</h2>
+            <p>مرور سریع فروش، سفارش‌ها، موجودی و وضعیت عملیات روزانه.</p>
+        </div>
+        <button type="button" class="admin-dashboard-search" data-dashboard-search>جستجو در پنل</button>
+    </div>
+
+    <div class="admin-stat-grid">
+        {% for card in kpi_cards %}
+            {% component "unfold/components/card.html" with icon=card.icon %}
+                <div class="admin-stat-card-content">
+                    <span>{{ card.title }}</span>
+                    <strong>{{ card.value }}</strong>
+                    <div class="admin-stat-meta">
+                        <p>{{ card.meta }}</p>
+                        {% if card.change is not None %}
+                            <em class="{% if card.change >= 0 %}is-positive{% else %}is-negative{% endif %}">
+                                {% if card.change >= 0 %}+{% endif %}{{ card.change }}٪
+                            </em>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endcomponent %}
+        {% endfor %}
+    </div>
+
+    <div class="admin-dashboard-panels admin-dashboard-panels--main">
+        {% component "unfold/components/card.html" with title="آخرین سفارش‌ها" %}
+            {% if recent_orders %}
+                <div class="admin-table-wrap">
+                    <table class="admin-mini-table">
+                        <thead>
+                            <tr>
+                                <th>شماره سفارش</th>
+                                <th>مشتری</th>
+                                <th>وضعیت</th>
+                                <th>پرداخت</th>
+                                <th class="num">مبلغ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in recent_orders %}
+                            <tr>
+                                <td><a href="{% url 'admin:orders_order_change' order.pk %}">{{ order.order_number }}</a></td>
+                                <td>{% if order.user %}{{ order.user.get_full_name|default:order.user.username }}{% else %}مهمان{% endif %}</td>
+                                <td><span class="admin-status admin-status--{{ order.status }}">{{ order.get_status_display }}</span></td>
+                                <td><span class="admin-payment admin-payment--{{ order.payment_status }}">{{ order.get_payment_status_display }}</span></td>
+                                <td class="num">{{ order.total|floatformat:0 }} تومان</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="admin-empty-text">هنوز سفارشی ثبت نشده است.</p>
+            {% endif %}
         {% endcomponent %}
-    {% endfor %}
-</div>
 
-<div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-    {% component "unfold/components/card.html" with title="آخرین سفارش‌ها" %}
-        {% if recent_orders %}
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-right text-font-subtle-light dark:text-font-subtle-dark">
-                        <th class="pb-2 font-normal">شماره سفارش</th>
-                        <th class="pb-2 font-normal">مشتری</th>
-                        <th class="pb-2 font-normal">وضعیت</th>
-                        <th class="pb-2 font-normal">مبلغ</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for order in recent_orders %}
-                    <tr class="border-t border-base-200 dark:border-base-800">
-                        <td class="py-2">
-                            <a class="text-primary-600 dark:text-primary-400 hover:underline"
-                               href="{% url 'admin:orders_order_change' order.pk %}">{{ order.order_number }}</a>
-                        </td>
-                        <td class="py-2">{% if order.user %}{{ order.user.get_full_name|default:order.user.username }}{% else %}مهمان{% endif %}</td>
-                        <td class="py-2">{{ order.get_status_display }}</td>
-                        <td class="py-2">{{ order.total|floatformat:0 }} تومان</td>
-                    </tr>
+        {% component "unfold/components/card.html" with title="توزیع وضعیت سفارش‌ها" %}
+            {% if status_breakdown %}
+                <div class="admin-status-bars">
+                    {% for item in status_breakdown %}
+                    <div class="admin-status-row">
+                        <div class="admin-status-row-head">
+                            <span>{{ item.label }}</span>
+                            <strong>{{ item.count }}</strong>
+                        </div>
+                        <div class="admin-status-track"><span style="width: {{ item.percent }}%"></span></div>
+                    </div>
                     {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <p class="text-font-subtle-light dark:text-font-subtle-dark text-sm">هنوز سفارشی ثبت نشده.</p>
-        {% endif %}
-    {% endcomponent %}
+                </div>
+            {% else %}
+                <p class="admin-empty-text">داده‌ای برای نمایش وجود ندارد.</p>
+            {% endif %}
+        {% endcomponent %}
+    </div>
 
-    {% component "unfold/components/card.html" with title="محصولات رو به اتمام (موجودی ۵ یا کمتر)" %}
-        {% if low_stock_products %}
-            <ul class="divide-y divide-base-200 dark:divide-base-800 text-sm">
-                {% for product in low_stock_products %}
-                <li class="flex items-center justify-between py-2">
-                    <a class="text-primary-600 dark:text-primary-400 hover:underline"
-                       href="{% url 'admin:products_product_change' product.pk %}">{{ product.name }}</a>
-                    <span class="text-font-subtle-light dark:text-font-subtle-dark">{{ product.stock }} عدد</span>
-                </li>
-                {% endfor %}
-            </ul>
-        {% else %}
-            <p class="text-font-subtle-light dark:text-font-subtle-dark text-sm">در حال حاضر محصولی با موجودی کم وجود ندارد.</p>
-        {% endif %}
-    {% endcomponent %}
+    <div class="admin-dashboard-panels">
+        {% component "unfold/components/card.html" with title="محصولات رو به اتمام" %}
+            {% if low_stock_products %}
+                <ul class="admin-mini-list">
+                    {% for product in low_stock_products %}
+                    <li>
+                        <a href="{% url 'admin:products_product_change' product.pk %}">{{ product.name }}</a>
+                        <span class="admin-stock-pill {% if product.stock <= 2 %}is-critical{% endif %}">{{ product.stock }} عدد</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="admin-empty-text">در حال حاضر محصولی با موجودی کم وجود ندارد.</p>
+            {% endif %}
+        {% endcomponent %}
+
+        {% component "unfold/components/card.html" with title="دسترسی سریع" %}
+            <div class="admin-quick-actions">
+                <a href="/admin/orders/order/">سفارش‌ها</a>
+                <a href="/admin/products/product/">محصولات</a>
+                <a href="/admin/blog/blogpost/">مقالات</a>
+                <a href="/admin/auth/user/">کاربران</a>
+            </div>
+        {% endcomponent %}
+    </div>
 </div>
+
+<style>
+.admin-dashboard { display: grid; gap: 18px; }
+.admin-dashboard-intro {
+    align-items: center;
+    background: linear-gradient(135deg, rgba(255,253,250,.92), rgba(244,239,231,.82));
+    border: 1px solid var(--lux-border);
+    border-radius: 24px;
+    box-shadow: var(--lux-shadow);
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 26px 28px;
+}
+.dark .admin-dashboard-intro { background: linear-gradient(135deg, rgba(31,28,25,.92), rgba(22,20,18,.86)); }
+.admin-eyebrow { color: var(--lux-accent-dark) !important; font-size: 11px !important; font-weight: 850; letter-spacing: .14em; margin: 0 0 7px !important; }
+.admin-dashboard-intro h2 { color: var(--lux-text) !important; font-size: 25px; font-weight: 850; margin: 0 0 6px !important; }
+.admin-dashboard-intro p { color: var(--lux-muted) !important; margin: 0 !important; }
+.admin-dashboard-search {
+    background: var(--lux-text);
+    border: 0;
+    border-radius: 999px;
+    color: var(--lux-surface);
+    cursor: pointer;
+    font-weight: 750;
+    padding: 11px 17px;
+    white-space: nowrap;
+}
+.admin-stat-grid { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.admin-stat-card-content span { color: var(--lux-muted); display: block; font-size: 12px; font-weight: 750; }
+.admin-stat-card-content strong { color: var(--lux-text); display: block; font-size: 28px; line-height: 1.25; margin: 9px 0; letter-spacing: -.03em; }
+.admin-stat-meta { align-items: center; display: flex; justify-content: space-between; gap: 10px; }
+.admin-stat-meta p { color: var(--lux-muted); font-size: 12px; margin: 0 !important; }
+.admin-stat-meta em { font-style: normal; font-size: 12px; font-weight: 850; }
+.admin-stat-meta em.is-positive { color: var(--lux-success); }
+.admin-stat-meta em.is-negative { color: var(--lux-danger); }
+.admin-dashboard-panels { display: grid; gap: 18px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.admin-dashboard-panels--main { grid-template-columns: minmax(0, 1.7fr) minmax(280px, .9fr); }
+.admin-table-wrap { overflow-x: auto; }
+.admin-mini-table { width: 100%; border-collapse: collapse; min-width: 560px; }
+.admin-mini-table th { color: var(--lux-muted); font-size: 11px; font-weight: 850; padding: 10px 12px; text-align: right; text-transform: uppercase; }
+.admin-mini-table td { border-top: 1px solid var(--lux-border); padding: 13px 12px; }
+.admin-mini-table td.num, .admin-mini-table th.num { direction: ltr; text-align: left; font-variant-numeric: tabular-nums; }
+.admin-mini-table a { color: var(--lux-text); font-weight: 800; }
+.admin-status, .admin-payment {
+    background: color-mix(in srgb, var(--lux-muted) 12%, transparent);
+    border-radius: 999px;
+    color: var(--lux-text-secondary);
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 850;
+    padding: 5px 9px;
+}
+.admin-payment--paid, .admin-status--delivered { background: color-mix(in srgb, var(--lux-success) 13%, transparent); color: var(--lux-success); }
+.admin-status--pending_payment, .admin-status--pending, .admin-payment--unpaid { background: color-mix(in srgb, var(--lux-warning) 14%, transparent); color: var(--lux-warning); }
+.admin-status--processing, .admin-status--shipped { background: color-mix(in srgb, var(--lux-info) 14%, transparent); color: var(--lux-info); }
+.admin-status--cancelled, .admin-status--expired, .admin-status--returned { background: color-mix(in srgb, var(--lux-danger) 12%, transparent); color: var(--lux-danger); }
+.admin-status-bars { display: grid; gap: 16px; }
+.admin-status-row-head { align-items: center; display: flex; justify-content: space-between; margin-bottom: 7px; }
+.admin-status-row-head span { color: var(--lux-text-secondary); font-size: 13px; font-weight: 750; }
+.admin-status-row-head strong { color: var(--lux-text); }
+.admin-status-track { background: var(--lux-surface-alt); border-radius: 999px; height: 8px; overflow: hidden; }
+.admin-status-track span { background: linear-gradient(90deg, var(--lux-accent), color-mix(in srgb, var(--lux-accent) 55%, var(--lux-text))); border-radius: inherit; display: block; height: 100%; }
+.admin-mini-list { list-style: none; margin: 0; padding: 0; }
+.admin-mini-list li { align-items: center; border-top: 1px solid var(--lux-border); display: flex; justify-content: space-between; gap: 12px; padding: 13px 2px; }
+.admin-mini-list a { color: var(--lux-text); font-weight: 750; }
+.admin-stock-pill { background: color-mix(in srgb, var(--lux-warning) 13%, transparent); border-radius: 999px; color: var(--lux-warning); font-size: 11px; font-weight: 850; padding: 5px 9px; white-space: nowrap; }
+.admin-stock-pill.is-critical { background: color-mix(in srgb, var(--lux-danger) 12%, transparent); color: var(--lux-danger); }
+.admin-quick-actions { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.admin-quick-actions a {
+    background: var(--lux-surface-alt);
+    border: 1px solid var(--lux-border);
+    border-radius: 14px;
+    color: var(--lux-text-secondary);
+    font-weight: 800;
+    padding: 13px;
+    text-align: center;
+}
+.admin-quick-actions a:hover { background: var(--lux-accent-soft); border-color: color-mix(in srgb, var(--lux-accent) 30%, var(--lux-border)); color: var(--lux-accent-dark); }
+.admin-empty-text { color: var(--lux-muted) !important; padding: 12px 2px; }
+@media (max-width: 1100px) {
+    .admin-stat-grid, .admin-dashboard-panels, .admin-dashboard-panels--main { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+    .admin-dashboard-intro { align-items: flex-start; flex-direction: column; padding: 22px; }
+    .admin-quick-actions { grid-template-columns: 1fr; }
+}
+</style>
 {{ block.super }}
 {% endblock %}
