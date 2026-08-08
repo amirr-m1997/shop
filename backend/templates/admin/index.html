@@ -1,24 +1,62 @@
 {% extends "admin/index.html" %}
+{% load i18n unfold %}
 
 {% block content %}
-<section class="admin-dashboard" aria-label="خلاصهٔ فضای کاری">
-    <div class="admin-dashboard-intro">
-        <div>
-            <p class="admin-eyebrow">فضای کاری مدیریت</p>
-            <h2>مدیریت سریع و متمرکز</h2>
-            <p>مدل‌های پرکاربرد، نشان‌شده‌ها و آخرین بخش‌های بازشده در یک نگاه.</p>
-        </div>
-        <button type="button" class="admin-dashboard-search" data-dashboard-search>⌕ جستجو در بخش‌ها</button>
-    </div>
-    <div class="admin-stat-grid">
-        <article class="admin-stat-card"><span>مدل‌های قابل مدیریت</span><strong data-dashboard-stat="models">—</strong></article>
-        <article class="admin-stat-card"><span>مدل‌های نشان‌شده</span><strong data-dashboard-stat="favorites">—</strong></article>
-        <article class="admin-stat-card"><span>مدل‌های اخیراً بازشده</span><strong data-dashboard-stat="recent">—</strong></article>
-    </div>
-    <div class="admin-dashboard-panels">
-        <section class="admin-dashboard-panel"><h3>میانبرهای من</h3><div data-dashboard-favorites></div></section>
-        <section class="admin-dashboard-panel"><h3>آخرین بخش‌ها</h3><div data-dashboard-recent></div></section>
-    </div>
-</section>
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    {% for card in kpi_cards %}
+        {% component "unfold/components/card.html" with icon=card.icon %}
+            <p class="text-font-subtle-light dark:text-font-subtle-dark text-sm mb-1">{{ card.title }}</p>
+            <p class="text-2xl font-semibold text-font-important-light dark:text-font-important-dark">{{ card.value }}</p>
+        {% endcomponent %}
+    {% endfor %}
+</div>
+
+<div class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+    {% component "unfold/components/card.html" with title="آخرین سفارش‌ها" %}
+        {% if recent_orders %}
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-right text-font-subtle-light dark:text-font-subtle-dark">
+                        <th class="pb-2 font-normal">شماره سفارش</th>
+                        <th class="pb-2 font-normal">مشتری</th>
+                        <th class="pb-2 font-normal">وضعیت</th>
+                        <th class="pb-2 font-normal">مبلغ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in recent_orders %}
+                    <tr class="border-t border-base-200 dark:border-base-800">
+                        <td class="py-2">
+                            <a class="text-primary-600 dark:text-primary-400 hover:underline"
+                               href="{% url 'admin:orders_order_change' order.pk %}">{{ order.order_number }}</a>
+                        </td>
+                        <td class="py-2">{% if order.user %}{{ order.user.get_full_name|default:order.user.username }}{% else %}مهمان{% endif %}</td>
+                        <td class="py-2">{{ order.get_status_display }}</td>
+                        <td class="py-2">{{ order.total|floatformat:0 }} تومان</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="text-font-subtle-light dark:text-font-subtle-dark text-sm">هنوز سفارشی ثبت نشده.</p>
+        {% endif %}
+    {% endcomponent %}
+
+    {% component "unfold/components/card.html" with title="محصولات رو به اتمام (موجودی ۵ یا کمتر)" %}
+        {% if low_stock_products %}
+            <ul class="divide-y divide-base-200 dark:divide-base-800 text-sm">
+                {% for product in low_stock_products %}
+                <li class="flex items-center justify-between py-2">
+                    <a class="text-primary-600 dark:text-primary-400 hover:underline"
+                       href="{% url 'admin:products_product_change' product.pk %}">{{ product.name }}</a>
+                    <span class="text-font-subtle-light dark:text-font-subtle-dark">{{ product.stock }} عدد</span>
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="text-font-subtle-light dark:text-font-subtle-dark text-sm">در حال حاضر محصولی با موجودی کم وجود ندارد.</p>
+        {% endif %}
+    {% endcomponent %}
+</div>
 {{ block.super }}
 {% endblock %}

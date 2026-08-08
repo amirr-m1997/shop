@@ -1,9 +1,10 @@
 from django.contrib import admin
+from unfold.admin import ModelAdmin, TabularInline
 from .models import UserProfile, LoginHistory
 
 
 @admin.register(UserProfile)
-class UserProfileAdmin(admin.ModelAdmin):
+class UserProfileAdmin(ModelAdmin):
     list_display = ['user', 'first_name', 'last_name', 'phone', 'phone_verified', 'email_verified', 'created_at']
     list_filter = ['phone_verified', 'email_verified']
     search_fields = ['user__username', 'user__email', 'first_name', 'last_name', 'phone']
@@ -11,7 +12,7 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 
 @admin.register(LoginHistory)
-class LoginHistoryAdmin(admin.ModelAdmin):
+class LoginHistoryAdmin(ModelAdmin):
     list_display = ['user', 'ip_address', 'short_user_agent', 'login_time']
     list_filter = ['login_time']
     search_fields = ['user__username', 'ip_address']

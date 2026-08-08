@@ -93,7 +93,7 @@ const DesktopHeader = ({
     );
 
   return (
-    <div className="hidden lg:block" ref={navRef}>
+    <div className="hidden md:block" ref={navRef}>
       {/* ── Level 1: Brand + Search + Actions ── */}
       <div
         className={cn(
@@ -270,13 +270,11 @@ const DesktopHeader = ({
         </div>
       </div>
 
-      {/* ── Level 2: Navigation — global nav stays visible in chat ── */}
+      {/* ── Level 2: Navigation — stays pinned while scrolling on desktop/tablet ── */}
       <div
         className={cn(
-          'relative border-t border-border/40 transition-all duration-300',
-          scrolled
-            ? 'max-h-0 overflow-hidden opacity-0 border-transparent'
-            : 'max-h-14 opacity-100'
+          'relative border-t border-border/40',
+          scrolled && 'shadow-[0_8px_18px_-10px_rgba(0,0,0,0.18)]'
         )}
       >
           <div className="container mx-auto px-4">

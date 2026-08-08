@@ -66,7 +66,7 @@ const MobileBottomNav = ({
 
   return (
     <nav
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 lg:hidden"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 md:hidden"
       aria-label="ناوبری موبایل"
     >
       <div className="pointer-events-auto mx-auto mb-[max(0.6rem,env(safe-area-inset-bottom))] w-[min(100%-1.25rem,28rem)]">

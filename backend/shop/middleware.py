@@ -105,10 +105,10 @@ class SecurityHeadersMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
-        self._add_headers(response)
+        self._add_headers(response, request)
         return response
 
-    def _add_headers(self, response):
+    def _add_headers(self, response, request=None):
         # Prevent MIME type sniffing
         response['X-Content-Type-Options'] = 'nosniff'
 
@@ -135,18 +135,33 @@ class SecurityHeadersMiddleware:
         response['X-XSS-Protection'] = '0'
 
         # Content Security Policy — basic policy for API responses
-        # Adjust for your frontend domain when deploying
-        csp_parts = [
-            "default-src 'self'",
-            "script-src 'self'",
-            "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data: https:",
-            "font-src 'self'",
-            "connect-src 'self'",
-            "frame-ancestors 'none'",
-            "base-uri 'self'",
-            "form-action 'self'",
-        ]
+        # Admin UI (unfold) ships Alpine.js which requires 'unsafe-eval',
+        # so relax script-src only on /admin/ paths.
+        is_admin = request is not None and request.path.startswith('/admin/')
+        if is_admin:
+            csp_parts = [
+                "default-src 'self'",
+                "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+                "style-src 'self' 'unsafe-inline' https:",
+                "img-src 'self' data: https:",
+                "font-src 'self' https: data:",
+                "connect-src 'self' https:",
+                "frame-ancestors 'none'",
+                "base-uri 'self'",
+                "form-action 'self'",
+            ]
+        else:
+            csp_parts = [
+                "default-src 'self'",
+                "script-src 'self'",
+                "style-src 'self' 'unsafe-inline'",
+                "img-src 'self' data: https:",
+                "font-src 'self'",
+                "connect-src 'self'",
+                "frame-ancestors 'none'",
+                "base-uri 'self'",
+                "form-action 'self'",
+            ]
         response['Content-Security-Policy'] = '; '.join(csp_parts)
 
         # HSTS — only when HTTPS is explicitly enabled

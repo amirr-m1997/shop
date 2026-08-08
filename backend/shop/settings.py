@@ -46,7 +46,6 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
     'x-device-fingerprint',
     'x-request-id',
-    'x-session-id',
 ]
 
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
@@ -55,6 +54,9 @@ FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 # Application definition
 
 INSTALLED_APPS = [
+    'unfold',
+    'unfold.contrib.filters',
+    'unfold.contrib.forms',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -76,7 +78,6 @@ INSTALLED_APPS = [
     'payments',
     'dashboard',
     'chat',
-    'django_q',
 ]
 
 MIDDLEWARE = [
@@ -111,6 +112,85 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'shop.wsgi.application'
+
+
+# ---------------------------------------------------------------------------
+# پیکربندی پنل ادمین (Unfold)
+# مستندات: https://unfoldadmin.com/docs/
+# ---------------------------------------------------------------------------
+UNFOLD = {
+    "SITE_TITLE": "پنل مدیریت فروشگاه",
+    "SITE_HEADER": "پنل مدیریت فروشگاه",
+    "SITE_SUBHEADER": "مدیریت محصولات، سفارش‌ها و کاربران",
+    "SITE_SYMBOL": "storefront",  # Google Material Symbol
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": True,
+    "SHOW_LANGUAGES": False,
+    "THEME": None,  # هم لایت هم دارک در دسترس کاربره؛ سوییچر خودکار نشون داده می‌شه
+    "DASHBOARD_CALLBACK": "shop.admin_dashboard.dashboard_callback",
+    "COLORS": {
+        # پالت خنثی (زینک) هم‌راستا با تم مونوکروم فرانت‌اند فروشگاه
+        "primary": {
+            "50": "250 250 250", "100": "244 244 245", "200": "228 228 231",
+            "300": "212 212 216", "400": "161 161 170", "500": "113 113 122",
+            "600": "82 82 91", "700": "63 63 70", "800": "39 39 42",
+            "900": "24 24 27", "950": "9 9 11",
+        },
+    },
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": "داشبورد",
+                "separator": False,
+                "items": [
+                    {
+                        "title": "خانه",
+                        "icon": "dashboard",
+                        "link": "/admin/",
+                    },
+                ],
+            },
+            {
+                "title": "فروش",
+                "separator": True,
+                "items": [
+                    {"title": "سفارش‌ها", "icon": "shopping_bag", "link": "/admin/orders/order/"},
+                    {"title": "آدرس‌های ارسال", "icon": "local_shipping", "link": "/admin/orders/shippingaddress/"},
+                    {"title": "کدهای تخفیف", "icon": "local_offer", "link": "/admin/orders/coupon/"},
+                    {"title": "سبدهای خرید", "icon": "shopping_cart", "link": "/admin/cart/cart/"},
+                ],
+            },
+            {
+                "title": "محصولات",
+                "separator": True,
+                "items": [
+                    {"title": "محصولات", "icon": "inventory_2", "link": "/admin/products/product/"},
+                    {"title": "دسته‌بندی‌ها", "icon": "category", "link": "/admin/products/category/"},
+                ],
+            },
+            {
+                "title": "کاربران",
+                "separator": True,
+                "items": [
+                    {"title": "کاربران", "icon": "group", "link": "/admin/auth/user/"},
+                    {"title": "پروفایل‌ها", "icon": "badge", "link": "/admin/accounts/userprofile/"},
+                ],
+            },
+            {
+                "title": "محتوا",
+                "separator": True,
+                "items": [
+                    {"title": "مقالات بلاگ", "icon": "article", "link": "/admin/blog/blogpost/"},
+                    {"title": "نظرات مشتریان", "icon": "star_rate", "link": "/admin/pages/testimonial/"},
+                    {"title": "پیام‌های تماس", "icon": "mail", "link": "/admin/pages/contactmessage/"},
+                    {"title": "تنظیمات سایت", "icon": "settings", "link": "/admin/pages/sitesettings/"},
+                ],
+            },
+        ],
+    },
+}
 
 
 # Database
@@ -166,10 +246,6 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Maximum avatar upload size (bytes).
-MAX_AVATAR_SIZE = int(os.getenv('MAX_AVATAR_SIZE', str(2 * 1024 * 1024)))
-DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('DATA_UPLOAD_MAX_MEMORY_SIZE', str(5 * 1024 * 1024)))
-
 # ─── Django REST Framework ─────────────────────────────────
 
 REST_FRAMEWORK = {
@@ -203,8 +279,6 @@ REST_FRAMEWORK = {
         'payment_verify': '5/min',
         'payment_webhook': '60/min',
         'coupon_apply': '20/min',
-        # Chat write endpoints (send message/product, create conversation, etc.)
-        'chat_send': '30/min',
     },
 
     # ── Exception handler for consistent throttle/lockout responses ──
@@ -237,42 +311,6 @@ else:
             'LOCATION': 'shop-security',
         }
     }
-
-# ─── Django-Q Configuration ─────────────────────────────────
-# Background task processing with Django-Q2.
-# Uses Redis as broker in production, ORM broker in development.
-
-Q_CLUSTER = {
-    'name': 'shop',
-    'workers': int(os.getenv('Q_WORKERS', '4')),
-    'recycle': 500,
-    'timeout': 60,
-    'compress': True,
-    'cpu_affinity': 1,
-    'save_limit': 250,
-    'queue_limit': 500,
-    'bulk': 10,
-    'acker': True,
-    'max_rss': 500,
-    'max_jitter': 8,
-    'log_level': 'INFO',
-}
-
-# Use Redis broker if REDIS_URL is set, otherwise use ORM
-if REDIS_URL:
-    Q_CLUSTER.update({
-        'redis': REDIS_URL,
-    })
-else:
-    # ORM broker uses Django's database (default)
-    Q_CLUSTER['orm'] = 'default'
-
-# ─── Chat / Notifications retention ─────────────────────────
-# Read notifications are pruned after this many days; all notifications
-# (read or unread) are pruned after NOTIFICATION_MAX_RETENTION_DAYS.
-# The `clear_old_notifications` management command enforces these limits.
-NOTIFICATION_READ_RETENTION_DAYS = int(os.getenv('NOTIFICATION_READ_RETENTION_DAYS', '14'))
-NOTIFICATION_MAX_RETENTION_DAYS = int(os.getenv('NOTIFICATION_MAX_RETENTION_DAYS', '90'))
 
 # ─── Security Settings ─────────────────────────────────────
 
@@ -511,19 +549,9 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-
-# Environment variables required for email configuration
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-if not EMAIL_HOST_USER:
-    raise RuntimeError("EMAIL_HOST_USER environment variable is required!")
-
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-if not EMAIL_HOST_PASSWORD:
-    raise RuntimeError("EMAIL_HOST_PASSWORD environment variable is required!")
-
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
-if not DEFAULT_FROM_EMAIL:
-    raise RuntimeError("DEFAULT_FROM_EMAIL environment variable is required!")
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'mkhmdyamyr8@gmail.com')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'xrlp ncjo aplz fiov')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'mkhmdyamyr8@gmail.com')
 
 # ─── Zarinpal Payment Gateway ──────────────────────────────
 ZARINPAL_MERCHANT_ID = os.getenv('ZARINPAL_MERCHANT_ID', '')

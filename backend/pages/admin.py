@@ -1,22 +1,23 @@
 from django.contrib import admin
+from unfold.admin import ModelAdmin, TabularInline
 from .models import FAQ, ContactInfo, ContactMessage, SiteSettings, Testimonial, SiteFeature
 
 
 @admin.register(FAQ)
-class FAQAdmin(admin.ModelAdmin):
+class FAQAdmin(ModelAdmin):
     list_display = ['question', 'order', 'is_active']
     list_editable = ['order', 'is_active']
     list_filter = ['is_active']
 
 
 @admin.register(ContactInfo)
-class ContactInfoAdmin(admin.ModelAdmin):
+class ContactInfoAdmin(ModelAdmin):
     def has_add_permission(self, request):
         return not ContactInfo.objects.exists()
 
 
 @admin.register(ContactMessage)
-class ContactMessageAdmin(admin.ModelAdmin):
+class ContactMessageAdmin(ModelAdmin):
     list_display = ['name', 'email', 'is_read', 'created_at']
     list_filter = ['is_read', 'created_at']
     list_editable = ['is_read']
@@ -24,7 +25,7 @@ class ContactMessageAdmin(admin.ModelAdmin):
 
 
 @admin.register(SiteSettings)
-class SiteSettingsAdmin(admin.ModelAdmin):
+class SiteSettingsAdmin(ModelAdmin):
     fieldsets = (
         ('صفحه اصلی', {
             'fields': ('hero_title', 'hero_subtitle', 'hero_image'),
@@ -56,7 +57,7 @@ class SiteSettingsAdmin(admin.ModelAdmin):
 
 
 @admin.register(Testimonial)
-class TestimonialAdmin(admin.ModelAdmin):
+class TestimonialAdmin(ModelAdmin):
     list_display = ['name', 'rating', 'is_approved', 'is_featured', 'created_at']
     list_filter = ['is_approved', 'is_featured', 'rating', 'created_at']
     list_editable = ['is_approved', 'is_featured']
@@ -64,7 +65,7 @@ class TestimonialAdmin(admin.ModelAdmin):
 
 
 @admin.register(SiteFeature)
-class SiteFeatureAdmin(admin.ModelAdmin):
+class SiteFeatureAdmin(ModelAdmin):
     list_display = ['title', 'icon', 'order', 'is_active']
     list_filter = ['is_active']
     list_editable = ['order', 'is_active']
