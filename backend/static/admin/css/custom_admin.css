@@ -585,6 +585,94 @@ input[type="number"], .numeric, table .num { text-align: left; direction: ltr; f
 .submit-row { direction: rtl; }
 .submit-row input.default { margin-right: 0; margin-left: auto; }
 
+/* Order detail premium summary */
+.order-detail-summary {
+    margin: 22px 0 4px;
+    display: grid;
+    gap: 16px;
+}
+.order-detail-hero {
+    align-items: center;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--lux-surface) 92%, var(--lux-accent) 8%), var(--lux-surface-alt));
+    border: 1px solid var(--lux-border);
+    border-radius: 22px;
+    box-shadow: var(--lux-shadow-soft);
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 22px 24px;
+}
+.order-detail-eyebrow {
+    color: var(--lux-muted);
+    font-size: 11px;
+    font-weight: 850;
+    letter-spacing: .08em;
+    margin: 0 0 6px;
+}
+.order-detail-hero h2 {
+    color: var(--lux-text) !important;
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: -.03em;
+    margin: 0 !important;
+}
+.order-detail-date { color: var(--lux-muted); font-size: 12px; margin: 6px 0 0 !important; }
+.order-detail-hero-badges { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.order-detail-grid {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.order-detail-card {
+    background: var(--lux-surface);
+    border: 1px solid var(--lux-border);
+    border-radius: 18px;
+    box-shadow: var(--lux-shadow-soft);
+    padding: 18px;
+}
+.order-detail-card h3 {
+    color: var(--lux-muted) !important;
+    font-size: 11px;
+    font-weight: 850;
+    letter-spacing: .08em;
+    margin: 0 0 12px !important;
+    text-transform: uppercase;
+}
+.order-detail-card p { color: var(--lux-text-secondary); margin: 0 0 6px; line-height: 1.8; }
+.order-detail-card strong { color: var(--lux-text); }
+.order-detail-totals > div {
+    align-items: center;
+    border-top: 1px solid var(--lux-border);
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 0;
+}
+.order-detail-totals > div:first-of-type { border-top: 0; padding-top: 0; }
+.order-detail-totals .is-total {
+    border-top: 1px solid var(--lux-border-strong);
+    margin-top: 6px;
+    padding-top: 14px;
+}
+.order-detail-totals .is-total span,
+.order-detail-totals .is-total strong { color: var(--lux-text); font-size: 15px; font-weight: 900; }
+.order-detail-totals .is-discount strong { color: var(--lux-danger); }
+.order-status-pill, .order-payment-pill {
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: 12px;
+    font-weight: 850;
+    padding: 7px 12px;
+}
+.order-status-pill--pending_payment, .order-status-pill--pending { background: color-mix(in srgb, var(--lux-warning) 14%, transparent); color: var(--lux-warning); }
+.order-status-pill--processing { background: color-mix(in srgb, var(--lux-info) 14%, transparent); color: var(--lux-info); }
+.order-status-pill--shipped { background: color-mix(in srgb, var(--lux-accent) 15%, transparent); color: var(--lux-accent-dark); }
+.order-status-pill--delivered { background: color-mix(in srgb, var(--lux-success) 13%, transparent); color: var(--lux-success); }
+.order-status-pill--cancelled, .order-status-pill--expired, .order-status-pill--returned { background: color-mix(in srgb, var(--lux-danger) 12%, transparent); color: var(--lux-danger); }
+.order-payment-pill--unpaid { background: color-mix(in srgb, var(--lux-danger) 12%, transparent); color: var(--lux-danger); }
+.order-payment-pill--paid { background: color-mix(in srgb, var(--lux-success) 13%, transparent); color: var(--lux-success); }
+.order-payment-pill--refunded { background: color-mix(in srgb, var(--lux-warning) 14%, transparent); color: var(--lux-warning); }
+
 /* Responsive */
 @media (max-width: 1180px) {
     #changelist { grid-template-columns: 1fr; }
@@ -593,10 +681,22 @@ input[type="number"], .numeric, table .num { text-align: left; direction: ltr; f
 @media (max-width: 767px) {
     #content { padding: 16px !important; }
     #content > h1 { font-size: 23px; }
-    #nav-sidebar { width: 280px !important; }
+    #nav-sidebar { width: min(86vw, 300px) !important; }
+    #changelist-search form { display: grid; }
+    #searchbar { min-width: 100%; }
+    #toolbar, #changelist-search, #changelist-filter, .results { border-radius: 16px !important; }
+    #changelist .actions { align-items: stretch; flex-direction: column; }
+    #changelist .actions label, #changelist .actions button, #changelist .actions select { width: 100%; }
+    #result_list, table.result_list, .results table { min-width: 640px; }
     #result_list th, #result_list td, .results th, .results td { padding: 11px 12px !important; }
     .submit-row { position: static; }
     .object-tools { float: none; margin-top: 8px; }
+    .object-tools a { justify-content: center; width: 100%; }
+    .order-detail-hero { align-items: flex-start; flex-direction: column; padding: 18px; }
+    .order-detail-hero-badges { justify-content: flex-start; }
+    .order-detail-grid { grid-template-columns: 1fr; }
+    .admin-stat-grid { grid-template-columns: 1fr; }
+    .breadcrumbs { font-size: 11px; line-height: 1.8; }
 }
 
 @media (prefers-reduced-motion: reduce) {

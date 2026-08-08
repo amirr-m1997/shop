@@ -90,7 +90,7 @@ class OrderAdmin(ModelAdmin):
     ]
     list_filter = ['status', 'payment_status', 'payment_method', 'created_at']
     list_filter_submit = True
-    search_fields = ['order_number', 'user__username', 'user__email']
+    search_fields = ['order_number', 'user__username', 'user__email', 'guest_email', 'guest_phone', 'shipping_address__full_name', 'shipping_address__phone']
     readonly_fields = [
         'order_number', 'subtotal', 'shipping_cost', 'tax', 'total',
         'created_at', 'updated_at'

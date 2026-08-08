@@ -1,0 +1,51 @@
+{% extends "admin/change_form.html" %}
+{% load admin_urls static unfold %}
+
+{% block after_related_objects %}
+{{ block.super }}
+
+{% if original %}
+<div class="order-detail-summary">
+    <div class="order-detail-hero">
+        <div>
+            <p class="order-detail-eyebrow">شماره سفارش</p>
+            <h2>{{ original.order_number }}</h2>
+            <p class="order-detail-date">{{ original.created_at|date:"Y/m/d H:i" }}</p>
+        </div>
+        <div class="order-detail-hero-badges">
+            <span class="order-status-pill order-status-pill--{{ original.status }}">{{ original.get_status_display }}</span>
+            <span class="order-payment-pill order-payment-pill--{{ original.payment_status }}">{{ original.get_payment_status_display }}</span>
+        </div>
+    </div>
+
+    <div class="order-detail-grid">
+        <div class="order-detail-card">
+            <h3>مشتری</h3>
+            <p><strong>{% if original.user %}{{ original.user.get_full_name|default:original.user.username }}{% else %}مهمان{% endif %}</strong></p>
+            <p>{% if original.user %}{{ original.user.email|default:"—" }}{% else %}{{ original.guest_email|default:original.guest_phone|default:"—" }}{% endif %}</p>
+            {% if original.guest_phone and not original.user %}<p>{{ original.guest_phone }}</p>{% endif %}
+        </div>
+
+        <div class="order-detail-card">
+            <h3>ارسال</h3>
+            {% if original.shipping_address %}
+                <p><strong>{{ original.shipping_address.full_name }}</strong></p>
+                <p>{{ original.shipping_address.city }}، {{ original.shipping_address.state }}</p>
+                <p>{{ original.shipping_address.address_line1 }}</p>
+                <p>{{ original.shipping_address.postal_code }}</p>
+            {% else %}
+                <p>آدرس ثبت نشده است.</p>
+            {% endif %}
+        </div>
+
+        <div class="order-detail-card order-detail-totals">
+            <div><span>جمع کالاها</span><strong>{{ original.subtotal|floatformat:0 }} تومان</strong></div>
+            <div><span>ارسال</span><strong>{{ original.shipping_cost|floatformat:0 }} تومان</strong></div>
+            <div><span>مالیات</span><strong>{{ original.tax|floatformat:0 }} تومان</strong></div>
+            {% if original.discount %}<div class="is-discount"><span>تخفیف</span><strong>−{{ original.discount|floatformat:0 }} تومان</strong></div>{% endif %}
+            <div class="is-total"><span>مبلغ نهایی</span><strong>{{ original.total|floatformat:0 }} تومان</strong></div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
