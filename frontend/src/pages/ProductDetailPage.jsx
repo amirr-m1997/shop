@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ChevronLeft, Package, PackageX } from 'lucide-react';
-import { Button } from '../components/ui/Button';
+import { ChevronLeft, PackageX, ShoppingCart, Truck, ShieldCheck, RefreshCcw, Sparkles } from 'lucide-react';
 import EmptyState from '../components/ui/EmptyState';
 import { productsAPI } from '../services/api';
 import { useCart } from '../contexts/CartContext';
@@ -49,11 +48,17 @@ const ProductDetailPage = () => {
         setProduct(response.data);
         setSelectedImage(0);
         setQuantity(1);
+        setCartError('');
+        setReviewSubmitted(false);
         if (response.data.available_sizes?.length > 0) {
           setSelectedSize(response.data.available_sizes[0].id);
+        } else {
+          setSelectedSize(null);
         }
         if (response.data.available_colors?.length > 0) {
           setSelectedColor(response.data.available_colors[0].id);
+        } else {
+          setSelectedColor(null);
         }
       } catch (error) {
         console.error('Error fetching product:', error);
@@ -203,82 +208,135 @@ const ProductDetailPage = () => {
   let maxStock = product.stock;
   if (product.variants?.length && selectedSize && selectedColor) {
     const v = product.variants.find(
-      (v) => String(v.size) === String(selectedSize) && String(v.color) === String(selectedColor)
+      (variant) =>
+        String(variant.size) === String(selectedSize) &&
+        String(variant.color) === String(selectedColor)
     );
     if (v) maxStock = v.effective_stock ?? maxStock;
   }
 
+  const breadcrumbItems = [
+    { label: 'خانه', to: '/' },
+    { label: 'فروشگاه', to: '/products' },
+    ...(product.category_name ? [{ label: product.category_name, to: `/products?category=${encodeURIComponent(product.category || product.category_name)}` }] : []),
+    { label: product.name, to: null },
+  ];
+
   return (
-    <div className="min-h-screen pb-16">
+    <div className="min-h-screen bg-background pb-28 lg:pb-20">
       <ProductSEO product={product} />
-      {/* Breadcrumb */}
-      <div className="container mx-auto px-4 pt-6">
-        <nav className="mb-6 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:text-sm">
-          <Link to="/" className="transition-colors hover:text-foreground">
-            خانه
-          </Link>
-          <ChevronLeft className="h-3.5 w-3.5 opacity-50" />
-          <Link to="/products" className="transition-colors hover:text-foreground">
-            فروشگاه
-          </Link>
-          {product.category_name && (
-            <>
-              <ChevronLeft className="h-3.5 w-3.5 opacity-50" />
-              <span className="text-foreground/80">{product.category_name}</span>
-            </>
-          )}
-          <ChevronLeft className="h-3.5 w-3.5 opacity-50" />
-          <span className="line-clamp-1 font-medium text-foreground">{product.name}</span>
-        </nav>
-      </div>
 
-      <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-12">
-          <ProductGallery
-            images={images}
-            selectedImage={selectedImage}
-            setSelectedImage={setSelectedImage}
-            goImage={goImage}
-            zooming={zooming}
-            setZooming={setZooming}
-            zoomPos={zoomPos}
-            setZoomPos={setZoomPos}
-            mainImageRef={mainImageRef}
-            product={product}
-          />
-
-          {/* ═══ Product Info ═══ */}
-          <div className="flex flex-col">
-            <div className="rounded-[1.75rem] border border-border/40 bg-card/70 p-6 shadow-xl shadow-black/[0.03] backdrop-blur-xl dark:border-white/[0.08] dark:bg-card/50 sm:p-8">
-              <ProductInfo product={product} maxStock={maxStock} selectedSize={selectedSize} selectedColor={selectedColor} />
-
-              <VariantSelector
-                product={product}
-                selectedSize={selectedSize}
-                setSelectedSize={setSelectedSize}
-                selectedColor={selectedColor}
-                setSelectedColor={setSelectedColor}
-                quantity={quantity}
-                setQuantity={setQuantity}
-                maxStock={maxStock}
-              />
-
-              <ProductActions
-                isAuthenticated={isAuthenticated}
-                handleAddToCart={handleAddToCart}
-                addedToCart={addedToCart}
-                cartError={cartError}
-                onCloseSuccess={closeSuccessModal}
-                onCloseError={closeErrorModal}
-                selectedSize={selectedSize}
-                selectedColor={selectedColor}
-                maxStock={maxStock}
-                product={product}
-              />
-            </div>
-          </div>
+      <div className="relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 -z-10">
+          <div className="absolute right-[-10%] top-[-8rem] h-72 w-72 rounded-full bg-primary/[0.045] blur-3xl" />
+          <div className="absolute left-[-8%] top-24 h-80 w-80 rounded-full bg-primary/[0.035] blur-3xl" />
         </div>
 
+        <div className="container mx-auto px-4 pt-5 sm:px-6 lg:px-8">
+          <nav aria-label="مسیر محصول" className="mb-5 flex min-h-8 flex-wrap items-center gap-1 text-[11px] text-muted-foreground sm:mb-8 sm:text-xs">
+            {breadcrumbItems.map((item, index) => (
+              <React.Fragment key={`${item.label}-${index}`}>
+                {item.to ? (
+                  <Link
+                    to={item.to}
+                    className="rounded-full px-2 py-1 transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    {item.label}
+                  </Link>
+                ) : (
+                  <span className="line-clamp-1 rounded-full bg-muted/55 px-2 py-1 font-semibold text-foreground/85">
+                    {item.label}
+                  </span>
+                )}
+                {index < breadcrumbItems.length - 1 && (
+                  <ChevronLeft className="h-3 w-3 opacity-40" />
+                )}
+              </React.Fragment>
+            ))}
+          </nav>
+
+          <div className="grid grid-cols-1 gap-8 pb-10 lg:grid-cols-[1.08fr_0.92fr] lg:gap-x-12 lg:gap-y-10 lg:pb-16">
+            <ProductGallery
+              images={images}
+              selectedImage={selectedImage}
+              setSelectedImage={setSelectedImage}
+              goImage={goImage}
+              zooming={zooming}
+              setZooming={setZooming}
+              zoomPos={zoomPos}
+              setZoomPos={setZoomPos}
+              mainImageRef={mainImageRef}
+              product={product}
+            />
+
+            <aside className="relative lg:sticky lg:top-28 lg:self-start">
+              <div className="pointer-events-none absolute -inset-4 -z-10 rounded-[2.5rem] bg-gradient-to-br from-primary/[0.04] via-transparent to-transparent blur-2xl" />
+              <div className="rounded-[2rem] border border-border/45 bg-card/55 p-5 shadow-[0_28px_90px_-48px_hsl(var(--foreground)/0.35)] ring-1 ring-white/20 backdrop-blur-2xl sm:p-7 lg:p-8 dark:ring-white/5">
+                <ProductInfo
+                  product={product}
+                  maxStock={maxStock}
+                  selectedSize={selectedSize}
+                  selectedColor={selectedColor}
+                />
+
+                <div className="my-7 h-px bg-gradient-to-l from-border via-border/60 to-transparent" />
+
+                <VariantSelector
+                  product={product}
+                  selectedSize={selectedSize}
+                  setSelectedSize={setSelectedSize}
+                  selectedColor={selectedColor}
+                  setSelectedColor={setSelectedColor}
+                  quantity={quantity}
+                  setQuantity={setQuantity}
+                  maxStock={maxStock}
+                />
+
+                <div className="my-7 h-px bg-gradient-to-l from-border via-border/60 to-transparent" />
+
+                <ProductActions
+                  isAuthenticated={isAuthenticated}
+                  handleAddToCart={handleAddToCart}
+                  addedToCart={addedToCart}
+                  cartError={cartError}
+                  onCloseSuccess={closeSuccessModal}
+                  onCloseError={closeErrorModal}
+                  selectedSize={selectedSize}
+                  selectedColor={selectedColor}
+                  maxStock={maxStock}
+                  product={product}
+                />
+
+                <div className="mt-6 grid grid-cols-1 gap-2.5 rounded-[1.5rem] border border-border/45 bg-background/45 p-3 backdrop-blur-sm sm:grid-cols-3">
+                  <div className="flex items-center gap-3 rounded-2xl px-3 py-2">
+                    <Truck className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div>
+                      <p className="text-[11px] font-extrabold text-foreground">ارسال سریع</p>
+                      <p className="text-[10px] text-muted-foreground">بسته‌بندی ویژه</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 rounded-2xl px-3 py-2">
+                    <RefreshCcw className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div>
+                      <p className="text-[11px] font-extrabold text-foreground">بازگشت آسان</p>
+                      <p className="text-[10px] text-muted-foreground">تا ۳۰ روز</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 rounded-2xl px-3 py-2">
+                    <ShieldCheck className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div>
+                      <p className="text-[11px] font-extrabold text-foreground">پرداخت امن</p>
+                      <p className="text-[10px] text-muted-foreground">درگاه معتبر</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <ReviewsSection
           reviews={reviews}
           reviewRating={reviewRating}
@@ -291,19 +349,32 @@ const ProductDetailPage = () => {
           reviewSubmitted={reviewSubmitted}
           handleSubmitReview={handleSubmitReview}
           isAuthenticated={isAuthenticated}
+          productRating={product.rating}
         />
 
-        {/* AI Recommendations */}
-        <div className="mt-16">
+        <div className="mt-16 sm:mt-24">
           <RecommendationsSection productId={product?.id} />
         </div>
 
-        {/* Related products */}
         {relatedProducts.length > 0 && (
-          <section className="mt-16">
-            <h2 className="mb-7 text-2xl font-bold tracking-tight sm:text-3xl">
-              شاید این را هم دوست داشته باشید
-            </h2>
+          <section className="mt-16 sm:mt-24">
+            <div className="mb-7 flex items-end justify-between gap-4">
+              <div>
+                <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-muted-foreground/70">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  استایل مکمل
+                </p>
+                <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
+                  شاید این را هم دوست داشته باشید
+                </h2>
+              </div>
+              <Link
+                to="/products"
+                className="hidden rounded-full border border-border/70 px-4 py-2 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:inline-flex"
+              >
+                مشاهده همه
+              </Link>
+            </div>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-5">
               {relatedProducts.map((p) => (
                 <ProductCard key={p.id} product={p} size="large" />
@@ -311,6 +382,26 @@ const ProductDetailPage = () => {
             </div>
           </section>
         )}
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/85 px-4 py-3 shadow-[0_-18px_50px_-30px_hsl(var(--foreground)/0.45)] backdrop-blur-2xl lg:hidden">
+        <div className="mx-auto flex max-w-2xl items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-bold text-foreground">{product.name}</p>
+            <p className="text-[11px] text-muted-foreground">
+              {maxStock > 0 ? `${maxStock.toLocaleString('fa-IR')} عدد موجود` : 'ناموجود'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            disabled={maxStock < 1}
+            className="flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-foreground px-5 text-sm font-black text-background shadow-xl shadow-foreground/20 transition-transform active:scale-[0.98] disabled:opacity-40"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            افزودن
+          </button>
+        </div>
       </div>
     </div>
   );

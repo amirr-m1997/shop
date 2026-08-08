@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingCart, AlertCircle } from 'lucide-react';
-import { Button } from '../ui/Button';
 import WishlistButton from '../WishlistButton';
 import SendToFriendButton from '../chat/SendToFriendButton';
 import FeedbackModal from '../ui/FeedbackModal';
@@ -13,8 +12,6 @@ const ProductActions = ({
   cartError,
   onCloseSuccess,
   onCloseError,
-  selectedSize,
-  selectedColor,
   maxStock,
   product,
 }) => {
@@ -26,35 +23,42 @@ const ProductActions = ({
   };
 
   return (
-    <>
-      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <Button
-          size="lg"
+    <div className="space-y-4 pt-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
+        <button
+          type="button"
           onClick={handleAddToCart}
           disabled={maxStock < 1}
-          className="h-12 flex-1 rounded-2xl bg-neutral-900 text-base font-bold text-white shadow-lg shadow-black/10 transition-all hover:-translate-y-0.5 hover:bg-neutral-800 disabled:translate-y-0 disabled:opacity-40 dark:bg-white dark:text-neutral-900 dark:hover:bg-white/95"
+          className="group relative flex h-14 flex-1 items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-foreground px-6 text-base font-black text-background shadow-[0_18px_45px_-18px_hsl(var(--foreground)/0.55)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_-20px_hsl(var(--foreground)/0.65)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
         >
-          <ShoppingCart className="ml-2 h-5 w-5" />
-          افزودن به سبد خرید
-        </Button>
+          <span className="absolute inset-0 bg-gradient-to-l from-white/15 via-transparent to-white/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+          <ShoppingCart className="h-5 w-5 transition-transform duration-300 group-hover:-translate-x-0.5" />
+          <span>{maxStock < 1 ? 'ناموجود' : 'افزودن به سبد خرید'}</span>
+        </button>
 
-        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center">
-          <WishlistButton
-            productId={product.id}
-            size="h-5 w-5"
-            className="!static !h-12 !w-12 rounded-2xl border border-border/60 bg-background/60 shadow-none"
+        <div className="flex gap-2.5">
+          <div className="relative flex h-14 w-14 shrink-0 items-center justify-center">
+            <WishlistButton
+              productId={product.id}
+              size="h-5 w-5"
+              className="!static !flex !h-14 !w-14 items-center justify-center rounded-2xl border border-border/70 bg-background/65 shadow-sm backdrop-blur-sm transition-all hover:scale-105 hover:border-foreground/20"
+            />
+          </div>
+
+          <SendToFriendButton
+            product={product}
+            variant="icon"
+            label="ارسال به دوست"
+            className="!h-14 !w-14 rounded-2xl border border-border/70 bg-background/65 shadow-sm backdrop-blur-sm transition-all hover:scale-105 hover:border-foreground/20"
           />
         </div>
-
-        <SendToFriendButton
-          product={product}
-          variant="text"
-          className="h-12 rounded-2xl border border-border/60 bg-background/60 shadow-none hover:border-primary/40 hover:bg-primary/5 hover:scale-105"
-        />
       </div>
 
       {cartError && (
-        <p className="mt-3 flex items-start gap-2 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive" role="alert">
+        <p
+          className="flex items-start gap-2 rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm font-bold leading-7 text-destructive"
+          role="alert"
+        >
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           {cartError}
         </p>
@@ -66,11 +70,11 @@ const ProductActions = ({
         title="به سبد خرید اضافه شد"
         message={
           !isAuthenticated
-            ? 'محصول با موفقیت به سبد خرید شما اضافه شد. میتوانید بدون ایجاد حساب ثبت سفارش کنید.'
+            ? 'محصول با موفقیت به سبد خرید شما اضافه شد. می‌توانید بدون ایجاد حساب ثبت سفارش کنید.'
             : 'محصول با موفقیت به سبد خرید شما اضافه شد.'
         }
         primaryLabel="بازگشت به همین محصول"
-        primaryClassName="bg-emerald-500 text-white hover:bg-emerald-600"
+        primaryClassName="rounded-xl bg-foreground text-background hover:bg-foreground/90"
         onPrimary={onCloseSuccess}
         secondaryLabel="مشاهده سبد خرید"
         onSecondary={goToCart}
@@ -88,7 +92,7 @@ const ProductActions = ({
           onClose={onCloseError}
         />
       )}
-    </>
+    </div>
   );
 };
 

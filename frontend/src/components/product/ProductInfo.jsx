@@ -1,110 +1,120 @@
 import React from 'react';
-import { Star, Truck, RotateCcw, Shield, AlertTriangle } from 'lucide-react';
-import { Badge } from '../ui/Badge';
+import { Star, AlertTriangle, Check } from 'lucide-react';
 import { formatPrice } from '../../lib/formatPrice';
 
-const TRUST_ITEMS = [
-  { icon: Truck, title: 'ارسال رایگان', desc: 'سفارش بالای ۲ میلیون' },
-  { icon: RotateCcw, title: 'بازگشت آسان', desc: 'تا ۳۰ روز' },
-  { icon: Shield, title: 'پرداخت امن', desc: 'درگاه رسمی' },
-];
-
 const ProductInfo = ({ product, maxStock, selectedSize, selectedColor }) => {
+  const rating = product.rating || 0;
+  const hasLowStock = maxStock > 0 && maxStock < 10 && selectedSize && selectedColor;
+  const isUnavailable = maxStock < 1 && selectedSize && selectedColor;
+
   return (
-    <>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        {product.category_name && (
-          <Badge className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground hover:bg-muted">
-            {product.category_name}
-          </Badge>
-        )}
-        {product.is_new_arrival && (
-          <Badge className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-            جدید
-          </Badge>
-        )}
-      </div>
-
-      <h1 className="text-2xl font-bold tracking-tight sm:text-3xl md:text-4xl">
-        {product.name}
-      </h1>
-
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-0.5">
-          {[...Array(5)].map((_, i) => (
-            <Star
-              key={i}
-              className={`h-4 w-4 sm:h-5 sm:w-5 ${
-                i < Math.floor(product.rating || 0)
-                  ? 'fill-amber-400 text-amber-400'
-                  : 'text-muted-foreground/25'
-              }`}
-            />
-          ))}
-        </div>
-        <span className="text-sm text-muted-foreground">
-          ({(product.review_count || 0).toLocaleString('fa-IR')} نظر)
-        </span>
-        {product.sku && (
-          <span className="text-xs text-muted-foreground/70">
-            کد: {product.sku}
-          </span>
-        )}
-      </div>
-
-      <div className="mt-5 flex flex-wrap items-baseline gap-3">
-        <span className="text-3xl font-bold tabular-nums tracking-tight sm:text-4xl">
-          {formatPrice(product.price || 0)}
-        </span>
-        {product.compare_price && (
-          <>
-            <span className="text-lg font-medium text-red-500/80 line-through tabular-nums">
-              {formatPrice(product.compare_price)}
+    <div className="space-y-6">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {product.brand && (
+            <span className="text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground/80">
+              {product.brand}
             </span>
-            {product.discount_percentage > 0 && (
-              <span className="rounded-xl bg-destructive/10 px-2.5 py-1 text-xs font-bold text-destructive">
-                −{product.discount_percentage}٪
+          )}
+          {product.category_name && (
+            <span className="rounded-full border border-border/70 bg-muted/50 px-3 py-1 text-[11px] font-semibold text-muted-foreground backdrop-blur-sm">
+              {product.category_name}
+            </span>
+          )}
+          {product.is_new_arrival && (
+            <span className="rounded-full bg-emerald-500/12 px-3 py-1 text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400">
+              جدید
+            </span>
+          )}
+        </div>
+
+        <h1 className="text-[1.75rem] font-extrabold leading-[1.25] tracking-tight text-foreground sm:text-4xl lg:text-[2.65rem]">
+          {product.name}
+        </h1>
+
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <div className="flex items-center gap-1.5 rounded-full border border-border/60 bg-background/50 px-3 py-1.5 backdrop-blur-sm">
+            <div className="flex items-center gap-0.5">
+              {[...Array(5)].map((_, i) => (
+                <Star
+                  key={i}
+                  className={`h-3.5 w-3.5 ${
+                    i < Math.round(rating)
+                      ? 'fill-amber-400 text-amber-400'
+                      : 'text-muted-foreground/25'
+                  }`}
+                />
+              ))}
+            </div>
+            <span className="font-bold tabular-nums text-foreground">
+              {Number(rating || 0).toLocaleString('fa-IR', { maximumFractionDigits: 1 })}
+            </span>
+            <span className="text-muted-foreground">
+              ({(product.review_count || 0).toLocaleString('fa-IR')} نظر)
+            </span>
+          </div>
+
+          {product.sku && (
+            <span className="text-xs text-muted-foreground/80">
+              کد محصول: <span className="font-semibold text-foreground/70">{product.sku}</span>
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-[1.5rem] border border-border/45 bg-gradient-to-br from-background/70 via-card/60 to-muted/25 p-5 shadow-sm backdrop-blur-xl dark:from-background/40 dark:via-card/30 dark:to-white/[0.02]">
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+          <span className="text-3xl font-black tracking-tight text-foreground tabular-nums sm:text-4xl">
+            {formatPrice(product.price || 0)}
+          </span>
+          {product.compare_price && Number(product.compare_price) > Number(product.price || 0) && (
+            <div className="flex items-center gap-2 pb-1">
+              <span className="text-base font-semibold text-muted-foreground line-through tabular-nums">
+                {formatPrice(product.compare_price)}
               </span>
-            )}
-          </>
-        )}
+              {product.discount_percentage > 0 && (
+                <span className="rounded-full bg-destructive/10 px-2.5 py-1 text-[11px] font-extrabold text-destructive">
+                  {product.discount_percentage.toLocaleString('fa-IR')}٪ تخفیف
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <p className="mt-3 text-xs leading-6 text-muted-foreground">
+          قیمت نهایی بر اساس ترکیب رنگ و سایز انتخابی شما محاسبه می‌شود.
+        </p>
       </div>
 
       {product.description && (
-        <p className="mt-5 text-sm leading-relaxed text-muted-foreground sm:text-base">
+        <p className="max-w-xl text-[15px] leading-8 text-muted-foreground">
           {product.description}
         </p>
       )}
 
-      {maxStock > 0 && maxStock < 10 && selectedSize && selectedColor && (
-        <div className="mt-4 text-xs font-semibold text-red-600 dark:text-red-400">
-          تنها {maxStock.toLocaleString('fa-IR')} عدد از این ترکیب باقی مانده
+      {hasLowStock && (
+        <div className="flex items-center gap-2 rounded-2xl border border-amber-500/20 bg-amber-500/8 px-4 py-3 text-sm font-bold text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="h-4 w-4" />
+          تنها {maxStock.toLocaleString('fa-IR')} عدد از این ترکیب باقی مانده است.
         </div>
       )}
 
-      {maxStock < 1 && selectedSize && selectedColor && (
-        <div className="mt-4 flex items-center gap-2 rounded-2xl border border-red-200/50 bg-red-50/80 px-4 py-3 text-sm font-bold text-red-600 backdrop-blur-sm dark:border-red-900/30 dark:bg-red-950/20 dark:text-red-400">
-          این ترکیب موجود نیست
+      {isUnavailable && (
+        <div className="flex items-center gap-2 rounded-2xl border border-destructive/20 bg-destructive/8 px-4 py-3 text-sm font-bold text-destructive">
+          <AlertTriangle className="h-4 w-4" />
+          این ترکیب رنگ و سایز در حال حاضر موجود نیست.
         </div>
       )}
 
-      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-        {TRUST_ITEMS.map((item) => (
-          <div
-            key={item.title}
-            className="flex items-center gap-3 rounded-2xl border border-border/40 bg-card/50 px-4 py-3.5 backdrop-blur-sm dark:border-white/[0.06]"
-          >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted/60 dark:bg-white/10">
-              <item.icon className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-xs font-bold">{item.title}</p>
-              <p className="truncate text-xs text-muted-foreground">{item.desc}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </>
+      {!isUnavailable && (
+        <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/12">
+            <Check className="h-3.5 w-3.5" />
+          </span>
+          {hasLowStock ? 'موجود برای ثبت سفارش فوری' : 'موجود در انبار'}
+        </div>
+      )}
+    </div>
   );
 };
 
