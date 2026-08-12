@@ -7,8 +7,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
-from django.db import transaction
-from django.core.mail import send_mail
+from django.db import IntegrityError, transaction
 from django.conf import settings
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -27,16 +26,19 @@ from .throttles import (
 )
 from .security import (
     record_login_failure, clear_login_failures, is_account_locked,
-    apply_login_delay, requires_captcha, validate_captcha,
+    get_login_retry_after, requires_captcha, validate_captcha,
     extract_device_fingerprint, log_security_event,
     record_otp_send, record_otp_failure, clear_otp_failures, is_otp_locked,
 )
 from shop.observability import (
     log_auth_success, log_auth_failure, log_auth_lockout,
     log_otp_request, log_otp_verification, log_password_reset,
+    set_authenticated_user_context,
 )
 from orders.models import ShippingAddress, Order
 from orders.serializers import ShippingAddressSerializer
+from shop.client_ip import get_client_ip
+from .delivery import OTPDeliveryError, deliver_phone_otp, queue_email
 
 logger = logging.getLogger('authentication')
 
@@ -68,11 +70,6 @@ def _user_data(user):
     }
 
 
-def _get_client_ip(request):
-    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR') if settings.TRUST_PROXY_HEADERS else None
-    return x_forwarded.split(',')[0].strip() if x_forwarded else request.META.get('REMOTE_ADDR', 'unknown')
-
-
 def _validate_new_password(password, user=None):
     try:
         validate_password(password, user=user)
@@ -98,15 +95,24 @@ def csrf_cookie_view(request):
     return Response({'detail': 'CSRF cookie set'})
 
 
-def _link_guest_orders_to_user(user):
-    """Claim every unclaimed guest order that used this user's email."""
-    if not user or not user.email:
+def _normalize_email(email):
+    """Return the canonical representation enforced by the database index."""
+    return (email or '').strip().lower()
+
+
+def _link_guest_orders_to_user(user, guest_session_id):
+    """Claim guest orders only after proving email and browser-session ownership."""
+    if not user or not user.email or not guest_session_id:
+        return 0
+    profile = _get_or_create_profile(user)
+    if not profile.email_verified:
         return 0
 
     from payments.models import Payment
     orders = Order.objects.filter(
         user__isnull=True,
-        guest_email__iexact=user.email.strip(),
+        guest_email__iexact=_normalize_email(user.email),
+        guest_session_id=guest_session_id,
     )
     claimed = orders.count()
     for order in orders:
@@ -152,7 +158,7 @@ def register_view(request):
     if User.objects.filter(username=username).exists():
         return Response({'error': 'این نام کاربری قبلاً استفاده شده است'}, status=status.HTTP_400_BAD_REQUEST)
 
-    email = email.lower()
+    email = _normalize_email(email)
     if email:
         try:
             validate_email(email)
@@ -164,10 +170,16 @@ def register_view(request):
     if password_error:
         return Response({'error': password_error}, status=status.HTTP_400_BAD_REQUEST)
 
-    with transaction.atomic():
-        user = User.objects.create_user(
-            username=username, email=email, password=password,
-            first_name=first_name, last_name=last_name,
+    try:
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=username, email=email, password=password,
+                first_name=first_name, last_name=last_name,
+            )
+    except IntegrityError:
+        return Response(
+            {'error': 'نام کاربری یا ایمیل قبلاً استفاده شده است'},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     profile = _get_or_create_profile(user)
@@ -175,12 +187,10 @@ def register_view(request):
         profile.phone = phone
         profile.save()
 
-    _link_guest_orders_to_user(user)
-
     token, _ = Token.objects.get_or_create(user=user)
 
     # Record registration as first login
-    ip_address = _get_client_ip(request)
+    ip_address = get_client_ip(request)
     LoginHistory.objects.create(
         user=user,
         ip_address=ip_address,
@@ -204,7 +214,7 @@ def register_view(request):
 @throttle_classes([RegisterThrottle])
 def guest_register_view(request):
 
-    email = request.data.get('email', '').strip().lower()
+    email = _normalize_email(request.data.get('email', ''))
     password = request.data.get('password', '')
     order_number = request.data.get('order_number', '').strip()
 
@@ -246,7 +256,7 @@ def guest_register_view(request):
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    if User.objects.filter(email=email).exists() or User.objects.filter(username=email).exists():
+    if User.objects.filter(email__iexact=email).exists() or User.objects.filter(username=email).exists():
         return Response(
             {'error': 'حسابی با این ایمیل از قبل وجود دارد. لطفاً وارد شوید.'},
             status=status.HTTP_400_BAD_REQUEST
@@ -256,17 +266,21 @@ def guest_register_view(request):
     if password_error:
         return Response({'error': password_error}, status=status.HTTP_400_BAD_REQUEST)
 
-    user = User.objects.create_user(
-        username=email, email=email, password=password,
-    )
+    try:
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=email, email=email, password=password,
+            )
+    except IntegrityError:
+        return Response(
+            {'error': 'حسابی با این ایمیل از قبل وجود دارد. لطفاً وارد شوید.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     _get_or_create_profile(user)
-
-    # Link the matched order and any other guest orders with the same email
-    _link_guest_orders_to_user(user)
 
     token, _ = Token.objects.get_or_create(user=user)
 
-    ip_address = _get_client_ip(request)
+    ip_address = get_client_ip(request)
     LoginHistory.objects.create(
         user=user,
         ip_address=ip_address,
@@ -299,7 +313,7 @@ def login_view(request):
         return Response({'error': 'نام کاربری الزامی است'}, status=status.HTTP_400_BAD_REQUEST)
 
     # Identifier for lockout: username + IP
-    ip_address = _get_client_ip(request)
+    ip_address = get_client_ip(request)
     identifier = username.lower()
     ip_identifier = ip_address
 
@@ -331,8 +345,15 @@ def login_view(request):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    # Apply progressive delay
-    apply_login_delay(identifier)
+    # Reject during progressive cooldown without blocking a server worker.
+    retry_after = get_login_retry_after(identifier)
+    if retry_after:
+        response = Response(
+            {'error': 'لطفاً پیش از تلاش مجدد کمی صبر کنید.', 'retry_after': retry_after},
+            status=status.HTTP_429_TOO_MANY_REQUESTS,
+        )
+        response['Retry-After'] = str(retry_after)
+        return response
 
     # Attempt authentication
     user = authenticate(username=username, password=password)
@@ -360,7 +381,9 @@ def login_view(request):
     clear_login_failures(identifier)
     clear_login_failures(ip_identifier)
 
-    _link_guest_orders_to_user(user)
+    _link_guest_orders_to_user(
+        user, request.META.get('HTTP_X_SESSION_ID', '').strip(),
+    )
 
     token, _ = Token.objects.get_or_create(user=user)
 
@@ -375,6 +398,9 @@ def login_view(request):
     cutoff = timezone.now() - timedelta(days=30)
     LoginHistory.objects.filter(user=user, login_time__lt=cutoff).delete()
 
+    # Authentication on the login endpoint happens inside the view, after the
+    # request logging context was initialized as anonymous.
+    set_authenticated_user_context(user.username)
     log_auth_success(username, user.id, ip_address, method='login')
     logger.info(
         '[login_success] user=%s user_id=%d ip=%s',
@@ -398,9 +424,14 @@ def user_view(request):
     # PUT - update profile
     data = request.data
 
-    email = data.get('email', '').strip()
-    if email and email != request.user.email:
-        if User.objects.filter(email=email).exclude(id=request.user.id).exists():
+    email = _normalize_email(data.get('email', ''))
+    email_changed = bool(email and email != _normalize_email(request.user.email))
+    if email_changed:
+        try:
+            validate_email(email)
+        except ValidationError:
+            return Response({'error': 'ایمیل معتبر نیست'}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(email__iexact=email).exclude(id=request.user.id).exists():
             return Response({'error': 'این ایمیل قبلاً استفاده شده است'}, status=status.HTTP_400_BAD_REQUEST)
         request.user.email = email
     first_name = data.get('first_name', '').strip()
@@ -411,11 +442,19 @@ def user_view(request):
     if last_name is not None:
         request.user.last_name = last_name
 
-    request.user.save()
-
-    _link_guest_orders_to_user(request.user)
-
     profile = _get_or_create_profile(request.user)
+    if email_changed:
+        profile.email_verified = False
+        profile.verification_code = ''
+        profile.verification_type = ''
+        profile.code_generated_at = None
+
+    try:
+        with transaction.atomic():
+            request.user.save()
+            profile.save()
+    except IntegrityError:
+        return Response({'error': 'این ایمیل قبلاً استفاده شده است'}, status=status.HTTP_400_BAD_REQUEST)
 
     phone = data.get('phone', '').strip()
     if phone is not None:
@@ -471,7 +510,7 @@ def send_verification_view(request):
 
     verify_type = request.data.get('type', 'email')
     profile = _get_or_create_profile(request.user)
-    ip_address = _get_client_ip(request)
+    ip_address = get_client_ip(request)
 
     # Check OTP lockout
     lock_id = f'{request.user.id}:{verify_type}'
@@ -491,12 +530,17 @@ def send_verification_view(request):
         if not profile.phone:
             return Response({'error': 'شماره تلفن وارد نشده است'}, status=status.HTTP_400_BAD_REQUEST)
         code = profile.generate_verification_code('phone')
+        try:
+            deliver_phone_otp(profile.phone, code)
+        except OTPDeliveryError as exc:
+            profile.verification_code = ''
+            profile.verification_type = ''
+            profile.code_generated_at = None
+            profile.save(update_fields=['verification_code', 'verification_type', 'code_generated_at'])
+            log_otp_request(request.user.id, 'phone', ip_address, success=False)
+            return Response({'error': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         log_otp_request(request.user.id, 'phone', ip_address, success=True)
-        logger.info(
-            '[otp_sent] user=%s type=phone ip=%s',
-            request.user.username, ip_address,
-        )
-        # TODO: اتصال سرویس پیامک (مثلاً کاوه‌نگار)
+        logger.info('[otp_sent] user=%s type=phone ip=%s', request.user.username, ip_address)
         response_data = {'message': 'کد تأیید ارسال شد'}
         if settings.DEBUG:
             response_data['code'] = code
@@ -507,12 +551,11 @@ def send_verification_view(request):
             return Response({'error': 'ایمیل وارد نشده است'}, status=status.HTTP_400_BAD_REQUEST)
         code = profile.generate_verification_code('email')
         try:
-            send_mail(
-                subject='کد تأیید ایمیل — فروشگاه مد',
-                message=f'کد تأیید شما: {code}\n\nاین کد تا ۱۰ دقیقه معتبر است.',
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[request.user.email],
-                fail_silently=False,
+            queue_email(
+                request.user.email,
+                'کد تأیید ایمیل — فروشگاه مد',
+                f'کد تأیید شما: {code}\n\nاین کد تا ۱۰ دقیقه معتبر است.',
+                'email_verification',
             )
             log_otp_request(request.user.id, 'email', ip_address, success=True)
             logger.info(
@@ -521,13 +564,13 @@ def send_verification_view(request):
             )
         except Exception as e:
             log_otp_request(request.user.id, 'email', ip_address, success=False)
-            logger.error(
+            logger.exception(
                 '[otp_send_failed] user=%s type=email ip=%s error=%s',
                 request.user.username, ip_address, str(e),
             )
             return Response(
-                {'error': f'خطا در ارسال ایمیل: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {'error': 'صف ارسال ایمیل موقتاً در دسترس نیست.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         return Response({
             'message': 'کد تأیید به ایمیل شما ارسال شد',
@@ -562,7 +605,7 @@ def verify_code_view(request):
         fail_count = record_otp_failure(lock_id)
         log_security_event('otp_verify_failure', request, f'user={request.user.username}, count={fail_count}')
         log_otp_verification(request.user.id, verify_type, success=False,
-                             ip=_get_client_ip(request), fail_count=fail_count)
+                             ip=get_client_ip(request), fail_count=fail_count)
         return Response({'error': 'کد تأیید اشتباه است'}, status=status.HTTP_400_BAD_REQUEST)
 
     if profile.verification_type != verify_type:
@@ -588,10 +631,15 @@ def verify_code_view(request):
     profile.verification_type = ''
     profile.save()
 
-    log_otp_verification(request.user.id, verify_type, success=True, ip=_get_client_ip(request))
+    if verify_type == 'email':
+        _link_guest_orders_to_user(
+            request.user, request.META.get('HTTP_X_SESSION_ID', '').strip(),
+        )
+
+    log_otp_verification(request.user.id, verify_type, success=True, ip=get_client_ip(request))
     logger.info(
         '[otp_verified] user=%s type=%s ip=%s',
-        request.user.username, verify_type, _get_client_ip(request),
+        request.user.username, verify_type, get_client_ip(request),
     )
 
     return Response({'message': f'{"تلفن" if verify_type == "phone" else "ایمیل"} با موفقیت تأیید شد'})
@@ -605,7 +653,7 @@ def verify_code_view(request):
 def change_password_view(request):
     old_password = request.data.get('old_password', '')
     new_password = request.data.get('new_password', '')
-    ip_address = _get_client_ip(request)
+    ip_address = get_client_ip(request)
 
     if not old_password or not new_password:
         return Response({'error': 'رمز عبور فعلی و رمز عبور جدید الزامی است'}, status=status.HTTP_400_BAD_REQUEST)
@@ -654,14 +702,13 @@ def logout_view(request):
 @throttle_classes([ForgotPasswordThrottle])
 def password_reset_request_view(request):
 
-    email = request.data.get('email', '').strip()
-    ip_address = _get_client_ip(request)
+    email = _normalize_email(request.data.get('email', ''))
+    ip_address = get_client_ip(request)
     if not email:
         return Response({'error': 'ایمیل الزامی است'}, status=status.HTTP_400_BAD_REQUEST)
 
-    try:
-        user = User.objects.get(email=email)
-    except User.DoesNotExist:
+    user = User.objects.filter(email__iexact=email).order_by('id').first()
+    if user is None:
         logger.info(
             '[password_reset_not_found] email=%s ip=%s',
             email[:3] + '***', ip_address,
@@ -677,18 +724,17 @@ def password_reset_request_view(request):
     reset_link = f'{settings.FRONTEND_URL}/reset-password?token={token}'
 
     try:
-        send_mail(
-            subject='بازیابی رمز عبور — فروشگاه مد',
-            message=(
+        queue_email(
+            email,
+            'بازیابی رمز عبور — فروشگاه مد',
+            (
                 f'سلام {user.get_full_name() or user.username},\n\n'
                 f'برای بازیابی رمز عبور روی لینک زیر کلیک کنید:\n\n'
                 f'{reset_link}\n\n'
                 f'این لینک تا ۲۴ ساعت معتبر است.\n'
                 f'اگر شما این درخواست را نداده‌اید، این ایمیل را نادیده بگیرید.'
             ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[email],
-            fail_silently=False,
+            'password_reset',
         )
         log_password_reset(user.id, ip_address, method='request')
         logger.info(
@@ -696,13 +742,13 @@ def password_reset_request_view(request):
             user.username, user.id, ip_address,
         )
     except Exception as e:
-        logger.error(
+        logger.exception(
             '[password_reset_email_failed] user=%s ip=%s error=%s',
             user.username, ip_address, str(e),
         )
         return Response(
-            {'error': f'خطا در ارسال ایمیل: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            {'error': 'صف ارسال ایمیل موقتاً در دسترس نیست.'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 
     return Response({
@@ -717,7 +763,7 @@ def password_reset_confirm_view(request):
 
     token = request.data.get('token', '').strip()
     new_password = request.data.get('new_password', '')
-    ip_address = _get_client_ip(request)
+    ip_address = get_client_ip(request)
 
     if not token or not new_password:
         return Response({'error': 'توکن و رمز عبور جدید الزامی است'}, status=status.HTTP_400_BAD_REQUEST)
@@ -770,68 +816,5 @@ def password_reset_confirm_view(request):
 
 # --- Login History ---
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def login_history_view(request):
-    # Delete old entries first
-    cutoff = timezone.now() - timedelta(days=30)
-    LoginHistory.objects.filter(user=request.user, login_time__lt=cutoff).delete()
-
-    history = LoginHistory.objects.filter(user=request.user)[:50]
-    data = []
-    for entry in history:
-        data.append({
-            'id': entry.id,
-            'ip_address': entry.ip_address or 'نامشخص',
-            'user_agent': entry.user_agent or 'نامشخص',
-            'login_time': entry.login_time.isoformat(),
-        })
-    return Response(data)
-
-
-# --- Shipping Addresses ---
-
-@api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated])
-def shipping_address_list_view(request):
-    if request.method == 'GET':
-        addresses = ShippingAddress.objects.filter(user=request.user)
-        serializer = ShippingAddressSerializer(addresses, many=True)
-        return Response(serializer.data)
-
-    serializer = ShippingAddressSerializer(data=request.data)
-    if serializer.is_valid():
-        if serializer.validated_data.get('is_default'):
-            ShippingAddress.objects.filter(
-                user=request.user, is_default=True
-            ).update(is_default=False)
-        serializer.save(user=request.user)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-@api_view(['GET', 'PUT', 'DELETE'])
-@permission_classes([IsAuthenticated])
-def shipping_address_detail_view(request, pk):
-    try:
-        address = ShippingAddress.objects.get(id=pk, user=request.user)
-    except ShippingAddress.DoesNotExist:
-        return Response({'error': 'آدرس یافت نشد'}, status=status.HTTP_404_NOT_FOUND)
-
-    if request.method == 'GET':
-        serializer = ShippingAddressSerializer(address)
-        return Response(serializer.data)
-
-    if request.method == 'DELETE':
-        address.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    serializer = ShippingAddressSerializer(address, data=request.data, partial=True)
-    if serializer.is_valid():
-        if serializer.validated_data.get('is_default'):
-            ShippingAddress.objects.filter(
-                user=request.user, is_default=True
-            ).exclude(id=address.id).update(is_default=False)
-        serializer.save()
-        return Response(serializer.data)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+from .address_views import shipping_address_detail_view, shipping_address_list_view
+from .history_views import login_history_view

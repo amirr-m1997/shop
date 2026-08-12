@@ -38,6 +38,9 @@ class BlogPost(models.Model):
         verbose_name = 'مقاله'
         verbose_name_plural = 'مقالات'
         ordering = ['-published_at']
+        indexes = [
+            models.Index(fields=['is_published', '-published_at'], name='blog_published_date_idx'),
+        ]
 
     def __str__(self):
         return self.title

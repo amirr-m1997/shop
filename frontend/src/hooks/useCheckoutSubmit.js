@@ -23,8 +23,8 @@ export const validateCheckoutAddress = ({ isAuthenticated, selectedAddress, gues
   }
   if (!guestInfo.email?.trim()) return 'لطفاً ایمیل خود را برای پیگیری سفارش وارد کنید';
   if (!EMAIL_REGEX.test(guestInfo.email.trim())) return EMAIL_INVALID_MSG;
-  if (!address.full_name || !address.address_line1 || !address.city) {
-    return 'لطفاً فیلدهای آدرس ارسال را تکمیل کنید';
+  if (!address.full_name || !address.address_line1 || !address.state || !address.city) {
+    return 'تکمیل آدرس ارسال برای سفارش مهمان الزامی است.';
   }
   if (!address.postal_code || !/^\d{10}$/.test(address.postal_code)) {
     return 'کد پستی اجباری است و باید ۱۰ رقم باشد';

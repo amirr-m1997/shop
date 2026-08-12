@@ -207,6 +207,9 @@ class Product(models.Model):
         verbose_name = 'محصول'
         verbose_name_plural = 'محصولات'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['is_active', '-created_at'], name='product_active_created_idx'),
+        ]
 
     def __str__(self):
         return self.name
@@ -252,6 +255,25 @@ class ProductImage(models.Model):
 
     def __str__(self):
         return f"{self.product.name} - تصویر {self.order}"
+
+
+class ImageVariantGeneration(models.Model):
+    """Persistent status for asynchronous product image optimization."""
+    STATUS_CHOICES = [
+        ('queued', 'Queued'), ('processing', 'Processing'),
+        ('ready', 'Ready'), ('failed', 'Failed'),
+    ]
+
+    image = models.OneToOneField(
+        ProductImage, on_delete=models.CASCADE, related_name='variant_generation',
+    )
+    source_fingerprint = models.CharField(max_length=64, blank=True)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='queued')
+    generated_count = models.PositiveSmallIntegerField(default=0)
+    source_bytes = models.PositiveBigIntegerField(default=0)
+    generated_bytes = models.PositiveBigIntegerField(default=0)
+    error = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
 
 class ProductVariant(models.Model):

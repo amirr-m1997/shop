@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, lazy } from 'react';
+import { useEffect, useLayoutEffect, useRef, lazy, Suspense, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -7,7 +7,6 @@ import { CartProvider } from './contexts/CartContext';
 import { WishlistProvider } from './contexts/WishlistContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
-import DiscountPopup from './components/DiscountPopup';
 import LazyPageLoader from './components/LazyPageLoader';
 
 // ── Lazy-loaded page chunks ────────────────────────────────
@@ -40,9 +39,25 @@ const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const StylePage = lazy(() => import('./pages/StylePage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const DiscountPopup = lazy(() => import('./components/DiscountPopup'));
 
 
 const MAX_SAVED_SCROLL_POSITIONS = 50;
+
+function DeferredDiscountPopup() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if ('requestIdleCallback' in window) {
+      const idleId = window.requestIdleCallback(() => setReady(true), { timeout: 1000 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+    const timeoutId = window.setTimeout(() => setReady(true), 500);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  return ready ? <DiscountPopup /> : null;
+}
 
 function ScrollRestoration() {
   const location = useLocation();
@@ -188,7 +203,9 @@ function App() {
             <Router>
               <ScrollRestoration />
               <AuthRedirectHandler />
-              <DiscountPopup />
+              <Suspense fallback={null}>
+                <DeferredDiscountPopup />
+              </Suspense>
               <AppShell />
             </Router>
           </WishlistProvider>

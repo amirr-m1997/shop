@@ -13,6 +13,7 @@ import OrderJourney from './OrderJourney';
 import CountdownTimer from '../CountdownTimer';
 import { PLACEHOLDER_IMG } from '../../lib/placeholders';
 import { ordersAPI, paymentsAPI } from '../../services/api';
+import ResponsiveImage from '../ui/ResponsiveImage';
 
 const OrderCard = ({ order, index }) => {
   const [expanded, setExpanded] = useState(false);
@@ -115,9 +116,11 @@ const OrderCard = ({ order, index }) => {
                   className="h-10 w-10 overflow-hidden rounded-xl bg-muted ring-2 ring-card shadow-sm"
                   style={{ zIndex: 4 - i }}
                 >
-                  <img
+                  <ResponsiveImage
                     src={item.product?.primary_image || PLACEHOLDER_IMG}
                     alt=""
+                    widths={[320]}
+                    sizes="40px"
                     className="h-full w-full object-cover"
                     onError={(e) => { e.target.src = PLACEHOLDER_IMG; }}
                   />
@@ -222,9 +225,11 @@ const OrderCard = ({ order, index }) => {
                   className="flex items-center gap-3 rounded-2xl border border-border/40 bg-muted/20 p-3 transition-all duration-300 hover:border-border hover:bg-muted/40 sm:gap-4"
                 >
                   <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-border/40 sm:h-16 sm:w-16">
-                    <img
+                    <ResponsiveImage
                       src={item.product?.primary_image || PLACEHOLDER_IMG}
                       alt={item.product?.name}
+                      widths={[320]}
+                      sizes="(min-width: 640px) 64px, 56px"
                       className="h-full w-full object-cover"
                       onError={(e) => { e.target.src = PLACEHOLDER_IMG; }}
                     />

@@ -13,11 +13,9 @@ raise exceptions that could break the checkout flow.
 Uses Django-Q for background task processing with fallback to threading.
 """
 import logging
-import threading
 from pathlib import Path
 
 from django.conf import settings
-from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.utils import timezone
@@ -25,15 +23,6 @@ from django.utils import timezone
 import jdatetime
 
 logger = logging.getLogger('email')
-
-# Try to import Django-Q, fallback to threading if not available
-try:
-    from django_q.tasks import async_task
-    DJANGO_Q_AVAILABLE = True
-except ImportError:
-    DJANGO_Q_AVAILABLE = False
-    logger.warning('Django-Q not available, falling back to threading for email')
-
 
 def _to_shamsi(dt, fmt='%Y/%m/%d — %H:%M'):
     """Convert a datetime to Solar Hijri (Shamsi) string."""
@@ -87,62 +76,15 @@ def _get_store_context():
     }
 
 
-def _send_email_direct(subject, text_body, html_body, to_email, attachments=None):
-    """
-    Send email directly (synchronous).
-    Used as fallback and for Django-Q task execution.
-    """
-    try:
-        msg = EmailMultiAlternatives(
-            subject=subject,
-            body=text_body,
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
-            to=[to_email],
-        )
-        if html_body:
-            msg.attach_alternative(html_body, 'text/html')
-        if attachments:
-            for filename, content, mimetype in attachments:
-                msg.attach(filename, content, mimetype)
-        msg.send(fail_silently=True)
-        logger.info('[email_sent] to=%s subject=%s', to_email, subject)
-        return True
-    except Exception as e:
-        logger.error('[email_failed] to=%s subject=%s error=%s', to_email, subject, e)
-        return False
-
-
 def _send_async(subject, text_body, html_body, to_email, attachments=None):
-    """
-    Send an email asynchronously using Django-Q or fallback to threading.
-
-    attachments: list of (filename, content, mimetype) tuples.
-    """
-    if DJANGO_Q_AVAILABLE:
-        # Use Django-Q for proper task queuing
-        try:
-            async_task(
-                'shop.email_service._send_email_direct',
-                subject,
-                text_body,
-                html_body,
-                to_email,
-                attachments,
-                priority=2,  # Medium priority for emails
-            )
-            logger.info('[email_queued] to=%s subject=%s', to_email, subject)
-        except Exception as e:
-            # Fallback to direct sending if queue fails
-            logger.error('[email_queue_failed] to=%s subject=%s error=%s, falling back to direct send',
-                        to_email, subject, e)
-            _send_email_direct(subject, text_body, html_body, to_email, attachments)
-    else:
-        # Fallback to threading if Django-Q not available
-        def _send():
-            _send_email_direct(subject, text_body, html_body, to_email, attachments)
-
-        thread = threading.Thread(target=_send, daemon=True)
-        thread.start()
+    """Persist and enqueue an email for Django-Q delivery and retry."""
+    from shop.tasks import queue_email
+    task_id = queue_email(
+        subject, text_body, html_body, to_email, attachments,
+        priority=2, purpose='order_notification',
+    )
+    logger.info('[email_queued] to=%s subject=%s task_id=%s', to_email, subject, task_id)
+    return task_id
 
 
 class _GuestCustomer:

@@ -5,6 +5,7 @@ import { useCart } from '../../contexts/CartContext';
 import { formatPrice } from '../../lib/formatPrice';
 import { PLACEHOLDER_IMG } from '../../lib/placeholders';
 import { calcShipping } from '../../lib/shipping';
+import ResponsiveImage from '../ui/ResponsiveImage';
 
 /* ─── Order Summary Sidebar ─── */
 const OrderSummary = ({ cart, subtotal, shipping, total, shippingConfig, coupon }) => {
@@ -53,9 +54,11 @@ const OrderSummary = ({ cart, subtotal, shipping, total, shippingConfig, coupon 
             {cart.items.map((item) => (
               <div key={item.id} className="flex gap-3 items-center">
                 <div className="w-11 h-11 rounded-xl overflow-hidden bg-muted ring-1 ring-border/50 shrink-0">
-                  <img
+                  <ResponsiveImage
                     src={item.product.primary_image || PLACEHOLDER_IMG}
                     alt={item.product.name}
+                    widths={[320]}
+                    sizes="44px"
                     className="h-full w-full object-cover"
                   />
                 </div>
@@ -183,4 +186,3 @@ const OrderSummary = ({ cart, subtotal, shipping, total, shippingConfig, coupon 
 };
 
 export default OrderSummary;
-

@@ -3,6 +3,7 @@ import { Button } from '../ui/Button';
 import { Card, CardContent } from '../ui/Card';
 import { formatPrice } from '../../lib/formatPrice';
 import { PLACEHOLDER_IMG } from '../../lib/placeholders';
+import ResponsiveImage from '../ui/ResponsiveImage';
 
 const CheckoutReviewStep = ({ step, cart, setStep }) => (
   <>
@@ -26,9 +27,11 @@ const CheckoutReviewStep = ({ step, cart, setStep }) => (
                         className="flex gap-4 p-3 sm:p-4 rounded-2xl border bg-card hover:border-primary/20 hover:shadow-sm transition-all"
                       >
                         <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-muted ring-1 ring-border/50 shrink-0">
-                          <img
+                          <ResponsiveImage
                             src={item.product.primary_image || PLACEHOLDER_IMG}
                             alt={item.product.name}
+                            widths={[320]}
+                            sizes="(min-width: 640px) 96px, 80px"
                             className="h-full w-full object-cover"
                           />
                         </div>
@@ -72,4 +75,3 @@ const CheckoutReviewStep = ({ step, cart, setStep }) => (
 );
 
 export default CheckoutReviewStep;
-

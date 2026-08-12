@@ -117,8 +117,8 @@ const CheckoutShippingStep = ({
                               </div>
                               <div className="min-w-0">
                                 <h3 className="text-sm font-bold">آدرس ارسال</h3>
-                                <p className="truncate text-[11px] text-muted-foreground">
-                                  محل تحویل سفارش را وارد کنید.
+                                <p className="text-[11px] font-medium text-destructive">
+                                  تکمیل آدرس ارسال برای سفارش مهمان الزامی است.
                                 </p>
                               </div>
                             </div>
@@ -139,7 +139,7 @@ const CheckoutShippingStep = ({
                                 </div>
                                 <div>
                                   <label htmlFor="addr-phone" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
-                                    شماره تماس گیرنده
+                                    شماره تماس گیرنده <span className="text-muted-foreground/60">(اختیاری)</span>
                                   </label>
                                   <Input
                                     id="addr-phone"
@@ -169,7 +169,7 @@ const CheckoutShippingStep = ({
                                 </div>
                                 <div>
                                   <label htmlFor="addr-state" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
-                                    استان
+                                    استان <span className="text-destructive">*</span>
                                   </label>
                                   <Input
                                     id="addr-state"
@@ -220,7 +220,7 @@ const CheckoutShippingStep = ({
                                   />
                                 </div>
                                 <p className="-mt-0.5 text-[11px] text-muted-foreground sm:col-span-2">
-                                  کد پستی ۱۰ رقمی اجباری است.
+                                  فیلدهای دارای <span className="font-bold text-destructive">*</span> الزامی هستند؛ کد پستی باید ۱۰ رقم باشد.
                                 </p>
                               </div>
                             </div>
@@ -358,7 +358,7 @@ const CheckoutShippingStep = ({
                             </div>
                             <div>
                               <label htmlFor="addr-new-postal" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
-                                کد پستی
+                                کد پستی <span className="text-destructive">*</span>
                               </label>
                               <Input
                                 id="addr-new-postal"
@@ -374,7 +374,7 @@ const CheckoutShippingStep = ({
                             </div>
                             <div>
                               <label htmlFor="addr-new-state" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
-                                استان
+                                استان <span className="text-destructive">*</span>
                               </label>
                               <Input
                                 id="addr-new-state"

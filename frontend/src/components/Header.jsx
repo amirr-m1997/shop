@@ -1,29 +1,21 @@
-import { useState, useRef, useEffect } from 'react';
+import { lazy, Suspense, useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { AlertTriangle } from 'lucide-react';
-import { Button } from './ui/Button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from './ui/Dialog';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useWishlist } from '../contexts/WishlistContext';
 import { useProductCategories } from '../queries/productQueries';
 import { useChatUnreadCount } from '../queries/chatQueries';
-import CartDrawer from './CartDrawer';
 import { cn } from '../lib/utils';
 import { useHeaderScroll } from './header/useHeaderScroll';
 import DesktopHeader from './header/DesktopHeader';
 import MobileHeader from './header/MobileHeader';
 import MobileBottomNav from './header/MobileBottomNav';
-import MobileDrawer from './header/MobileDrawer';
-import CategorySheet from './header/CategorySheet';
+
+const CartDrawer = lazy(() => import('./CartDrawer'));
+const MobileDrawer = lazy(() => import('./header/MobileDrawer'));
+const CategorySheet = lazy(() => import('./header/CategorySheet'));
+const LogoutConfirmDialog = lazy(() => import('./header/LogoutConfirmDialog'));
 
 /**
  * Responsive luxury navigation shell.
@@ -151,48 +143,39 @@ const Header = () => {
         onCartClick={openCart}
       />
 
-      <MobileDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        categories={navCategories}
-        isAuthenticated={isAuthenticated}
-        userFullName={userFullName}
-        unreadChat={unreadChat}
-        wishlistCount={wishlistCount}
-        theme={theme}
-        toggleTheme={toggleTheme}
-        onLogout={handleLogout}
-      />
-
-      <CategorySheet
-        open={categorySheetOpen}
-        onClose={() => setCategorySheetOpen(false)}
-        categories={navCategories}
-      />
-
-      <Dialog open={logoutConfirmOpen} onOpenChange={setLogoutConfirmOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              خروج از حساب
-            </DialogTitle>
-            <DialogDescription>
-              آیا مطمئن هستید که می‌خواید از حساب کاربری خود خارج شوید؟
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-row-reverse gap-2 sm:flex-row">
-            <Button variant="destructive" onClick={confirmLogout}>
-              بله، خارج شوم
-            </Button>
-            <Button variant="outline" onClick={() => setLogoutConfirmOpen(false)}>
-              انصراف
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <CartDrawer isOpen={cartDrawerOpen} onClose={() => setCartDrawerOpen(false)} />
+      <Suspense fallback={null}>
+        {drawerOpen && (
+          <MobileDrawer
+            open
+            onClose={() => setDrawerOpen(false)}
+            categories={navCategories}
+            isAuthenticated={isAuthenticated}
+            userFullName={userFullName}
+            unreadChat={unreadChat}
+            wishlistCount={wishlistCount}
+            theme={theme}
+            toggleTheme={toggleTheme}
+            onLogout={handleLogout}
+          />
+        )}
+        {categorySheetOpen && (
+          <CategorySheet
+            open
+            onClose={() => setCategorySheetOpen(false)}
+            categories={navCategories}
+          />
+        )}
+        {logoutConfirmOpen && (
+          <LogoutConfirmDialog
+            open
+            onOpenChange={setLogoutConfirmOpen}
+            onConfirm={confirmLogout}
+          />
+        )}
+        {cartDrawerOpen && (
+          <CartDrawer isOpen onClose={() => setCartDrawerOpen(false)} />
+        )}
+      </Suspense>
     </>
   );
 };

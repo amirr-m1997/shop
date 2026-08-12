@@ -1,4 +1,11 @@
-const DEFAULT_WIDTHS = [320, 480, 640, 768, 960, 1280, 1600];
+const DEFAULT_WIDTHS = [320, 640, 1024, 1600];
+
+const SUPPORTED_WIDTHS = [320, 640, 1024, 1600];
+const normalizeWidths = (widths) => [...new Set(widths.map((width) =>
+  SUPPORTED_WIDTHS.reduce((closest, supported) =>
+    Math.abs(supported - width) < Math.abs(closest - width) ? supported : closest
+  , SUPPORTED_WIDTHS[0])
+))].sort((a, b) => a - b);
 
 const isOptimizable = (src) => {
   if (!src || src.startsWith('data:') || src.startsWith('blob:')) return false;
@@ -22,7 +29,7 @@ const variantUrl = (src, width, format) => {
 };
 
 const makeSrcSet = (src, widths, format) =>
-  widths.map((width) => `${variantUrl(src, width, format)} ${width}w`).join(', ');
+  normalizeWidths(widths).map((width) => `${variantUrl(src, width, format)} ${width}w`).join(', ');
 
 const ResponsiveImage = ({
   src,

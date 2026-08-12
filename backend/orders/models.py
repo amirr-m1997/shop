@@ -157,6 +157,13 @@ class Order(models.Model):
         verbose_name = "سفارش"
         verbose_name_plural = "سفارش‌ها"
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', '-created_at'], name='order_status_created_idx'),
+            models.Index(
+                fields=['payment_status', '-created_at'],
+                name='order_payment_created_idx',
+            ),
+        ]
 
     def __str__(self):
         customer = self.user.username if self.user_id else (self.guest_email or 'مهمان')

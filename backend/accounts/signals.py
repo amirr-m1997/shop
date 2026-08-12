@@ -1,6 +1,12 @@
 from django.contrib.auth.models import User
-from django.db.models.signals import post_delete
+from django.db.models.signals import post_delete, pre_save
 from django.dispatch import receiver
+
+
+@receiver(pre_save, sender=User)
+def normalize_user_email(sender, instance, **kwargs):
+    """Keep all ORM writes aligned with the case-insensitive DB constraint."""
+    instance.email = (instance.email or '').strip().lower()
 
 
 @receiver(post_delete, sender=User)

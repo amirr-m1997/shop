@@ -29,7 +29,6 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
           if (/node_modules\/(react|react-dom|react-router|react-router-dom)\//.test(id)) return 'vendor-react';
-          if (/node_modules\/(lucide-react|clsx|tailwind-merge)\//.test(id)) return 'vendor-ui';
           return undefined;
         },
       },

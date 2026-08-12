@@ -77,7 +77,7 @@ INSTALLED_APPS = [
     'django_jalali',
     'django_q',
     'accounts',
-    'products',
+    'products.apps.ProductsConfig',
     'cart',
     'orders',
     'blog',
@@ -88,13 +88,13 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'shop.middleware.RequestLoggingMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'shop.middleware.RequestLoggingMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'shop.middleware.SecurityHeadersMiddleware',
@@ -332,8 +332,9 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
-MEDIA_URL = '/media/'
+MEDIA_URL = os.getenv('MEDIA_URL', '/media/')
 MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_X_ACCEL_REDIRECT_PREFIX = os.getenv('MEDIA_X_ACCEL_REDIRECT_PREFIX', '')
 
 # ─── Django REST Framework ─────────────────────────────────
 
@@ -351,8 +352,8 @@ REST_FRAMEWORK = {
 
     # ── Global Throttling ──
     'DEFAULT_THROTTLE_CLASSES': [
-        'rest_framework.throttling.AnonRateThrottle',
-        'rest_framework.throttling.UserRateThrottle',
+        'accounts.throttles.SecureAnonRateThrottle',
+        'accounts.throttles.SecureUserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
         'anon': '200/hour',
@@ -645,6 +646,7 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+SMS_OTP_PROVIDER = os.getenv('SMS_OTP_PROVIDER', '')
 
 # hCaptcha by default; reCAPTCHA can be used by overriding CAPTCHA_VERIFY_URL.
 CAPTCHA_SECRET_KEY = os.getenv('CAPTCHA_SECRET_KEY', '')
@@ -668,6 +670,9 @@ Q_CLUSTER = {
     'orm': 'default',
     'save_limit': int(os.getenv('Q_SAVE_LIMIT', '250')),
 }
+EMAIL_MAX_ATTEMPTS = int(os.getenv('EMAIL_MAX_ATTEMPTS', '3'))
+EMAIL_RETRY_BASE_SECONDS = int(os.getenv('EMAIL_RETRY_BASE_SECONDS', '60'))
+EMAIL_RETRY_MAX_SECONDS = int(os.getenv('EMAIL_RETRY_MAX_SECONDS', '900'))
 
 # ─── Zarinpal Payment Gateway ──────────────────────────────
 ZARINPAL_MERCHANT_ID = os.getenv('ZARINPAL_MERCHANT_ID', '')

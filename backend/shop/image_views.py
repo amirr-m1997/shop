@@ -1,19 +1,14 @@
-import hashlib
-import os
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 from django.conf import settings
-from django.http import FileResponse, Http404, HttpResponseBadRequest
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from django.views.decorators.http import require_GET
-from PIL import Image, ImageOps, features
+from PIL import features
+
+from shop.image_pipeline import FORMATS, VARIANT_WIDTHS, variant_path
 
 
-ALLOWED_WIDTHS = (160, 240, 320, 384, 480, 640, 768, 960, 1280, 1600)
-FORMATS = {
-    "webp": ("WEBP", "image/webp", 82),
-    "avif": ("AVIF", "image/avif", 68),
-}
+ALLOWED_WIDTHS = VARIANT_WIDTHS
 
 
 def _source_path(raw_source):
@@ -50,42 +45,32 @@ def optimized_image(request):
         raise Http404
 
     source_path, relative = _source_path(request.GET.get("src", ""))
-    source_stat = source_path.stat()
-    fingerprint = hashlib.sha256(
-        f"{relative}:{source_stat.st_mtime_ns}:{source_stat.st_size}:{requested_width}:{requested_format}".encode()
-    ).hexdigest()[:24]
-    cache_dir = Path(settings.MEDIA_ROOT) / ".responsive-cache" / fingerprint[:2]
-    cache_path = cache_dir / f"{fingerprint}-{requested_width}.{requested_format}"
-    pil_format, mime_type, quality = FORMATS[requested_format]
+    cache_path = variant_path(source_path, relative, requested_width, requested_format)
+    _pil_format, mime_type, _quality, _extra = FORMATS[requested_format]
 
     if not cache_path.exists():
-        cache_dir.mkdir(parents=True, exist_ok=True)
+        # Never resize/encode in a request. Queue legacy/missing product images
+        # and temporarily fall back to the immutable original URL.
         try:
-            with Image.open(source_path) as source_image:
-                image = ImageOps.exif_transpose(source_image)
-                if image.mode not in ("RGB", "RGBA"):
-                    image = image.convert("RGBA" if "transparency" in image.info else "RGB")
-                target_width = min(requested_width, image.width)
-                target_height = max(1, round(image.height * target_width / image.width))
-                if (target_width, target_height) != image.size:
-                    image = image.resize((target_width, target_height), Image.Resampling.LANCZOS)
+            from products.models import ProductImage
+            from products.tasks import queue_product_image_variants
+            image = ProductImage.objects.filter(image=relative).only('id').first()
+            if image:
+                queue_product_image_variants(image.id)
+        except Exception:
+            # Queue failure is persisted by the task layer; original remains usable.
+            pass
+        response = HttpResponseRedirect(f'{settings.MEDIA_URL.rstrip("/")}/{relative}')
+        response['Cache-Control'] = 'public, max-age=60'
+        return response
 
-                save_options = {"format": pil_format, "quality": quality}
-                if requested_format == "webp":
-                    save_options.update(method=5)
-                else:
-                    save_options.update(speed=6)
-                with NamedTemporaryFile(dir=cache_dir, suffix=f".{requested_format}", delete=False) as tmp:
-                    temp_path = Path(tmp.name)
-                try:
-                    image.save(temp_path, **save_options)
-                    os.replace(temp_path, cache_path)
-                finally:
-                    temp_path.unlink(missing_ok=True)
-        except (OSError, ValueError):
-            raise Http404
-
-    response = FileResponse(cache_path.open("rb"), content_type=mime_type)
+    accel_prefix = getattr(settings, 'MEDIA_X_ACCEL_REDIRECT_PREFIX', '')
+    if accel_prefix:
+        response = HttpResponse(content_type=mime_type)
+        relative_variant = cache_path.relative_to(Path(settings.MEDIA_ROOT)).as_posix()
+        response['X-Accel-Redirect'] = f'{accel_prefix.rstrip("/")}/{relative_variant}'
+    else:
+        response = FileResponse(cache_path.open("rb"), content_type=mime_type)
     response["Cache-Control"] = "public, max-age=31536000, immutable"
     response["Content-Length"] = cache_path.stat().st_size
     response["Vary"] = "Accept"

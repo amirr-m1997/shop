@@ -9,7 +9,10 @@ import time
 import uuid
 
 from django.conf import settings
-from shop.observability import set_request_context, clear_request_context
+from shop.observability import (
+    clear_request_context, get_request_context, set_request_context,
+)
+from shop.client_ip import get_client_ip
 
 logger = logging.getLogger('django.request')
 app_logger = logging.getLogger('application')
@@ -31,9 +34,7 @@ class RequestLoggingMiddleware:
         request_id = request.META.get('HTTP_X_REQUEST_ID', '') or uuid.uuid4().hex[:16]
         request._request_id = request_id
 
-        ip = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
-        if not ip:
-            ip = request.META.get('REMOTE_ADDR', 'unknown')
+        ip = get_client_ip(request)
 
         user_str = 'anonymous'
         if hasattr(request, 'user') and request.user.is_authenticated:
@@ -63,6 +64,18 @@ class RequestLoggingMiddleware:
         finally:
             elapsed_ms = (time.monotonic() - start) * 1000
 
+            # DRF authentication occurs inside the view; refresh for the final
+            # request log after it has populated the underlying HttpRequest.
+            resolved_user = getattr(request, 'user', None)
+            if resolved_user is not None and resolved_user.is_authenticated:
+                user_str = resolved_user.username
+            else:
+                # Login authenticates inside its view, so DRF does not attach
+                # that user to this request. The view refreshes log context.
+                context_user = get_request_context()['user']
+                if context_user != 'anonymous':
+                    user_str = context_user
+
             response_status = getattr(response, 'status_code', 500)
 
             # Add request ID to response header
@@ -82,6 +95,8 @@ class RequestLoggingMiddleware:
                 logger.warning(log_args)
             elif request.method != 'OPTIONS':
                 app_logger.info(log_args)
+
+            clear_request_context()
 
         return response
 

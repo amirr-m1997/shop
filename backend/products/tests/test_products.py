@@ -1,3 +1,6 @@
+import warnings
+
+from django.core.paginator import UnorderedObjectListWarning
 from django.test import TestCase
 from rest_framework.test import APITestCase
 from rest_framework import status
@@ -807,6 +810,20 @@ class SizeViewSetTest(APITestCase):
         SizeFactory(name='XL', category=cat2)
         response = self.client.get(self.url, {'category': cat1.id})
         self.assertEqual(response.data['count'], 1)
+
+    def test_pagination_has_stable_explicit_ordering(self):
+        cat = CategoryFactory()
+        sizes = [SizeFactory(name=f'{index:02d}', category=cat) for index in range(25)]
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', UnorderedObjectListWarning)
+            first_read = self.client.get(self.url, {'page': 2})
+            second_read = self.client.get(self.url, {'page': 2})
+
+        expected_ids = [size.id for size in sizes[20:]]
+        self.assertEqual(first_read.status_code, status.HTTP_200_OK)
+        self.assertEqual([item['id'] for item in first_read.data['results']], expected_ids)
+        self.assertEqual(first_read.data['results'], second_read.data['results'])
 
 
 class FabricViewSetTest(APITestCase):

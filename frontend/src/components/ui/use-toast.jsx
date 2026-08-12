@@ -1,12 +1,6 @@
 import * as React from 'react'
-import {
-  ToastProvider,
-  ToastViewport,
-  Toast,
-  ToastTitle,
-  ToastDescription,
-  ToastClose,
-} from './Toast'
+
+const ToastRenderer = React.lazy(() => import('./ToastRenderer'))
 
 const ToastContext = React.createContext(null)
 
@@ -41,20 +35,12 @@ function ToastProviderWithHook({ children }) {
 
   return (
     <ToastContext.Provider value={value}>
-      <ToastProvider>
-        {children}
-        <ToastViewport>
-          {toasts.map((t) => (
-            <Toast key={t.id} variant={t.variant} onOpenChange={(open) => !open && dismiss(t.id)}>
-              <div className="grid gap-1">
-                {t.title && <ToastTitle>{t.title}</ToastTitle>}
-                {t.description && <ToastDescription>{t.description}</ToastDescription>}
-              </div>
-              <ToastClose />
-            </Toast>
-          ))}
-        </ToastViewport>
-      </ToastProvider>
+      {children}
+      {toasts.length > 0 && (
+        <React.Suspense fallback={null}>
+          <ToastRenderer toasts={toasts} dismiss={dismiss} />
+        </React.Suspense>
+      )}
     </ToastContext.Provider>
   )
 }

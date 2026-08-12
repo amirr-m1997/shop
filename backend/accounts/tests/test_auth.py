@@ -146,6 +146,25 @@ class LoginTests(APITestCase):
             LoginHistory.objects.filter(user=self.user).exists()
         )
 
+    def test_success_log_uses_authenticated_user_context(self):
+        with self.assertLogs('authentication', level='INFO') as captured, \
+                self.assertLogs('application', level='INFO') as request_logs:
+            response = self.client.post(LOGIN_URL, {
+                'username': 'loginuser',
+                'password': 'pass1234',
+            }, format='json')
+
+        success_logs = [line for line in captured.output if '[login_success]' in line]
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(success_logs)
+        self.assertTrue(all('user=loginuser' in line for line in success_logs))
+        self.assertTrue(all('user=anonymous' not in line for line in success_logs))
+        self.assertTrue(any(f'user_id={self.user.id}' in line for line in success_logs))
+        self.assertTrue(any(
+            'POST 200 path=/api/auth/login/ user=loginuser' in line
+            for line in request_logs.output
+        ))
+
     def test_invalid_password_returns_400(self):
         resp = self.client.post(LOGIN_URL, {
             'username': 'loginuser',
@@ -212,33 +231,33 @@ class LoginSecurityTests(APITestCase):
         for _ in range(count):
             record_login_failure(self.identifier)
 
-    @patch('accounts.security.time.sleep')
-    def test_progressive_delay_applied_at_4_failures(self, mock_sleep):
+    def test_progressive_delay_returns_immediately_at_4_failures(self):
         self._record_failures(4)
-        self.client.post(LOGIN_URL, {
+        resp = self.client.post(LOGIN_URL, {
             'username': 'secuser',
             'password': 'wrong',
         }, format='json')
-        mock_sleep.assert_called_with(2)
+        self.assertEqual(resp.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertGreaterEqual(resp.data['retry_after'], 1)
+        self.assertIn('Retry-After', resp)
 
-    @patch('accounts.security.time.sleep')
     @override_settings(DEBUG=True)
-    def test_progressive_delay_applied_at_7_failures(self, mock_sleep):
+    def test_progressive_delay_at_7_failures_reports_retry_after(self):
         self._record_failures(7)
-        self.client.post(LOGIN_URL, {
+        resp = self.client.post(LOGIN_URL, {
             'username': 'secuser',
             'password': 'wrong',
         }, format='json')
-        mock_sleep.assert_called_with(5)
+        self.assertEqual(resp.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertGreaterEqual(resp.data['retry_after'], 4)
 
-    @patch('accounts.security.time.sleep')
-    def test_no_delay_below_4_failures(self, mock_sleep):
+    def test_no_delay_below_4_failures(self):
         self._record_failures(3)
-        self.client.post(LOGIN_URL, {
+        resp = self.client.post(LOGIN_URL, {
             'username': 'secuser',
             'password': 'wrong',
         }, format='json')
-        mock_sleep.assert_not_called()
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_captcha_required_after_5_failures(self):
         self._record_failures(5)
@@ -252,6 +271,7 @@ class LoginSecurityTests(APITestCase):
     @override_settings(DEBUG=True)
     def test_captcha_bypassed_in_debug_mode(self):
         self._record_failures(5)
+        cache.delete(f'login_delay:{self.identifier}')
         resp = self.client.post(LOGIN_URL, {
             'username': 'secuser',
             'password': 'wrong',
@@ -444,7 +464,7 @@ class SendVerificationTests(APITestCase):
         )
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
 
-    @patch('accounts.views.send_mail')
+    @patch('accounts.views.queue_email')
     def test_send_email_otp(self, mock_send):
         mock_send.return_value = True
         resp = self.client.post(SEND_OTP_URL, {'type': 'email'}, format='json')
@@ -452,14 +472,23 @@ class SendVerificationTests(APITestCase):
         mock_send.assert_called_once()
 
     @override_settings(DEBUG=True)
-    def test_phone_otp_code_included_in_debug(self):
+    @patch('accounts.views.deliver_phone_otp')
+    def test_phone_otp_code_included_in_debug(self, _mock_delivery):
         resp = self.client.post(SEND_OTP_URL, {'type': 'phone'}, format='json')
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertIn('code', resp.data)
 
-    def test_send_phone_otp(self):
+    @patch('accounts.views.deliver_phone_otp')
+    def test_send_phone_otp(self, mock_delivery):
         resp = self.client.post(SEND_OTP_URL, {'type': 'phone'}, format='json')
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        mock_delivery.assert_called_once()
+
+    def test_send_phone_otp_without_provider_does_not_fake_success(self):
+        resp = self.client.post(SEND_OTP_URL, {'type': 'phone'}, format='json')
+        self.assertEqual(resp.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.verification_code, '')
 
     def test_send_phone_otp_no_phone_returns_400(self):
         self.profile.phone = ''
@@ -477,7 +506,7 @@ class SendVerificationTests(APITestCase):
         resp = self.client.post(SEND_OTP_URL, {'type': 'fax'}, format='json')
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch('accounts.views.send_mail')
+    @patch('accounts.views.queue_email')
     def test_otp_lockout_after_5_failures(self, mock_send):
         mock_send.return_value = True
         lock_id = f'{self.user.id}:email'
@@ -636,7 +665,7 @@ class PasswordResetTests(APITestCase):
         self.profile.reset_token_created_at = created_at or timezone.now()
         self.profile.save(update_fields=['reset_token', 'reset_token_created_at'])
 
-    @patch('accounts.views.send_mail')
+    @patch('accounts.views.queue_email')
     def test_password_reset_request_sends_email(self, mock_send):
         mock_send.return_value = True
         resp = self.client.post(RESET_URL, {
@@ -655,7 +684,7 @@ class PasswordResetTests(APITestCase):
         resp = self.client.post(RESET_URL, {}, format='json')
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch('accounts.views.send_mail')
+    @patch('accounts.views.queue_email')
     def test_password_reset_request_stores_token(self, mock_send):
         mock_send.return_value = True
         self.client.post(RESET_URL, {

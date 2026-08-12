@@ -22,7 +22,8 @@ class AdminUserSerializer(serializers.ModelSerializer):
             return 'user'
 
     def get_order_count(self, obj):
-        return obj.orders.count()
+        annotated = getattr(obj, 'order_count_value', None)
+        return annotated if annotated is not None else obj.orders.count()
 
 
 class CategoryBriefSerializer(serializers.ModelSerializer):
@@ -80,6 +81,14 @@ class AdminProductListSerializer(serializers.ModelSerializer):
         return obj.brand.name if obj.brand else None
 
     def get_primary_image(self, obj):
+        prefetched = getattr(obj, '_admin_list_images', None)
+        if prefetched is not None:
+            primary = next((image for image in prefetched if image.is_primary), None)
+            image = primary or next(iter(prefetched), None)
+            if not image:
+                return None
+            request = self.context.get('request')
+            return request.build_absolute_uri(image.image.url) if request else image.image.url
         primary = obj.images.filter(is_primary=True).first()
         if primary:
             request = self.context.get('request')
@@ -95,7 +104,8 @@ class AdminProductListSerializer(serializers.ModelSerializer):
         return None
 
     def get_variants_count(self, obj):
-        return obj.variants.count()
+        annotated = getattr(obj, 'variants_count_value', None)
+        return annotated if annotated is not None else obj.variants.count()
 
 
 class AdminProductDetailSerializer(serializers.ModelSerializer):
@@ -323,14 +333,19 @@ class CustomerSerializer(serializers.ModelSerializer):
             return 'user'
 
     def get_order_count(self, obj):
-        return obj.orders.count()
+        annotated = getattr(obj, 'order_count_value', None)
+        return annotated if annotated is not None else obj.orders.count()
 
     def get_total_spent(self, obj):
+        if hasattr(obj, 'total_spent_value'):
+            return float(obj.total_spent_value or 0)
         from django.db.models import Sum
         total = obj.orders.filter(payment_status='paid').aggregate(t=Sum('total'))['t']
         return float(total or 0)
 
     def get_last_order_date(self, obj):
+        if hasattr(obj, 'last_order_date_value'):
+            return obj.last_order_date_value
         order = obj.orders.order_by('-created_at').first()
         return order.created_at if order else None
 
@@ -380,9 +395,11 @@ class AdminRoleSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at']
 
     def get_permissions(self, obj):
-        perm_ids = obj.role_permissions.values_list('permission_id', flat=True)
-        return list(perm_ids)
+        return [relation.permission_id for relation in obj.role_permissions.all()]
 
     def get_user_count(self, obj):
+        annotated = getattr(obj, 'user_count_value', None)
+        if annotated is not None:
+            return annotated
         from accounts.models import UserProfile
         return UserProfile.objects.filter(role=obj.slug).count()

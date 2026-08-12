@@ -5,12 +5,15 @@ Email tasks are defined here to centralize all async email sending.
 All tasks are safe to retry and include proper error handling.
 """
 import logging
+from datetime import timedelta
+from django.conf import settings
+from django.utils import timezone
 from django_q.tasks import async_task, schedule
 
 logger = logging.getLogger('shop')
 
 
-def send_email_task(subject, text_body, html_body, to_email, attachments=None):
+def send_email_task(subject, text_body, html_body, to_email, attachments=None, delivery_id=None):
     """
     Send an email via Django-Q background task.
 
@@ -19,6 +22,13 @@ def send_email_task(subject, text_body, html_body, to_email, attachments=None):
     from django.core.mail import EmailMultiAlternatives
     from django.conf import settings
 
+    from accounts.models import DeliveryAttempt
+
+    delivery = DeliveryAttempt.objects.filter(pk=delivery_id).first()
+    if delivery:
+        delivery.status = 'sending'
+        delivery.attempts += 1
+        delivery.save(update_fields=['status', 'attempts', 'updated_at'])
     try:
         msg = EmailMultiAlternatives(
             subject=subject,
@@ -31,29 +41,72 @@ def send_email_task(subject, text_body, html_body, to_email, attachments=None):
         if attachments:
             for filename, content, mimetype in attachments:
                 msg.attach(filename, content, mimetype)
-        msg.send(fail_silently=True)
+        sent = msg.send(fail_silently=False)
+        if sent != 1:
+            raise RuntimeError('Email backend reported zero messages sent')
+        if delivery:
+            delivery.status = 'sent'
+            delivery.error = ''
+            delivery.save(update_fields=['status', 'error', 'updated_at'])
         logger.info('[email_task_completed] to=%s subject=%s', to_email, subject)
         return True
     except Exception as e:
-        logger.error('[email_task_failed] to=%s subject=%s error=%s', to_email, subject, e)
-        return False
+        if delivery:
+            delivery.status = 'failed'
+            delivery.error = str(e)[:2000]
+            delivery.save(update_fields=['status', 'error', 'updated_at'])
+        logger.exception('[email_task_failed] to=%s subject=%s error=%s', to_email, subject, e)
+        attempts = delivery.attempts if delivery else 1
+        if delivery and attempts < settings.EMAIL_MAX_ATTEMPTS:
+            delay = min(
+                settings.EMAIL_RETRY_BASE_SECONDS * (2 ** (attempts - 1)),
+                settings.EMAIL_RETRY_MAX_SECONDS,
+            )
+            try:
+                schedule(
+                    'shop.tasks.send_email_task', subject, text_body, html_body,
+                    to_email, attachments, delivery.id,
+                    schedule_type='O', next_run=timezone.now() + timedelta(seconds=delay),
+                    repeats=1,
+                )
+                delivery.status = 'queued'
+                delivery.save(update_fields=['status', 'updated_at'])
+                logger.warning(
+                    '[email_retry_scheduled] delivery_id=%s attempt=%s delay=%ss',
+                    delivery.id, attempts + 1, delay,
+                )
+                return False
+            except Exception:
+                logger.exception('[email_retry_queue_failed] delivery_id=%s', delivery.id)
+        # A queue failure or exhausted attempts must remain visible to Django-Q.
+        raise
 
 
-def queue_email(subject, text_body, html_body, to_email, attachments=None, priority=1):
+def queue_email(subject, text_body, html_body, to_email, attachments=None, priority=1,
+                purpose='transactional'):
     """
     Queue an email to be sent in the background.
 
     Priority: 1=high, 2=medium, 3=low (default=2)
     """
-    return async_task(
-        'shop.tasks.send_email_task',
-        subject,
-        text_body,
-        html_body,
-        to_email,
-        attachments,
-        priority=priority,
+    from accounts.models import DeliveryAttempt
+
+    delivery = DeliveryAttempt.objects.create(
+        channel='email', purpose=purpose, recipient=to_email,
+        status='queued', provider=settings.EMAIL_BACKEND,
     )
+    try:
+        task_id = async_task(
+            'shop.tasks.send_email_task', subject, text_body, html_body,
+            to_email, attachments, delivery.id, priority=priority,
+        )
+    except Exception as exc:
+        delivery.status = 'failed'
+        delivery.error = str(exc)[:2000]
+        delivery.save(update_fields=['status', 'error', 'updated_at'])
+        logger.exception('[email_queue_failed] to=%s subject=%s', to_email, subject)
+        raise
+    return task_id
 
 
 def expire_pending_orders():

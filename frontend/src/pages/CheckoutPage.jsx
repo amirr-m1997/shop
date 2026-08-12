@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRight, ShieldCheck, ShoppingBag, Sparkles, Truck, Wallet } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ShieldCheck, ShoppingBag, Sparkles, Truck, UserPlus, Wallet } from 'lucide-react';
 import EmptyState from '../components/ui/EmptyState';
+import { Button } from '../components/ui/Button';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '../components/ui/Dialog';
 import PaymentLoadingOverlay from '../components/ui/PaymentLoadingOverlay';
 import { useToast } from '../components/ui/use-toast';
 import { useCart } from '../contexts/CartContext';
@@ -67,6 +71,7 @@ const CheckoutPage = () => {
   const [paymentMethod, setPaymentMethod] = useState('online');
   const [orderNotes, setOrderNotes] = useState('');
   const [error, setError] = useState('');
+  const [showGuestWarning, setShowGuestWarning] = useState(false);
   const { toast } = useToast();
   const {
     shippingAddresses,
@@ -147,6 +152,25 @@ const CheckoutPage = () => {
     setStep(3);
   };
 
+  const requestPlaceOrder = () => {
+    if (isAuthenticated) {
+      handlePlaceOrder();
+      return;
+    }
+    setShowGuestWarning(true);
+  };
+
+  const continueAsGuest = () => {
+    setShowGuestWarning(false);
+    handlePlaceOrder();
+  };
+
+  const createAccountFirst = () => {
+    const params = new URLSearchParams({ next: '/checkout' });
+    if (guestInfo.email.trim()) params.set('email', guestInfo.email.trim());
+    navigate(`/register?${params.toString()}`);
+  };
+
   if (!cart || !cart.items || cart.items.length === 0) {
     return (
       <div className="min-h-[70vh] bg-gradient-to-b from-muted/40 via-background to-background">
@@ -214,7 +238,7 @@ const CheckoutPage = () => {
               setPaymentMethod={setPaymentMethod} orderNotes={orderNotes}
               setOrderNotes={setOrderNotes} finalTotal={finalTotal}
               isSubmitting={isSubmitting} loading={loading}
-              handlePlaceOrder={handlePlaceOrder}
+              handlePlaceOrder={requestPlaceOrder}
             />
 
           </div>
@@ -232,6 +256,52 @@ const CheckoutPage = () => {
       </div>
 
       {isSubmitting && <PaymentLoadingOverlay />}
+
+      <Dialog open={showGuestWarning} onOpenChange={setShowGuestWarning}>
+        <DialogContent className="max-w-xl overflow-hidden p-0" showCloseButton={!isSubmitting}>
+          <div className="border-b border-amber-200/70 bg-gradient-to-l from-amber-500/15 via-orange-500/10 to-transparent px-5 py-5 sm:px-6">
+            <DialogHeader className="space-y-3 text-right">
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                  <AlertTriangle className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-xs font-bold text-amber-700 dark:text-amber-300">توجه کاربر گرامی</p>
+                  <DialogTitle className="mt-1 text-lg leading-7">ادامه خرید به‌صورت مهمان</DialogTitle>
+                </div>
+              </div>
+              <DialogDescription className="sr-only">
+                شرایط اتصال سفارش مهمان به حساب کاربری
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="space-y-4 px-5 py-1 text-sm leading-7 text-foreground/85 sm:px-6">
+            <p>
+              شما در حال ثبت سفارش به‌صورت مهمان هستید. پس از پرداخت، لطفاً برای دسترسی راحت‌تر
+              به سفارش خود، در همین مرورگر حساب کاربری ایجاد کنید و ایمیل خود را تأیید نمایید.
+            </p>
+            <p>
+              اتصال خودکار این سفارش به حساب شما فقط در صورتی انجام می‌شود که ثبت‌نام و تأیید
+              ایمیل از همین مرورگر و همین نشست انجام شود.
+            </p>
+            <p className="rounded-2xl border border-amber-200/70 bg-amber-50/80 px-4 py-3 text-amber-950 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100">
+              در صورت پاک‌کردن اطلاعات مرورگر، استفاده از دستگاه یا مرورگر دیگر، یا عدم ایجاد
+              حساب، ممکن است سفارش به‌صورت خودکار به حساب شما متصل نشود.
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2 border-t bg-muted/30 px-5 py-4 sm:flex-col sm:space-x-0 sm:px-6">
+            <Button className="h-11 w-full rounded-xl" onClick={continueAsGuest}>
+              متوجه شدم، ادامه به پرداخت
+            </Button>
+            <Button variant="outline" className="h-11 w-full rounded-xl" onClick={createAccountFirst}>
+              <UserPlus className="ml-2 h-4 w-4" />
+              ساخت حساب قبل از پرداخت
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

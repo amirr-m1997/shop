@@ -9,6 +9,7 @@ const guestCheckout = {
   address: {
     full_name: 'خریدار مهمان',
     address_line1: 'خیابان نمونه',
+    state: 'تهران',
     city: 'تهران',
     postal_code: '1234567890',
   },
@@ -33,7 +34,11 @@ describe('checkout address validation', () => {
     expect(validateCheckoutAddress({
       ...guestCheckout,
       address: { ...guestCheckout.address, city: '' },
-    })).toBe('لطفاً فیلدهای آدرس ارسال را تکمیل کنید');
+    })).toBe('تکمیل آدرس ارسال برای سفارش مهمان الزامی است.');
+    expect(validateCheckoutAddress({
+      ...guestCheckout,
+      address: { ...guestCheckout.address, state: '' },
+    })).toBe('تکمیل آدرس ارسال برای سفارش مهمان الزامی است.');
     expect(validateCheckoutAddress({
       ...guestCheckout,
       address: { ...guestCheckout.address, postal_code: '123' },

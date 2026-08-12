@@ -23,6 +23,7 @@ from shop.observability import (
     log_payment_timeout, log_duplicate_callback,
     log_external_service_failure, log_event,
 )
+from shop.client_ip import get_client_ip
 
 logger = logging.getLogger('payment')
 
@@ -47,10 +48,6 @@ UUID_RE = re.compile(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
 )
 
-
-def _get_client_ip(request):
-    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-    return x_forwarded.split(',')[0].strip() if x_forwarded else request.META.get('REMOTE_ADDR', 'unknown')
 
 ZARINPAL_ERRORS = {
     -9: 'خطای اعتبارسنجی — merchant_id، مبلغ، callback یا توضیحات نامعتبر است.',
@@ -157,7 +154,7 @@ def initiate_payment(request):
         logger.warning(
             '[payment_init_invalid_merchant] user=%s ip=%s',
             request.user.username if request.user.is_authenticated else 'guest',
-            _get_client_ip(request),
+            get_client_ip(request),
         )
         return Response(
             {
@@ -275,7 +272,7 @@ def initiate_payment(request):
         )
 
     customer = request.user.username if request.user.is_authenticated else 'guest'
-    log_payment_initiation(payment.id, order.id, amount, customer, _get_client_ip(request))
+    log_payment_initiation(payment.id, order.id, amount, customer, get_client_ip(request))
 
     payload = {
         'merchant_id': ZARINPAL_MERCHANT_ID.strip(),
@@ -372,7 +369,7 @@ def initiate_payment(request):
 def payment_verify_callback(request):
     # Manual throttle check (non-DRF view)
     from django.core.cache import cache
-    ident = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() or request.META.get('REMOTE_ADDR', 'unknown')
+    ident = get_client_ip(request)
     throttle_key = f'throttle_payment_verify_{ident}'
     count = cache.get(throttle_key, 0)
     if count >= 5:

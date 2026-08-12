@@ -8,12 +8,26 @@ import time
 import logging
 from django.core.cache import cache
 from django.conf import settings
-from rest_framework.throttling import SimpleRateThrottle, AnonRateThrottle
+from rest_framework.throttling import SimpleRateThrottle, AnonRateThrottle, UserRateThrottle
+from shop.client_ip import get_client_ip
 
 logger = logging.getLogger('security')
 
 
-class LoginThrottle(AnonRateThrottle):
+class SecureClientIPMixin:
+    def get_ident(self, request):
+        return get_client_ip(request)
+
+
+class SecureAnonRateThrottle(SecureClientIPMixin, AnonRateThrottle):
+    pass
+
+
+class SecureUserRateThrottle(SecureClientIPMixin, UserRateThrottle):
+    pass
+
+
+class LoginThrottle(SecureClientIPMixin, AnonRateThrottle):
     """
     Throttle for login attempts.
     Scoped rate: 5/min (configured in REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']).
@@ -28,12 +42,12 @@ class LoginThrottle(AnonRateThrottle):
         return f'throttle_login_{ident}_{username}'
 
 
-class RegisterThrottle(AnonRateThrottle):
+class RegisterThrottle(SecureClientIPMixin, AnonRateThrottle):
     """Throttle for registration: 5/min."""
     scope = 'register'
 
 
-class SendOtpThrottle(AnonRateThrottle):
+class SendOtpThrottle(SecureClientIPMixin, AnonRateThrottle):
     """
     Throttle for OTP/sending verification code.
     Scoped rate: 3/min.
@@ -46,7 +60,7 @@ class SendOtpThrottle(AnonRateThrottle):
         return f'throttle_send_otp_{ident}'
 
 
-class VerifyOtpThrottle(AnonRateThrottle):
+class VerifyOtpThrottle(SecureClientIPMixin, AnonRateThrottle):
     """
     Throttle for OTP verification (brute-force protection).
     Scoped rate: 5/min.
@@ -59,17 +73,17 @@ class VerifyOtpThrottle(AnonRateThrottle):
         return f'throttle_verify_otp_{ident}'
 
 
-class ForgotPasswordThrottle(AnonRateThrottle):
+class ForgotPasswordThrottle(SecureClientIPMixin, AnonRateThrottle):
     """Throttle for password reset requests: 3/min."""
     scope = 'forgot_password'
 
 
-class ResetPasswordThrottle(AnonRateThrottle):
+class ResetPasswordThrottle(SecureClientIPMixin, AnonRateThrottle):
     """Throttle for password reset confirmation: 5/min."""
     scope = 'reset_password'
 
 
-class PaymentInitThrottle(SimpleRateThrottle):
+class PaymentInitThrottle(SecureClientIPMixin, SimpleRateThrottle):
     """Throttle for payment initiation: 10/min per user."""
     scope = 'payment_init'
 
@@ -81,7 +95,7 @@ class PaymentInitThrottle(SimpleRateThrottle):
         return f'throttle_payment_init_{ident}'
 
 
-class PaymentVerifyThrottle(SimpleRateThrottle):
+class PaymentVerifyThrottle(SecureClientIPMixin, SimpleRateThrottle):
     """Throttle for payment verification callback: 5/min per IP."""
     scope = 'payment_verify'
 
@@ -90,7 +104,7 @@ class PaymentVerifyThrottle(SimpleRateThrottle):
         return f'throttle_payment_verify_{ident}'
 
 
-class PaymentWebhookThrottle(SimpleRateThrottle):
+class PaymentWebhookThrottle(SecureClientIPMixin, SimpleRateThrottle):
     """Throttle for payment webhook/callback: 60/min per IP."""
     scope = 'payment_webhook'
 
@@ -99,7 +113,7 @@ class PaymentWebhookThrottle(SimpleRateThrottle):
         return f'throttle_payment_webhook_{ident}'
 
 
-class CouponThrottle(SimpleRateThrottle):
+class CouponThrottle(SecureClientIPMixin, SimpleRateThrottle):
     """Throttle for coupon apply: 20/min per user."""
     scope = 'coupon_apply'
 

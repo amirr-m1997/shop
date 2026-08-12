@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { ICON_MAP } from './constants';
 import { Sparkles, Truck, ArrowLeft } from 'lucide-react';
+import ResponsiveImage from '../ui/ResponsiveImage';
 
 const StaticHero = ({ settings, features = [] }) => {
   const heroImage = settings.hero_image || '';
@@ -20,9 +21,13 @@ const StaticHero = ({ settings, features = [] }) => {
         <div className="relative overflow-hidden rounded-[1.75rem] sm:rounded-[2rem] border border-border/40 bg-stone-100 shadow-2xl shadow-black/[0.06] dark:border-white/[0.08] dark:bg-neutral-900 dark:shadow-black/40">
           <div className="relative min-h-[420px] sm:min-h-[480px] lg:min-h-[560px]">
             {heroImage && (
-              <img
+              <ResponsiveImage
                 src={heroImage}
                 alt=""
+                widths={[640, 1024, 1600]}
+                sizes="(min-width: 1280px) 1216px, calc(100vw - 2rem)"
+                loading="eager"
+                fetchPriority="high"
                 className="absolute inset-0 h-full w-full scale-105 object-cover"
               />
             )}

@@ -96,3 +96,30 @@ class LoginHistory(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.login_time}"
+
+
+class DeliveryAttempt(models.Model):
+    """Persistent delivery state for security and transactional messages."""
+    CHANNEL_CHOICES = [('email', 'Email'), ('sms', 'SMS')]
+    STATUS_CHOICES = [
+        ('queued', 'Queued'), ('sending', 'Sending'),
+        ('sent', 'Sent'), ('failed', 'Failed'),
+    ]
+
+    channel = models.CharField(max_length=10, choices=CHANNEL_CHOICES)
+    purpose = models.CharField(max_length=50)
+    recipient = models.CharField(max_length=254)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='queued')
+    attempts = models.PositiveSmallIntegerField(default=0)
+    provider = models.CharField(max_length=150, blank=True)
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=['channel', 'status', '-created_at'],
+                name='accounts_de_channel_b7f34d_idx',
+            ),
+        ]

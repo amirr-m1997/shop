@@ -1,15 +1,16 @@
 from rest_framework import viewsets, filters, permissions
+from django.db import connection
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
 from django_filters import rest_framework as django_filters
-from django.db.models import F
+from django.db.models import F, Prefetch
 from django.db.models import Q
 from rest_framework.decorators import api_view, permission_classes
 from .models import (
-    Category, Brand, Size, Color, Fabric, Product, Review, SizeGuide,
+    Category, Brand, Size, Color, Fabric, Product, ProductImage, Review, SizeGuide,
     HomepageSection, Banner, StyleLook, Wishlist, sizes_for_category,
 )
 from .serializers import (CategorySerializer, BrandSerializer, SizeSerializer, ColorSerializer,
@@ -19,34 +20,47 @@ from .serializers import (CategorySerializer, BrandSerializer, SizeSerializer, C
 from dashboard.permissions import IsAdminUser
 
 
+class DatabaseAwareProductSearchFilter(filters.SearchFilter):
+    """Use PostgreSQL full-text search while preserving SQLite development."""
+    def filter_queryset(self, request, queryset, view):
+        term = request.query_params.get(self.search_param, '').strip()
+        if not term or connection.vendor != 'postgresql':
+            return super().filter_queryset(request, queryset, view)
+        from django.contrib.postgres.search import SearchQuery, SearchVector
+        vector = SearchVector('name', 'description', 'sku', config='simple')
+        return queryset.annotate(_search=vector).filter(
+            _search=SearchQuery(term, config='simple', search_type='websearch')
+        )
+
+
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Category.objects.prefetch_related('children')
+    queryset = Category.objects.prefetch_related('children').order_by('order', 'name', 'id')
     serializer_class = CategorySerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['name']
 
 
 class BrandViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Brand.objects.all()
+    queryset = Brand.objects.order_by('name', 'id')
     serializer_class = BrandSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['name']
 
 
 class SizeViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Size.objects.all()
+    queryset = Size.objects.order_by('category_id', 'name', 'id')
     serializer_class = SizeSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['category']
 
 
 class ColorViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Color.objects.all()
+    queryset = Color.objects.order_by('name', 'id')
     serializer_class = ColorSerializer
 
 
 class FabricViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Fabric.objects.all()
+    queryset = Fabric.objects.order_by('name', 'id')
     serializer_class = FabricSerializer
 
 class ProductFilter(django_filters.FilterSet):
@@ -116,13 +130,15 @@ class ProductFilter(django_filters.FilterSet):
 
 
 class ProductPagination(PageNumberPagination):
-    page_size = 100
+    page_size = 24
+    page_size_query_param = 'page_size'
+    max_page_size = 48
 
 
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Product.objects.filter(is_active=True)
     pagination_class = ProductPagination
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, DatabaseAwareProductSearchFilter, filters.OrderingFilter]
     filterset_class = ProductFilter
     search_fields = ['name', 'description', 'sku']
     ordering_fields = ['price', 'created_at', 'rating', 'name']
@@ -130,12 +146,21 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = 'slug'
 
     def get_queryset(self):
-        return Product.objects.filter(is_active=True).select_related(
+        queryset = Product.objects.filter(is_active=True).select_related(
             'brand', 'category',
-        ).prefetch_related(
-            'images',
-            'variants__size',
-            'variants__color',
+        )
+        if self.action == 'retrieve':
+            return queryset.select_related('fabric').prefetch_related(
+                'images__color', 'variants__size', 'variants__color',
+            )
+        return queryset.prefetch_related(
+            Prefetch(
+                'images',
+                queryset=ProductImage.objects.only(
+                    'id', 'product_id', 'image', 'is_primary', 'order',
+                ).order_by('order', 'id'),
+                to_attr='_prefetched_images',
+            )
         )
 
     def get_serializer_class(self):
@@ -154,7 +179,7 @@ def max_price_view(request):
 
 
 class ReviewViewSet(viewsets.ModelViewSet):
-    queryset = Review.objects.all()
+    queryset = Review.objects.order_by('-created_at', '-id')
     serializer_class = ReviewSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [DjangoFilterBackend]
@@ -162,7 +187,7 @@ class ReviewViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return Review.objects.select_related('user', 'product').all()
+        return Review.objects.select_related('user', 'product').order_by('-created_at', '-id')
 
     def perform_create(self, serializer):
         product = serializer.validated_data['product']
@@ -191,7 +216,7 @@ class ReviewViewSet(viewsets.ModelViewSet):
 
 
 class SizeGuideViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = SizeGuide.objects.all()
+    queryset = SizeGuide.objects.order_by('category_id', 'size_id', 'id')
     serializer_class = SizeGuideSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['category']
@@ -204,7 +229,7 @@ class WishlistViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Wishlist.objects.filter(user=self.request.user).select_related(
             'product', 'product__brand', 'product__category',
-        ).prefetch_related('product__images')
+        ).prefetch_related('product__images').order_by('-created_at', '-id')
 
     def perform_create(self, serializer):
         product_id = serializer.validated_data.get('product_id')
@@ -218,13 +243,38 @@ class HomepageSectionsView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        sections = HomepageSection.objects.filter(is_active=True)
-        for section in sections:
-            section._optimized_products = section.get_products().select_related(
-                'brand', 'category',
-            ).prefetch_related('images')
+        sections = list(HomepageSection.objects.filter(is_active=True))
+        _prepare_homepage_sections(sections)
         serializer = HomepageSectionSerializer(sections, many=True)
         return Response(serializer.data)
+
+
+def _prepare_homepage_sections(sections):
+    """Resolve section membership first, then hydrate every unique product once."""
+    product_ids_by_key = {}
+    for section in sections:
+        key = (section.filter_type, section.filter_value)
+        if key not in product_ids_by_key:
+            product_ids_by_key[key] = list(
+                section.get_products().values_list('id', flat=True)
+            )
+
+    all_ids = {pk for ids in product_ids_by_key.values() for pk in ids}
+    products = Product.objects.filter(pk__in=all_ids).select_related(
+        'brand', 'category',
+    ).prefetch_related(
+        Prefetch(
+            'images',
+            queryset=ProductImage.objects.only(
+                'id', 'product_id', 'image', 'is_primary', 'order',
+            ).order_by('order', 'id'),
+            to_attr='_prefetched_images',
+        )
+    )
+    products_by_id = {product.id: product for product in products}
+    for section in sections:
+        ids = product_ids_by_key[(section.filter_type, section.filter_value)]
+        section._optimized_products = [products_by_id[pk] for pk in ids if pk in products_by_id]
 
 
 class BannerListView(APIView):

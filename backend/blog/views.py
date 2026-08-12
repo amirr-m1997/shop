@@ -1,4 +1,5 @@
 from rest_framework import viewsets, permissions
+from django.db import connection
 from django.db.models import Q
 from .models import BlogCategory, BlogPost
 from .serializers import BlogCategorySerializer, BlogPostListSerializer, BlogPostDetailSerializer
@@ -28,9 +29,16 @@ class BlogPostViewSet(viewsets.ReadOnlyModelViewSet):
         if category:
             qs = qs.filter(category__slug=category)
         if search:
-            qs = qs.filter(
-                Q(title__icontains=search)
-                | Q(excerpt__icontains=search)
-                | Q(content__icontains=search)
-            )
+            if connection.vendor == 'postgresql':
+                from django.contrib.postgres.search import SearchQuery, SearchVector
+                vector = SearchVector('title', 'excerpt', 'content', config='simple')
+                qs = qs.annotate(_search=vector).filter(
+                    _search=SearchQuery(search, config='simple', search_type='websearch')
+                )
+            else:
+                qs = qs.filter(
+                    Q(title__icontains=search)
+                    | Q(excerpt__icontains=search)
+                    | Q(content__icontains=search)
+                )
         return qs

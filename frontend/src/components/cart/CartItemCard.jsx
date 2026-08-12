@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Trash2, Plus, Minus } from 'lucide-react';
 import { formatPrice, formatPriceNumber } from '../../lib/formatPrice';
 import { PLACEHOLDER_IMG } from '../../lib/placeholders';
+import ResponsiveImage from '../ui/ResponsiveImage';
 
 const CartItemCard = ({ item, onQuantityChange, onRemove, updating, index }) => {
   const [removing, setRemoving] = useState(false);
@@ -31,9 +32,11 @@ const CartItemCard = ({ item, onQuantityChange, onRemove, updating, index }) => 
           to={`/product/${item.product.slug}`}
           className="relative h-28 w-24 shrink-0 overflow-hidden rounded-2xl bg-muted ring-1 ring-border/50 transition-all duration-500 group-hover:ring-primary/30 sm:h-36 sm:w-32"
         >
-          <img
+          <ResponsiveImage
             src={item.product.primary_image || PLACEHOLDER_IMG}
             alt={item.product.name}
+            widths={[320]}
+            sizes="128px"
             className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
             onError={(e) => { e.target.src = PLACEHOLDER_IMG; }}
           />

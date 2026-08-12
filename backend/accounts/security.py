@@ -7,10 +7,11 @@ falls back to LocMemCache in development).
 """
 import hashlib
 import logging
-import time
 import requests
 from django.core.cache import cache
 from django.conf import settings
+from django.utils import timezone
+from shop.client_ip import get_client_ip
 
 logger = logging.getLogger('security')
 auth_logger = logging.getLogger('authentication')
@@ -54,6 +55,14 @@ def record_login_failure(identifier):
     count = cache.get(key, 0) + 1
     cache.set(key, count, LOGIN_FAIL_LOCKOUT_DURATION + 60)
 
+    delay = get_login_delay(identifier)
+    if delay:
+        cache.set(
+            _login_delay_key(identifier),
+            timezone.now().timestamp() + delay,
+            delay,
+        )
+
     if count >= LOGIN_FAIL_LOCKOUT_THRESHOLD:
         lock_key = _login_lock_key(identifier)
         cache.set(lock_key, True, LOGIN_FAIL_LOCKOUT_DURATION)
@@ -90,13 +99,12 @@ def get_login_delay(identifier):
     return delay
 
 
-def apply_login_delay(identifier):
-    """Apply progressive delay if needed. Blocks for the delay duration."""
-    delay = get_login_delay(identifier)
-    if delay > 0:
-        time.sleep(delay)
-        return delay
-    return 0
+def get_login_retry_after(identifier):
+    """Return remaining cooldown seconds without blocking a request worker."""
+    retry_at = cache.get(_login_delay_key(identifier))
+    if not retry_at:
+        return 0
+    return max(0, int(retry_at - timezone.now().timestamp() + 0.999))
 
 
 # ─── CAPTCHA ────────────────────────────────────────────────
@@ -238,9 +246,7 @@ def log_security_event(event_type, request, details=None):
     event_type: 'login_failure', 'login_lockout', 'otp_abuse',
                 'payment_abuse', 'webhook_invalid', etc.
     """
-    ip = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
-    if not ip:
-        ip = request.META.get('REMOTE_ADDR', 'unknown')
+    ip = get_client_ip(request)
     ua = request.META.get('HTTP_USER_AGENT', '')[:100]
     user = getattr(request, 'user', None)
     username = user.username if user and user.is_authenticated else 'anonymous'

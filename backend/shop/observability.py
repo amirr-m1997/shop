@@ -47,6 +47,11 @@ def get_request_context() -> dict:
     }
 
 
+def set_authenticated_user_context(username):
+    """Refresh the context once DRF token/cookie authentication completes."""
+    _user_var.set(username or 'anonymous')
+
+
 def clear_request_context():
     """Clear all request context variables."""
     _request_id_var.set('')

@@ -5,6 +5,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from django.contrib.auth.models import User
 from products.models import Product, Brand, Category, HomepageSection, Banner, StyleLook
+from products.views import _prepare_homepage_sections
 from products.serializers import (
     CategorySerializer, HomepageSectionSerializer,
     BannerSerializer, StyleLookSerializer,
@@ -110,7 +111,8 @@ def home_data(request):
     testimonials, and features in one response.
     """
     categories = Category.objects.filter(parent__isnull=True).prefetch_related('children')
-    sections = HomepageSection.objects.filter(is_active=True)
+    sections = list(HomepageSection.objects.filter(is_active=True))
+    _prepare_homepage_sections(sections)
     banners = Banner.objects.filter(is_active=True)
     styles = StyleLook.objects.filter(is_active=True).prefetch_related(
         Prefetch(

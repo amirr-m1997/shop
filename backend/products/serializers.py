@@ -201,8 +201,15 @@ class HomepageSectionSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'filter_type', 'filter_type_display', 'filter_value', 'order', 'products']
 
     def get_products(self, obj):
-        products = getattr(obj, '_optimized_products', None) or obj.get_products()
-        return ProductListSerializer(products, many=True).data
+        products = getattr(obj, '_optimized_products', None)
+        if products is None:
+            products = obj.get_products()
+        product_cache = self.context.setdefault('_homepage_product_data', {})
+        missing = [product for product in products if product.id not in product_cache]
+        if missing:
+            serialized = ProductListSerializer(missing, many=True).data
+            product_cache.update(zip((product.id for product in missing), serialized))
+        return [product_cache[product.id] for product in products]
 
 
 class BannerSerializer(serializers.ModelSerializer):
