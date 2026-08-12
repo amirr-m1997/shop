@@ -1,0 +1,40 @@
+{% extends "admin/change_list.html" %}
+{% load static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  #admin-product-search-results {
+    direction: rtl;
+    text-align: right;
+    font-family: Vazirmatn, sans-serif;
+  }
+  #admin-product-search-results div[data-index]:hover {
+    background: #f0f7ff !important;
+  }
+  #admin-product-search-results div[data-index].active {
+    background: #e8f4fd;
+  }
+  @media (prefers-color-scheme: dark) {
+    #admin-product-search-results {
+      background: #2b2b2b;
+      border-color: #444;
+    }
+    #admin-product-search-results div {
+      border-bottom-color: #3a3a3a !important;
+    }
+    #admin-product-search-results div[data-index]:hover {
+      background: #3a3a3a !important;
+    }
+    #admin-product-search-results div[data-index].active {
+      background: #3a3a3a;
+    }
+    #admin-product-search-results .product-name {
+      color: #eee;
+    }
+    #admin-product-search-results .product-meta {
+      color: #aaa;
+    }
+  }
+</style>
+{% endblock %}

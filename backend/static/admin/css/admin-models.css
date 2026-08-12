@@ -1,0 +1,75 @@
+html:not(.lux-dashboard-page) body.unfold-custom-admin #changelist,
+html:not(.lux-dashboard-page) body.unfold-custom-admin #result_list,
+html:not(.lux-dashboard-page) body.unfold-custom-admin .paginator {
+    background:var(--admin-surface);
+    border-color:var(--admin-border);
+    color:var(--admin-text);
+}
+
+html:not(.lux-dashboard-page) body.unfold-custom-admin #changelist {
+    border:1px solid var(--admin-border);
+    border-radius:14px;
+    box-shadow:var(--admin-shadow);
+    margin:0;
+    overflow:hidden;
+}
+
+html:not(.lux-dashboard-page) body.unfold-custom-admin #changelist > div,
+html:not(.lux-dashboard-page) body.unfold-custom-admin #changelist-form,
+html:not(.lux-dashboard-page) body.unfold-custom-admin #changelist-form > div,
+html:not(.lux-dashboard-page) body.unfold-custom-admin #toolbar > form > div { background-color:transparent; border-color:var(--admin-border); }
+html:not(.lux-dashboard-page) body.unfold-custom-admin #changelist .module.filtered { margin-left:0; margin-right:0; }
+html:not(.lux-dashboard-page) body.unfold-custom-admin #toolbar { padding:4px; }
+
+html:not(.lux-dashboard-page) body.unfold-custom-admin #toolbar + a,
+html:not(.lux-dashboard-page) body.unfold-custom-admin #changelist a[x-on*="filterOpen"],
+html:not(.lux-dashboard-page) body.unfold-custom-admin #submit-row button:not([name="_save"]),
+html:not(.lux-dashboard-page) body.unfold-custom-admin #submit-row a:not(.deletelink) {
+    background:var(--admin-primary-soft);
+    border-color:var(--admin-border-strong);
+    color:var(--admin-primary);
+}
+
+html:not(.lux-dashboard-page) body.unfold-custom-admin #result_list thead th,
+html:not(.lux-dashboard-page) body.unfold-custom-admin .inline-group .tabular-table th {
+    background:var(--admin-surface-muted);
+    border-color:var(--admin-border);
+    color:var(--admin-text-muted);
+}
+
+html:not(.lux-dashboard-page) body.unfold-custom-admin #result_list tbody tr,
+html:not(.lux-dashboard-page) body.unfold-custom-admin #result_list tbody th,
+html:not(.lux-dashboard-page) body.unfold-custom-admin #result_list tbody td {
+    background:var(--admin-surface);
+    border-color:var(--admin-border);
+    color:var(--admin-text);
+}
+
+html:not(.lux-dashboard-page) body.unfold-custom-admin #result_list tbody tr:hover th,
+html:not(.lux-dashboard-page) body.unfold-custom-admin #result_list tbody tr:hover td { background:var(--admin-surface-hover); }
+html:not(.lux-dashboard-page) body.unfold-custom-admin #result_list a { color:var(--admin-text-strong); font-weight:600; }
+
+html:not(.lux-dashboard-page) body.unfold-custom-admin #changelist-filter > div:last-child {
+    background:var(--admin-surface-raised);
+    border-color:var(--admin-border);
+    color:var(--admin-text);
+}
+
+html:not(.lux-dashboard-page) body.unfold-custom-admin #changelist-filter a,
+html:not(.lux-dashboard-page) body.unfold-custom-admin #changelist-filter h2,
+html:not(.lux-dashboard-page) body.unfold-custom-admin #changelist-filter h3 { color:var(--admin-text); }
+
+@media (max-width:767px) {
+    html:not(.lux-dashboard-page) body.unfold-custom-admin #result_list th,
+    html:not(.lux-dashboard-page) body.unfold-custom-admin #result_list td,
+    html:not(.lux-dashboard-page) body.unfold-custom-admin #result_list a {
+        min-width:0;
+        overflow-wrap:anywhere;
+        word-break:break-word;
+    }
+
+    html:not(.lux-dashboard-page) body.unfold-custom-admin #toolbar + a,
+    html:not(.lux-dashboard-page) body.unfold-custom-admin #changelist a[x-on*="filterOpen"] {
+        min-height:44px;
+    }
+}

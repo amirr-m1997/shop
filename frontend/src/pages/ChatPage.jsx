@@ -1,0 +1,361 @@
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useNavigate, useParams, Link } from 'react-router-dom';
+import { MessageCircle } from 'lucide-react';
+import { chatAPI } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../components/ui/use-toast';
+import ChatDashboard from '../components/chat/ChatDashboard';
+import { useChatVisibilityRefresh } from '../hooks/useChatVisibilityRefresh';
+import { useChatUserSearch } from '../hooks/useChatUserSearch';
+
+
+
+/* ═══════════════════════ Main Chat Page ═══════════════════════ */
+export default function ChatPage() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const { conversationId } = useParams();
+
+  const [conversations, setConversations] = useState([]);
+  const [activeId, setActiveId] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [convLoading, setConvLoading] = useState(false);
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+  const { query, setQuery, searchResults, setSearchResults, searching } = useChatUserSearch();
+  const [mobilePane, setMobilePane] = useState('list'); // list | chat | profile
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [sendProductOpen, setSendProductOpen] = useState(false);
+  const [filter, setFilter] = useState('all'); // all | friends
+  const [profileOpen, setProfileOpen] = useState(true);
+  const [sharedOpen, setSharedOpen] = useState(false);
+
+  const sharedProducts = useMemo(
+    () => messages.filter((m) => m.product).map((m) => m.product).reverse(),
+    [messages]
+  );
+
+  const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  const currentUserId = user?.id;
+  const active = useMemo(
+    () => conversations.find((c) => c.id === Number(activeId)) || null,
+    [conversations, activeId]
+  );
+
+  /* Load conversations */
+  useEffect(() => {
+    if (!currentUserId) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    chatAPI.getConversations()
+      .then((res) => {
+        if (cancelled) return;
+        const data = Array.isArray(res.data) ? res.data : (res.data?.results || []);
+        setConversations(data);
+        setLoading(false);
+        // Only open a conversation if it was explicitly deep-linked (e.g. /chat/:id).
+        // On first visit, stay on the list / welcome screen instead of auto-opening the last chat.
+        if (conversationId) {
+          const target = data.find((c) => c.id === Number(conversationId));
+          if (target) {
+            setActiveId(target.id);
+            setMobilePane('chat');
+          } else {
+            setActiveId(null);
+            setMessages([]);
+            setMobilePane('list');
+          }
+        } else {
+          setActiveId(null);
+          setMessages([]);
+          setMobilePane('list');
+        }
+      })
+      .catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [currentUserId, conversationId]);
+
+  const loadMessages = useCallback(async (id) => {
+    setConvLoading(true);
+    try {
+      const res = await chatAPI.getMessages(id);
+      setMessages(res.data?.results ?? (Array.isArray(res.data) ? res.data : []));
+      await chatAPI.markRead(id);
+      setConversations((prev) => prev.map((c) => (c.id === Number(id) ? { ...c, unread_count: 0 } : c)));
+    } catch {
+      toast({ title: 'خطا', description: 'بارگذاری پیام‌ها ممکن نشد.', variant: 'destructive' });
+    } finally {
+      setConvLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    if (activeId) loadMessages(activeId);
+    else setMessages([]);
+  }, [activeId, loadMessages]);
+
+  useChatVisibilityRefresh({
+    currentUserId,
+    activeId,
+    setConversations,
+    setMessages,
+  });
+
+
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages.length, convLoading]);
+
+  const selectConversation = (id) => {
+    setActiveId(id);
+    setMenuOpen(false);
+    setMobilePane('chat');
+    navigate(`/chat/${id}`, { replace: true });
+  };
+
+
+  const startConversation = async (result) => {
+    setQuery('');
+    setSearchResults([]);
+    try {
+      const res = await chatAPI.createConversation({ user_id: result.id });
+      const conv = res.data;
+      setConversations((prev) => {
+        const exists = prev.some((c) => c.id === conv.id);
+        return exists ? prev.map((c) => (c.id === conv.id ? conv : c)) : [conv, ...prev];
+      });
+      selectConversation(conv.id);
+      if (conv.status === 'pending') {
+        if (conv.is_requester) {
+          toast({
+            title: 'درخواست گفتگو ارسال شد',
+            description: `درخواست شما به ${result.display_name || result.username} ارسال شد. پس از تایید ایشان می‌توانید پیام ارسال کنید.`,
+          });
+        } else {
+          toast({ title: 'درخواست گفتگو', description: 'کاربری می‌خواهد با شما گفتگو کند. در صورت تمایل درخواست را تایید کنید.' });
+        }
+      } else if (conv.status === 'accepted') {
+        toast({ title: 'گفتگو', description: 'شما می‌توانید پیام ارسال کنید.' });
+      }
+    } catch {
+      toast({ title: 'خطا', description: 'ایجاد گفتگو ممکن نشد.', variant: 'destructive' });
+    }
+  };
+
+  const handleStartRequest = (result) => {
+    if (result.conversation_status === 'accepted') {
+      startConversation(result);
+      return;
+    }
+    const name = result.display_name || result.username;
+    askConfirm({
+      title: result.conversation_status === 'pending' ? 'درخواست قبلی' : 'ارسال درخواست گفتگو',
+      message:
+        result.conversation_status === 'pending'
+          ? `قبلاً به ${name} درخواست داده‌اید و در انتظار تایید است. آیا باز هم می‌خواهید ادامه دهید؟`
+          : `آیا می‌خواهید درخواست گفتگو به ${name} ارسال شود؟`,
+      confirm: result.conversation_status === 'pending' ? 'باز کردن' : 'ارسال درخواست',
+      danger: false,
+      onConfirm: () => startConversation(result),
+    });
+  };
+
+  const handleAcceptRequest = async () => {
+    if (!activeId) return;
+    try {
+      const res = await chatAPI.acceptConversation(activeId);
+      setConversations((prev) => prev.map((c) => (c.id === activeId ? res.data : c)));
+      toast({ title: 'تایید شد', description: 'درخواست گفتگو پذیرفته شد. می‌توانید پیام ارسال کنید.' });
+      loadMessages(activeId);
+    } catch (err) {
+      const detail =
+        err?.response?.data?.error ||
+        err?.response?.data?.detail ||
+        'تایید درخواست انجام نشد. لطفاً دوباره تلاش کنید.';
+      toast({ title: 'خطا', description: detail, variant: 'destructive' });
+      try {
+        const cRes = await chatAPI.getConversations();
+        const data = Array.isArray(cRes.data) ? cRes.data : (cRes.data?.results || []);
+        setConversations(data);
+      } catch { /* silent */ }
+    }
+  };
+
+  const handleDeclineRequest = async () => {
+    if (!activeId) return;
+    try {
+      const res = await chatAPI.declineConversation(activeId);
+      setConversations((prev) => prev.map((c) => (c.id === activeId ? res.data : c)));
+      toast({ title: 'رد شد', description: 'درخواست گفتگو رد شد.' });
+    } catch (err) {
+      const detail =
+        err?.response?.data?.error ||
+        err?.response?.data?.detail ||
+        'رد درخواست انجام نشد. لطفاً دوباره تلاش کنید.';
+      toast({ title: 'خطا', description: detail, variant: 'destructive' });
+      try {
+        const cRes = await chatAPI.getConversations();
+        const data = Array.isArray(cRes.data) ? cRes.data : (cRes.data?.results || []);
+        setConversations(data);
+      } catch { /* silent */ }
+    }
+  };
+
+  const handleReopenRequest = async () => {
+    if (!activeId || !active?.other_user?.id) return;
+    try {
+      const res = await chatAPI.createConversation({ user_id: active.other_user.id });
+      setConversations((prev) => prev.map((c) => (c.id === activeId ? res.data : c)));
+      const isRequester = res.data.is_requester;
+      toast({
+        title: isRequester ? 'درخواست دوباره ارسال شد' : 'درخواست گفتگو ارسال شد',
+        description: isRequester
+          ? `درخواست شما دوباره به ${active.other_user.display_name || active.other_user.username} ارسال شد. منتظر تایید ایشان باشید.`
+          : `درخواست گفتگو برای ${active.other_user.display_name || active.other_user.username} ارسال شد.`,
+      });
+      loadMessages(activeId);
+    } catch {
+      toast({ title: 'خطا', description: 'ارسال مجدد درخواست ممکن نشد.', variant: 'destructive' });
+    }
+  };
+
+  const handleCancelRequest = async () => {
+    if (!activeId) return;
+    try {
+      await chatAPI.cancelConversation(activeId);
+      setConversations((prev) => prev.filter((c) => c.id !== activeId));
+      setMessages([]);
+      toast({ title: 'لغو شد', description: 'درخواست گفتگو لغو شد.' });
+    } catch {
+      toast({ title: 'خطا', description: 'لغو درخواست ممکن نشد.', variant: 'destructive' });
+    }
+  };
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+
+  const askConfirm = (options) => setConfirmDialog(options);
+  const closeConfirm = () => setConfirmDialog(null);
+
+  const handleClearChat = async () => {
+    if (!activeId) return;
+    try {
+      await chatAPI.clearConversation(activeId);
+      setMessages([]);
+      setMenuOpen(false);
+      toast({ title: 'پاک شد', description: 'سابقه گفتگو فقط برای شما پاک شد.' });
+    } catch {
+      toast({ title: 'خطا', description: 'پاک کردن گفتگو ممکن نشد.', variant: 'destructive' });
+    }
+  };
+
+  const handleBlock = async () => {
+    if (!activeId || !active?.other_user?.id) return;
+    const name = active.other_user.display_name || active.other_user.username;
+    try {
+      const res = await chatAPI.blockConversation(activeId);
+      setConversations((prev) => prev.map((c) => (c.id === activeId ? res.data : c)));
+      setMenuOpen(false);
+      toast({ title: 'بلاک شد', description: `${name} بلاک شد.` });
+    } catch {
+      toast({ title: 'خطا', description: 'بلاک کردن ممکن نشد.', variant: 'destructive' });
+    }
+  };
+
+  const handleUnblock = async () => {
+    if (!activeId || !active?.other_user?.id) return;
+    const name = active.other_user.display_name || active.other_user.username;
+    try {
+      const res = await chatAPI.unblockConversation(activeId);
+      setConversations((prev) => prev.map((c) => (c.id === activeId ? res.data : c)));
+      setMenuOpen(false);
+      toast({ title: 'رفع بلاک شد', description: `${name} از حالت بلاک خارج شد.` });
+    } catch {
+      toast({ title: 'خطا', description: 'رفع بلاک ممکن نشد.', variant: 'destructive' });
+    }
+  };
+
+  const handleSend = async (e, overrideText) => {
+    e?.preventDefault();
+    const payload = (overrideText ?? text).trim();
+    if (!activeId || !payload || sending) return;
+    setSending(true);
+    const optimistic = {
+      id: `temp-${Date.now()}`,
+      sender_id: currentUserId,
+      sender_username: user?.username,
+      sender_name: user?.username,
+      text: payload,
+      product: null,
+      is_read: false,
+      reaction: '',
+      is_favorite: false,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimistic]);
+    setText('');
+    setShowEmoji(false);
+    try {
+      const res = await chatAPI.sendMessage(activeId, { text: payload });
+      setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? res.data : m)));
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+      toast({ title: 'خطا', description: 'ارسال پیام ممکن نشد.', variant: 'destructive' });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const insertEmoji = (emoji) => {
+    setText((t) => t + emoji);
+    textareaRef.current?.focus();
+  };
+
+  const filteredConversations = useMemo(() => {
+    if (filter === 'friends') {
+      return conversations.filter((c) => c.status === 'accepted');
+    }
+    return conversations;
+  }, [conversations, filter]);
+
+  /* ── Login gate ── */
+  if (!currentUserId) {
+    return (
+      <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-20 text-center bg-background">
+        <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-amber-500/20 to-yellow-700/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/30 shadow-2xl shadow-amber-500/10">
+          <MessageCircle className="h-12 w-12" />
+        </div>
+        <h1 className="mb-3 text-3xl font-black tracking-tight text-foreground">استایل چت</h1>
+        <p className="mb-8 max-w-md text-sm text-muted-foreground leading-relaxed">
+          برای گفتگو با دوستان، تبادل نظر درباره مد و به اشتراک‌گذاری محصولات، وارد حساب کاربری خود شوید.
+        </p>
+        <Link
+          to="/login"
+          className="inline-flex h-12 items-center rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-600 px-8 font-bold text-black shadow-lg shadow-amber-500/25 transition hover:brightness-110"
+        >
+          ورود به حساب کاربری
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <ChatDashboard model={{
+      conversations, activeId, messages, loading, convLoading, text, setText, sending,
+    query, setQuery, searchResults, setSearchResults, searching, mobilePane, setMobilePane, showEmoji,
+    setShowEmoji, sendProductOpen, setSendProductOpen, filter, setFilter, profileOpen,
+    setProfileOpen, sharedOpen, setSharedOpen, sharedProducts, messagesEndRef, textareaRef,
+    currentUserId, active, loadMessages, selectConversation, handleStartRequest,
+    handleAcceptRequest, handleDeclineRequest, handleReopenRequest, handleCancelRequest,
+    menuOpen, setMenuOpen, confirmDialog, askConfirm, closeConfirm, handleClearChat,
+    handleBlock, handleUnblock, handleSend, insertEmoji, filteredConversations
+    }} />
+  );
+}

@@ -1,0 +1,50 @@
+CLS صفحه Home و Product Detail را به‌صورت دقیق trace و اصلاح کن.
+
+فعلاً قبل از تغییر، منبع واقعی هر layout shift را با PerformanceObserver / DevTools Layout Shift tracking پیدا کن و elementهای درگیر را گزارش بده.
+
+تمرکز:
+
+Product Detail:
+
+* تفاوت ابعاد Skeleton با محتوای واقعی
+* گالری اصلی و thumbnailها
+* ProductInfo / price / variants
+* بخش review یا stock status که بعد از fetch ظاهر می‌شود
+* font swap
+* هر componentی که بعد از load ارتفاعش تغییر می‌کند
+
+Home:
+
+* BannerSlider
+* skeleton اولیه
+* carouselها و سکشن‌های async
+* font loading
+* هر blockی که بعد از fetch وارد layout می‌شود
+
+برای هر shift گزارش بده:
+
+* element
+* زمان وقوع
+* مقدار تقریبی contribution به CLS
+* علت
+* راه‌حل کم‌ریسک
+
+سپس فقط همان موارد measurable را اصلاح کن.
+
+اهداف:
+
+* Product Detail CLS به زیر 0.1 برسد
+* Home CLS به زیر 0.1 برسد
+* LCP به‌طور محسوسی بدتر نشود
+* ظاهر و UX تغییر محسوس نکند
+
+بعد از اصلاح با production preview و viewport موبایل 390×844 دوباره اندازه‌گیری کن و Before / After بده.
+
+کنترل کیفیت:
+
+* npm run build
+* npm test -- --run
+* npm run lint -- --no-warn-ignored
+
+اگر یک تغییر CLS را بهتر نکرد یا regression ایجاد کرد، آن را نگه ندار.
+

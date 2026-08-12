@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تأیید پرداخت سفارش {{ order.order_number }}</title>
+  <style>
+    body { margin: 0; padding: 0; background: #f4f5f7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #212529; }
+    .wrapper { width: 100%; background: #f4f5f7; padding: 40px 0; }
+    .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .header { background: #1a1a2e; padding: 32px; text-align: center; }
+    .header h1 { color: #ffffff; margin: 0; font-size: 22px; font-weight: 700; }
+    .header p { color: #adb5bd; margin: 8px 0 0; font-size: 13px; }
+    .body { padding: 32px; }
+    .greeting { font-size: 15px; color: #495057; margin-bottom: 24px; line-height: 1.7; }
+    .section-title { font-size: 14px; font-weight: 700; color: #1a1a2e; border-bottom: 2px solid #28a745; padding-bottom: 8px; margin: 24px 0 16px; }
+    .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f1f3f5; font-size: 13px; }
+    .info-label { color: #868e96; }
+    .info-value { color: #212529; font-weight: 600; }
+    .status-badge { display: inline-block; background: #d4edda; color: #155724; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .footer { background: #f8f9fa; padding: 24px 32px; text-align: center; font-size: 12px; color: #868e96; border-top: 1px solid #e9ecef; }
+    .footer a { color: #e94560; text-decoration: none; }
+    @media only screen and (max-width: 600px) {
+      .container { margin: 0 16px; }
+      .body { padding: 24px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="header">
+        <h1>{{ store_name }}</h1>
+        <p>تأیید پرداخت</p>
+      </div>
+      <div class="body">
+        <div class="greeting">
+          سلام {{ user.get_full_name|default:user.username }}،<br>
+          پرداخت شما برای سفارش {{ order.order_number }} با موفقیت انجام شد.
+        </div>
+
+        <div class="section-title">اطلاعات پرداخت</div>
+        <div class="info-row"><span class="info-label">شماره سفارش</span><span class="info-value">{{ order.order_number }}</span></div>
+        <div class="info-row"><span class="info-label">کد پیگیری</span><span class="info-value">{{ ref_id }}</span></div>
+        <div class="info-row"><span class="info-label">تاریخ پرداخت</span><span class="info-value">{{ payment_date }}</span></div>
+        <div class="info-row"><span class="info-label">وضعیت پرداخت</span><span class="info-value"><span class="status-badge">{{ payment_status_label }}</span></span></div>
+        <div class="info-row"><span class="info-label">مبلغ پرداختی</span><span class="info-value">{{ order.total|floatformat:0 }} تومان</span></div>
+
+        <div style="margin-top:32px;padding:20px;background:#f8f9fa;border-radius:8px;border-right:4px solid #28a745">
+          <p style="margin:0;font-size:14px;color:#495057;line-height:1.7">
+            پرداخت شما با موفقیت ثبت شد و سفارش شما در حال پردازش است.
+            از خرید شما متشکریم.
+          </p>
+        </div>
+      </div>
+      <div class="footer">
+        <p>با تشکر از خرید شما</p>
+        <p><a href="{{ frontend_url }}">{{ store_name }}</a></p>
+        {% if store_phone %}<p>تلفن: {{ store_phone }}</p>{% endif %}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

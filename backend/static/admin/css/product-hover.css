@@ -1,0 +1,80 @@
+.product-admin-custom__thumbnail {
+    align-items: center;
+    background: var(--admin-surface-muted);
+    border: 1px solid var(--admin-border);
+    border-radius: 0.75rem;
+    display: inline-flex;
+    height: 60px;
+    justify-content: center;
+    overflow: hidden;
+    width: 60px;
+}
+
+.product-admin-custom__thumbnail img {
+    height: 60px;
+    object-fit: cover;
+    width: 60px;
+}
+
+.product-admin-custom__thumbnail--placeholder {
+    color: var(--admin-placeholder);
+}
+
+.product-admin-custom__thumbnail--placeholder .material-symbols-outlined {
+    font-size: 1.5rem;
+}
+
+.product-admin-custom__title {
+    display: grid;
+    gap: 0.25rem;
+    max-width: 18rem;
+}
+
+.product-admin-custom__title a {
+    color: inherit;
+    font-weight: 700;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
+.product-admin-custom__title small {
+    color: var(--admin-text-muted);
+    font-size: 0.75rem;
+}
+
+.product-admin-custom__price {
+    direction: ltr;
+    display: inline-block;
+    font-variant-numeric: tabular-nums;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.product-admin-custom__price--sale {
+    color: var(--admin-success);
+    font-weight: 700;
+}
+
+.product-admin-custom__badge {
+    border-radius: 999px;
+    display: inline-flex;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.625rem;
+    white-space: nowrap;
+}
+
+.product-admin-custom__badge--danger {
+    background: var(--admin-danger-soft);
+    color: var(--admin-danger);
+}
+
+.product-admin-custom__badge--success {
+    background: var(--admin-success-soft);
+    color: var(--admin-success);
+}
+
+.product-admin-custom__badge--muted {
+    background: var(--admin-surface-muted);
+    color: var(--admin-text-muted);
+}

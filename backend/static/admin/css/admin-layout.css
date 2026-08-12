@@ -1,0 +1,168 @@
+.luxora-sidebar {
+    --sidebar-bg:#141719;
+    --sidebar-surface:#20262b;
+    --sidebar-text:#f1f5f9;
+    --sidebar-muted:#b8c0ca;
+    --sidebar-border:#353d44;
+    background:radial-gradient(circle at 70% 5%,var(--sidebar-surface),var(--sidebar-bg) 45%);
+    bottom:0;
+    color:var(--sidebar-text);
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+    position:fixed;
+    right:0;
+    top:0;
+    width:288px;
+}
+
+.luxora-sidebar__brand { align-items:center; border-bottom:1px solid var(--sidebar-border); display:grid; justify-items:center; margin:0 22px; min-height:148px; padding:20px; }
+.luxora-sidebar__brand .material-symbols-outlined { color:var(--admin-primary); font-size:46px; font-weight:200; }
+.luxora-sidebar__brand strong { color:var(--admin-primary-hover); font-family:Georgia,serif; font-size:23px; letter-spacing:.24em; margin-right:.24em; }
+.luxora-sidebar__brand small { color:var(--sidebar-muted); font-size:12px; margin-top:4px; }
+.luxora-sidebar__navigation { flex:1; overflow:auto; padding:12px 18px; scrollbar-width:thin; }
+.luxora-sidebar__navigation a { align-items:center; border-radius:10px; color:var(--sidebar-text); display:flex; font-size:14px; gap:15px; margin:4px 0; min-height:47px; padding:0 15px; transition:.18s ease; }
+.luxora-sidebar__navigation a:hover { background:color-mix(in srgb,var(--admin-primary) 18%,transparent); color:var(--sidebar-text); transform:translateX(-2px); }
+.luxora-sidebar__navigation .luxora-sidebar__link--active { background:var(--admin-primary); box-shadow:0 8px 22px rgb(0 0 0 / 24%); color:var(--admin-on-primary); }
+.luxora-sidebar__navigation .material-symbols-outlined { font-size:22px; }
+.luxora-sidebar__separator { border-top:1px solid var(--sidebar-border); display:block; margin:13px 3px; }
+.luxora-sidebar__store { align-items:center; border-bottom:1px solid var(--sidebar-border); border-top:1px solid var(--sidebar-border); color:var(--sidebar-text); display:flex; gap:12px; margin:4px 22px; padding:20px 9px; }
+.luxora-sidebar__profile { align-items:center; color:var(--sidebar-text); display:flex; gap:10px; padding:20px 28px 25px; }
+.luxora-sidebar__profile .material-symbols-outlined { color:var(--admin-primary); font-size:37px; }
+
+.lux-dashboard { color:var(--admin-text); direction:rtl; display:grid; font-family:Vazirmatn,Tahoma,sans-serif; gap:16px; margin:0 auto; max-width:1500px; }
+html:not(.lux-dashboard-page) body.unfold-custom-admin,
+html:not(.lux-dashboard-page) body.unfold-custom-admin #page,
+html:not(.lux-dashboard-page) body.unfold-custom-admin #main {
+    background:var(--admin-page);
+    color:var(--admin-text);
+}
+
+.unfold-custom-admin #page,
+.unfold-custom-admin #main,
+.unfold-custom-admin #content,
+.unfold-custom-admin #header-inner {
+    box-sizing:border-box;
+    min-width:0;
+    max-width:100%;
+}
+
+html:not(.lux-dashboard-page) body.unfold-custom-admin #main > div:first-child {
+    background:var(--admin-surface-raised);
+    border-color:var(--admin-border);
+    box-shadow:var(--admin-shadow);
+    color:var(--admin-text);
+    margin-bottom:18px;
+}
+
+html:not(.lux-dashboard-page) body.unfold-custom-admin #header-inner,
+html:not(.lux-dashboard-page) body.unfold-custom-admin #header-inner a,
+html:not(.lux-dashboard-page) body.unfold-custom-admin #header-inner span {
+    color:var(--admin-text);
+}
+
+.unfold-custom-admin #header-inner #branding { min-width:0; overflow:hidden; }
+.unfold-custom-admin #header-inner #site-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+html:not(.lux-dashboard-page) body.unfold-custom-admin #content { max-width:1500px; padding-bottom:28px; }
+
+html:not(.lux-dashboard-page) body.unfold-custom-admin .breadcrumbs,
+html:not(.lux-dashboard-page) body.unfold-custom-admin nav[aria-label="Breadcrumbs"] { color:var(--admin-primary); }
+
+html:not(.lux-dashboard-page) body.unfold-custom-admin .object-tools a,
+html:not(.lux-dashboard-page) body.unfold-custom-admin .object-tools button,
+html:not(.lux-dashboard-page) body.unfold-custom-admin a.addlink,
+html:not(.lux-dashboard-page) body.unfold-custom-admin input[type="submit"],
+html:not(.lux-dashboard-page) body.unfold-custom-admin button[type="submit"],
+html:not(.lux-dashboard-page) body.unfold-custom-admin .button.default {
+    background:var(--admin-primary);
+    border-color:var(--admin-primary);
+    color:var(--admin-on-primary);
+}
+
+html:not(.lux-dashboard-page) body.unfold-custom-admin .object-tools a:hover,
+html:not(.lux-dashboard-page) body.unfold-custom-admin button[type="submit"]:hover { background:var(--admin-primary-hover); }
+.unfold-custom-admin .luxora-account-menu,
+.unfold-custom-admin .luxora-theme-menu {
+    background:var(--admin-surface-raised);
+    border-color:var(--admin-border);
+    box-shadow:var(--admin-shadow-raised);
+    color:var(--admin-text);
+}
+
+.unfold-custom-admin .luxora-account-menu [role^="menuitem"]:hover,
+.unfold-custom-admin .luxora-theme-menu [role^="menuitem"]:hover { background:var(--admin-surface-hover); color:var(--admin-text-strong); }
+.unfold-custom-admin .luxora-account-menu #logout-form button { text-align:right; }
+
+.unfold-custom-admin [x-data="searchCommand()"] > div {
+    background:var(--admin-surface-raised);
+    border-color:var(--admin-border);
+    color:var(--admin-text);
+}
+
+.admin-product-search-results {
+    background:var(--admin-surface-raised);
+    border:1px solid var(--admin-border);
+    border-radius:8px;
+    box-shadow:var(--admin-shadow-raised);
+    display:none;
+    inset-inline:0;
+    margin-top:4px;
+    max-height:320px;
+    overflow-y:auto;
+    position:absolute;
+    top:100%;
+    z-index:1000;
+}
+
+.admin-product-search-empty { color:var(--admin-text-muted); font-size:13px; padding:10px 14px; }
+.admin-product-search-row { align-items:center; border-bottom:1px solid var(--admin-border); cursor:pointer; display:flex; font-size:13px; gap:10px; padding:8px 14px; transition:background .15s; }
+.admin-product-search-row:last-child { border-bottom:0; }
+.admin-product-search-row:hover,.admin-product-search-row.is-active { background:var(--admin-surface-hover); }
+.admin-product-search-image { background:var(--admin-surface-muted); border-radius:4px; height:36px; object-fit:cover; width:36px; }
+.admin-product-search-info { flex:1; min-width:0; }
+.admin-product-search-name { color:var(--admin-text-strong); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.admin-product-search-meta { color:var(--admin-text-muted); font-size:11px; }
+.admin-product-search-price { margin-inline-start:8px; }
+
+
+@media (prefers-reduced-motion:reduce) { .luxora-sidebar__navigation a { transition:none; } }
+
+@media (max-width:767px) {
+    .unfold-custom-admin #header-inner h1 > a:not(:last-of-type),
+    .unfold-custom-admin #header-inner h1 > span.material-symbols-outlined {
+        display:none;
+    }
+
+    .unfold-custom-admin #header-inner h1 {
+        min-width:0;
+        text-overflow:ellipsis;
+    }
+
+    .unfold-custom-admin #header-inner a[title="Go back"] {
+        align-items:center;
+        display:flex;
+        height:44px;
+        justify-content:center;
+        margin-right:0;
+        min-width:44px;
+    }
+
+    .unfold-custom-admin #admin-theme-menu-trigger,
+    .unfold-custom-admin #admin-account-menu-trigger,
+    .unfold-custom-admin .addlink,
+    .unfold-custom-admin #searchbar-submit {
+        align-items:center;
+        display:inline-flex;
+        justify-content:center;
+        min-height:44px;
+        min-width:44px;
+    }
+
+    .unfold-custom-admin .luxora-account-menu,
+    .unfold-custom-admin .luxora-theme-menu,
+    .unfold-custom-admin [x-data="searchCommand()"] > div {
+        max-height:calc(100dvh - 24px);
+        max-width:calc(100vw - 24px);
+        overflow:auto;
+    }
+}

@@ -1,0 +1,15 @@
+Django>=5.2,<5.3
+django-unfold==0.67.0
+djangorestframework>=3.16,<3.17
+django-cors-headers>=4.7,<5
+Pillow>=11.3,<12
+django-filter>=25.1,<26
+python-decouple==3.8
+python-dotenv==1.0.0
+requests>=2.31,<3
+bleach>=6.2,<7
+factory-boy>=3.3,<4
+django-q2>=1.8,<2
+psycopg[binary]>=3.2,<4
+django-jalali>=7.0
+jdatetime>=5.0

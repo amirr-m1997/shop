@@ -1,0 +1,50 @@
+{
+  "name": "fashion-shop-frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.0.5",
+    "@radix-ui/react-dropdown-menu": "^2.0.6",
+    "@radix-ui/react-select": "^2.0.0",
+    "@radix-ui/react-slider": "^1.1.2",
+    "@radix-ui/react-slot": "^1.0.2",
+    "@radix-ui/react-tabs": "^1.0.4",
+    "@radix-ui/react-toast": "^1.1.5",
+    "@tanstack/react-query": "^5.101.4",
+    "axios": "^1.19.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.0.0",
+    "embla-carousel-autoplay": "^8.6.0",
+    "embla-carousel-react": "^8.0.0",
+    "jalaali-js": "^2.0.0",
+    "lucide-react": "^0.294.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-helmet-async": "^3.0.0",
+    "react-router-dom": "^7.18.2",
+    "tailwind-merge": "^2.1.0",
+    "tailwindcss-animate": "^1.0.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^6.0.5",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^10.8.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.9.0",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^3.3.6",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
+  }
+}

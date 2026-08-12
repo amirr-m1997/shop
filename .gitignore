@@ -1,0 +1,57 @@
+.mimocode/
+.gitdata/
+.vite/
+node_modules/
+venv/
+__pycache__/
+*.pyc
+dist/
+build/
+__distill_*.py
+# ===== فایل‌های Django =====
+*.py[cod]
+*$py.class
+*.so
+# ===== محیط مجازی =====
+venv/
+env/
+ENV/
+.venv
+
+# ===== تنظیمات حساس =====
+.env
+.env.local
+.env.*
+*.env
+!.env.example
+
+# ===== دیتابیس =====
+db.sqlite3
+db.sqlite3-journal
+*.sqlite3
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== فایل‌های سیستم =====
+.DS_Store
+Thumbs.db
+*.log
+
+# ===== فایل‌های Media و Static =====
+media/
+staticfiles/
+collected_static/
+# ===== Coverage =====
+htmlcov/
+.coverage
+.coverage.*
+# Logs
+backend/logs/
+
+
+logs/

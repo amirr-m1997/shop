@@ -1,0 +1,50 @@
+{% extends "admin/login.html" %}
+{% load i18n unfold static %}
+
+{% block title %}ورود به پنل مدیریت | فروشگاه مد{% endblock %}
+
+{% block bodyclass %}{{ block.super }} unfold-custom-admin{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'admin/css/admin-common.css' %}">
+<link rel="stylesheet" href="{% static 'admin/css/admin-forms.css' %}">
+{% endblock %}
+
+{% block content %}
+    {% include "unfold/helpers/unauthenticated_title.html" with title="ورود به پنل مدیریت" subtitle="مدیریت لاکچری فروشگاه، سفارش‌ها و محتوا" %}
+
+    {% include "unfold/helpers/messages.html" %}
+
+    {% if form.errors or form.non_field_errors %}
+        <div class="flex flex-col gap-4 mb-6 *:mb-0">
+            {% include "unfold/helpers/messages/errornote.html" with errors=form.errors %}
+            {% include "unfold/helpers/messages/error.html" with errors=form.non_field_errors %}
+        </div>
+    {% endif %}
+
+    <form action="{{ app_path }}" method="post" id="login-form" class="admin-auth-form">
+        {% csrf_token %}
+        <div class="admin-field">
+            <label for="id_username">نام کاربری</label>
+            {{ form.username }}
+        </div>
+        <div class="admin-field">
+            <label for="id_password">رمز عبور</label>
+            {{ form.password }}
+        </div>
+
+        <div class="flex flex-col gap-3 mt-6">
+            {% component "unfold/components/button.html" with submit=1 variant="primary" class="submit-row w-full" %}
+                ورود به پنل
+            {% endcomponent %}
+
+            {% url 'admin_password_reset' as password_reset_url %}
+            {% if password_reset_url %}
+                {% component "unfold/components/button.html" with href=password_reset_url variant="secondary" class="w-full" %}
+                    فراموشی رمز عبور
+                {% endcomponent %}
+            {% endif %}
+        </div>
+    </form>
+{% endblock %}

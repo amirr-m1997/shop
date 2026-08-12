@@ -1,0 +1,71 @@
+{% load i18n %}
+
+{% if not theme %}
+    <div
+        class="relative inline-flex"
+        x-data="{ openTheme: false }"
+        x-init="const systemTheme = window.matchMedia('(prefers-color-scheme: dark)'); const syncSystemTheme = () => { if (adminTheme === 'auto') document.documentElement.classList.toggle('dark', systemTheme.matches) }; systemTheme.addEventListener('change', syncSystemTheme); $watch('adminTheme', syncSystemTheme); syncSystemTheme()"
+    >
+        <button
+            id="admin-theme-menu-trigger"
+            x-ref="trigger"
+            type="button"
+            class="block cursor-pointer h-[18px] leading-none hover:text-base-700 dark:hover:text-base-200"
+            x-on:click="openTheme = !openTheme; if (openTheme) $nextTick(() => $refs.menu.querySelector('[role^=menuitem]')?.focus())"
+            x-on:keydown.arrow-down.prevent="openTheme = true; $nextTick(() => $refs.menu.querySelector('[role^=menuitem]')?.focus())"
+            x-on:keydown.arrow-up.prevent="openTheme = true; $nextTick(() => { const items = $refs.menu.querySelectorAll('[role^=menuitem]'); items[items.length - 1]?.focus() })"
+            x-bind:aria-expanded="openTheme"
+            aria-haspopup="menu"
+            aria-controls="admin-theme-menu"
+            aria-label="انتخاب پوسته"
+        >
+            <span class="material-symbols-outlined">
+                <span x-text="adminTheme == 'dark' && 'dark_mode' || adminTheme == 'light' && 'light_mode' || 'computer'"></span>
+            </span>
+        </button>
+
+        <nav
+            id="admin-theme-menu"
+            x-ref="menu"
+            x-anchor.bottom-start.offset.8="$refs.trigger"
+            class="luxora-theme-menu absolute bg-white border border-base-200 flex flex-col leading-none py-1 rounded-default shadow-lg w-40 z-50 dark:bg-base-800 dark:border-base-700"
+            dir="rtl"
+            role="menu"
+            aria-labelledby="admin-theme-menu-trigger"
+            x-cloak
+            x-show="openTheme"
+            x-transition
+            x-on:click.outside="openTheme = false"
+            x-on:keydown.escape.stop.prevent="openTheme = false; $refs.trigger.focus()"
+            x-on:keydown.arrow-down.stop.prevent="const items = [...$refs.menu.querySelectorAll('[role^=menuitem]')]; items[(items.indexOf(document.activeElement) + 1) % items.length]?.focus()"
+            x-on:keydown.arrow-up.stop.prevent="const items = [...$refs.menu.querySelectorAll('[role^=menuitem]')]; items[(items.indexOf(document.activeElement) - 1 + items.length) % items.length]?.focus()"
+            x-on:keydown.home.stop.prevent="$refs.menu.querySelector('[role^=menuitem]')?.focus()"
+            x-on:keydown.end.stop.prevent="const items = $refs.menu.querySelectorAll('[role^=menuitem]'); items[items.length - 1]?.focus()"
+            x-on:keydown.tab="openTheme = false"
+        >
+            <button type="button" role="menuitemradio" tabindex="-1" class="cursor-pointer flex flex-row leading-none mx-1 px-3 py-1.5 rounded-default hover:bg-base-100 hover:text-base-700 dark:hover:bg-base-700 dark:hover:text-base-200"
+                    x-on:click="adminTheme = 'dark'; openTheme = false; $refs.trigger.focus()"
+                    x-bind:aria-checked="adminTheme == 'dark'"
+                    x-bind:class="adminTheme == 'dark' && 'text-primary-600 dark:text-primary-500 dark:hover:text-primary-500! hover:text-primary-600!'">
+                <span class="material-symbols-outlined ml-2">dark_mode</span>
+                <span class="leading-none self-center">{% trans "Dark" %}</span>
+            </button>
+
+            <button type="button" role="menuitemradio" tabindex="-1" class="cursor-pointer flex flex-row mx-1 px-3 py-1.5 rounded-default hover:bg-base-100 hover:text-base-700 dark:hover:bg-base-700 dark:hover:text-base-200"
+                    x-on:click="adminTheme = 'light'; openTheme = false; $refs.trigger.focus()"
+                    x-bind:aria-checked="adminTheme == 'light'"
+                    x-bind:class="adminTheme == 'light' && 'text-primary-600 dark:text-primary-500 dark:hover:text-primary-500! hover:text-primary-600!'">
+                <span class="material-symbols-outlined ml-2">light_mode</span>
+                <span class="leading-none self-center">{% trans "Light" %}</span>
+            </button>
+
+            <button type="button" role="menuitemradio" tabindex="-1" class="cursor-pointer flex flex-row mx-1 px-3 py-1.5 rounded-default hover:bg-base-100 hover:text-base-700 dark:hover:bg-base-700 dark:hover:text-base-200"
+                    x-on:click="adminTheme = 'auto'; openTheme = false; $refs.trigger.focus()"
+                    x-bind:aria-checked="adminTheme == 'auto'"
+                    x-bind:class="adminTheme == 'auto' && 'text-primary-600 dark:text-primary-500 dark:hover:text-primary-500! hover:text-primary-600!'">
+                <span class="material-symbols-outlined ml-2">computer</span>
+                <span class="leading-none self-center">{% trans "System" %}</span>
+            </button>
+        </nav>
+    </div>
+{% endif %}

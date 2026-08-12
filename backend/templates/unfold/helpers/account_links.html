@@ -1,0 +1,72 @@
+{% load i18n %}
+
+<div class="relative inline-flex" x-data="{ openUserLinks: false }">
+    <button
+        id="admin-account-menu-trigger"
+        x-ref="trigger"
+        type="button"
+        class="block cursor-pointer h-[18px] leading-none hover:text-base-700 dark:hover:text-base-200"
+        x-on:click="openUserLinks = !openUserLinks; if (openUserLinks) $nextTick(() => $refs.menu.querySelector('[role^=menuitem]')?.focus())"
+        x-on:keydown.arrow-down.prevent="openUserLinks = true; $nextTick(() => $refs.menu.querySelector('[role^=menuitem]')?.focus())"
+        x-on:keydown.arrow-up.prevent="openUserLinks = true; $nextTick(() => { const items = $refs.menu.querySelectorAll('[role^=menuitem]'); items[items.length - 1]?.focus() })"
+        x-bind:aria-expanded="openUserLinks"
+        aria-haspopup="menu"
+        aria-controls="admin-account-menu"
+        aria-label="منوی حساب کاربری"
+    >
+        <span class="material-symbols-outlined">person</span>
+    </button>
+
+    <nav
+        id="admin-account-menu"
+        x-ref="menu"
+        x-anchor.bottom-start.offset.8="$refs.trigger"
+        class="luxora-account-menu absolute bg-white border border-base-200 flex flex-col leading-none py-1 rounded-default shadow-lg w-52 z-50 dark:bg-base-800 dark:border-base-700"
+        dir="rtl"
+        role="menu"
+        aria-labelledby="admin-account-menu-trigger"
+        x-cloak
+        x-show="openUserLinks"
+        x-transition
+        x-on:click.outside="openUserLinks = false"
+        x-on:keydown.escape.stop.prevent="openUserLinks = false; $refs.trigger.focus()"
+        x-on:keydown.arrow-down.stop.prevent="const items = [...$refs.menu.querySelectorAll('[role^=menuitem]')]; items[(items.indexOf(document.activeElement) + 1) % items.length]?.focus()"
+        x-on:keydown.arrow-up.stop.prevent="const items = [...$refs.menu.querySelectorAll('[role^=menuitem]')]; items[(items.indexOf(document.activeElement) - 1 + items.length) % items.length]?.focus()"
+        x-on:keydown.home.stop.prevent="$refs.menu.querySelector('[role^=menuitem]')?.focus()"
+        x-on:keydown.end.stop.prevent="const items = $refs.menu.querySelectorAll('[role^=menuitem]'); items[items.length - 1]?.focus()"
+        x-on:keydown.tab="openUserLinks = false"
+    >
+        <div class="border-b border-base-200 flex flex-row shrink-0 items-start justify-start mb-1 pb-1 dark:border-base-700">
+            <span class="block mx-1 px-3 py-2 truncate">
+                {% firstof user.get_short_name user.get_username %}
+            </span>
+        </div>
+
+        {% if site_url %}
+            <a href="{{ site_url }}" target="_blank" class="mx-1 px-3 py-2 rounded-default hover:bg-base-100 hover:text-base-700 dark:hover:bg-base-700 dark:hover:text-base-200" role="menuitem" tabindex="-1">
+                {% translate 'View site' %}
+            </a>
+        {% endif %}
+
+        {% if account_links %}
+            {% for link in account_links %}
+                <a href="{{ link.link }}" class="mx-1 px-3 py-2 rounded-default hover:bg-base-100 hover:text-base-700 dark:hover:bg-base-700 dark:hover:text-base-200" role="menuitem" tabindex="-1">
+                    {{ link.title }}
+                </a>
+            {% endfor %}
+        {% elif user.has_usable_password %}
+            <a href="{% url 'admin:password_change' %}" class="mx-1 px-3 py-2 rounded-default hover:bg-base-100 hover:text-base-700 dark:hover:bg-base-700 dark:hover:text-base-200" role="menuitem" tabindex="-1">
+                {% translate 'Change password' %}
+            </a>
+        {% endif %}
+
+        <div class="border-t border-base-200 mt-1 pt-1 dark:border-base-700">
+            <form id="logout-form" method="post" action="{% url 'admin:logout' %}" class="mx-1">
+                {% csrf_token %}
+                <button type="submit" class="bg-none block cursor-pointer px-3 py-2 text-right text-red-500 rounded-default w-full hover:bg-red-100 dark:hover:bg-red-500/20 dark:hover:text-red-500" role="menuitem" tabindex="-1">
+                    {% translate 'Log out' %}
+                </button>
+            </form>
+        </div>
+    </nav>
+</div>

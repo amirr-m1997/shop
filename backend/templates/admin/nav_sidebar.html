@@ -1,0 +1,30 @@
+{% load unfold %}
+
+<div class="relative z-50">
+    <div class="fixed hidden xl:relative xl:block w-[288px]" x-bind:class="{'xl:hidden!': !sidebarDesktopOpen, 'block!': sidebarMobileOpen}">
+    <aside id="nav-sidebar" class="luxora-sidebar" aria-label="منوی مدیریت">
+        <div class="luxora-sidebar__brand">
+            <span class="material-symbols-outlined">checkroom</span>
+            <strong>LUXORA</strong>
+            <small>فروشگاه پوشاک لوکس</small>
+        </div>
+        <nav class="luxora-sidebar__navigation">
+            {% for group in sidebar_navigation %}
+                {% if group.items %}
+                    {% if group.separator %}<span class="luxora-sidebar__separator"></span>{% endif %}
+                    {% for item in group.items %}
+                        {% if item.has_permission %}
+                            <a href="{% if item.link_callback %}{{ item.link_callback }}{% else %}{{ item.link }}{% endif %}" class="{% if item.active %}luxora-sidebar__link--active{% endif %}">
+                                <span class="material-symbols-outlined">{{ item.icon|default:'circle' }}</span>
+                                <span>{{ item.title|safe }}</span>
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+            {% endfor %}
+        </nav>
+        <a class="luxora-sidebar__store" href="/" target="_blank" rel="noopener"><span class="material-symbols-outlined">open_in_new</span> مشاهده فروشگاه</a>
+        <div class="luxora-sidebar__profile"><span class="material-symbols-outlined">account_circle</span><span>{{ request.user.get_full_name|default:request.user.username }}</span></div>
+    </aside>
+    </div>
+</div>
