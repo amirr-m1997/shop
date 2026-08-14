@@ -196,10 +196,47 @@ export const chatAPI = {
   getMessages: (conversationId) => api.get(`/chat/conversations/${conversationId}/messages/`, { authRequired: true }),
   sendMessage: (conversationId, data) => api.post(`/chat/conversations/${conversationId}/send_message/`, data, { authRequired: true }),
   sendProduct: (conversationId, data) => api.post(`/chat/conversations/${conversationId}/send_product/`, data, { authRequired: true }),
+  createReferral: (data) => api.post('/loyalty/referrals/', data, { authRequired: true }),
   markRead: (conversationId) => api.post(`/chat/conversations/${conversationId}/mark_read/`, {}, { authRequired: true }),
   react: (messageId, reaction) => api.post(`/chat/messages/${messageId}/react/`, { reaction }, { authRequired: true }),
   favorite: (messageId) => api.post(`/chat/messages/${messageId}/favorite/`, {}, { authRequired: true }),
   getNotifications: () => api.get('/chat/notifications/', { authRequired: true }),
   getUnreadCount: (config = {}) => api.get('/chat/notifications/unread_count/', { ...config, authRequired: true }),
   markAllNotificationsRead: () => api.post('/chat/notifications/mark_all_read/', {}, { authRequired: true }),
+  contactStylist: () => api.post('/chat/conversations/support_chat/', {}, { authRequired: true }),
+};
+
+// Style Rooms API (collaborative style rooms)
+export const styleRoomsAPI = {
+  list: (params, config = {}) => api.get('/style-rooms/', { ...config, params, authRequired: true }),
+  get: (roomId, config = {}) => api.get(`/style-rooms/${roomId}/`, { ...config, authRequired: true }),
+  create: (data, config = {}) => api.post('/style-rooms/', data, { ...config, authRequired: true }),
+  update: (roomId, data, config = {}) => api.patch(`/style-rooms/${roomId}/`, data, { ...config, authRequired: true }),
+  remove: (roomId, config = {}) => api.delete(`/style-rooms/${roomId}/`, { ...config, authRequired: true }),
+  invite: (roomId, config = {}) => api.post(`/style-rooms/${roomId}/invite/`, {}, { ...config, authRequired: true }),
+  join: (roomId, data, config = {}) => api.post(`/style-rooms/${roomId}/join/`, data, { ...config, authRequired: true }),
+  leave: (roomId, config = {}) => api.post(`/style-rooms/${roomId}/leave/`, {}, { ...config, authRequired: true }),
+  members: (roomId, params, config = {}) => api.get(`/style-rooms/${roomId}/members/`, { ...config, params, authRequired: true }),
+  addMember: (roomId, data, config = {}) => api.post(`/style-rooms/${roomId}/members/`, data, { ...config, authRequired: true }),
+  removeMember: (roomId, userId, config = {}) => api.delete(`/style-rooms/${roomId}/members/${userId}/`, { ...config, authRequired: true }),
+  items: (roomId, params, config = {}) => api.get(`/style-rooms/${roomId}/items/`, { ...config, params, authRequired: true }),
+  addItem: (roomId, data, config = {}) => api.post(`/style-rooms/${roomId}/items/`, data, { ...config, authRequired: true }),
+  removeItem: (roomId, itemId, config = {}) => api.delete(`/style-rooms/${roomId}/items/${itemId}/`, { ...config, authRequired: true }),
+  activity: (roomId, params, config = {}) => api.get(`/style-rooms/${roomId}/activity/`, { ...config, params, authRequired: true }),
+  messages: (roomId, params, config = {}) => api.get(`/style-rooms/${roomId}/messages/`, { ...config, params, authRequired: true }),
+  sendMessage: (roomId, data, config = {}) => api.post(`/style-rooms/${roomId}/messages/`, data, { ...config, authRequired: true }),
+  markMessagesRead: (roomId, data = {}, config = {}) => api.post(`/style-rooms/${roomId}/messages/read/`, data, { ...config, authRequired: true }),
+};
+
+// Customer Club / Loyalty API
+export const loyaltyAPI = {
+  getSummary: (config = {}) => api.get('/loyalty/summary/', { ...config, authRequired: true }),
+  getRewards: (config = {}) => api.get('/loyalty/rewards/', { ...config, authRequired: true }),
+  getTransactions: (params = {}, config = {}) => api.get('/loyalty/transactions/', { ...config, params, authRequired: true }),
+  getReferralSummary: (config = {}) => api.get('/loyalty/referrals/summary/', { ...config, authRequired: true }),
+  redeemReward: (ruleId, idempotencyKey, config = {}) => api.post(
+    '/loyalty/rewards/redeem/',
+    { rule_id: ruleId, idempotency_key: idempotencyKey },
+    { ...config, authRequired: true, headers: { 'Idempotency-Key': idempotencyKey } },
+  ),
 };

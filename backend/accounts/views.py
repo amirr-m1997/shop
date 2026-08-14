@@ -39,6 +39,11 @@ from orders.models import ShippingAddress, Order
 from orders.serializers import ShippingAddressSerializer
 from shop.client_ip import get_client_ip
 from .delivery import OTPDeliveryError, deliver_phone_otp, queue_email
+from loyalty.services import (
+    REFERRAL_COOKIE_NAME,
+    award_referral_registration_rewards, award_verified_registration_reward,
+    claim_referral_attribution_from_request,
+)
 
 logger = logging.getLogger('authentication')
 
@@ -176,6 +181,7 @@ def register_view(request):
                 username=username, email=email, password=password,
                 first_name=first_name, last_name=last_name,
             )
+            claim_referral_attribution_from_request(request=request, user=user)
     except IntegrityError:
         return Response(
             {'error': 'نام کاربری یا ایمیل قبلاً استفاده شده است'},
@@ -203,10 +209,13 @@ def register_view(request):
         username, user.id, ip_address,
     )
 
-    return _set_auth_cookie(Response({
+    response = _set_auth_cookie(Response({
         'token': token.key,
         'user': _user_data(user),
     }, status=status.HTTP_201_CREATED), token)
+    # Registration consumes any signed attribution, including invalid/stale values.
+    response.delete_cookie(REFERRAL_COOKIE_NAME, samesite='Lax')
+    return response
 
 
 @api_view(['POST'])
@@ -622,14 +631,29 @@ def verify_code_view(request):
     # Success — clear OTP failures
     clear_otp_failures(lock_id)
 
-    if verify_type == 'phone':
-        profile.phone_verified = True
-    elif verify_type == 'email':
-        profile.email_verified = True
+    # The project has no separate account-verified flag: either successfully
+    # verified contact channel is the registration-completion event. Existing
+    # users who were already verified are intentionally never backfilled.
+    was_verified = profile.phone_verified or profile.email_verified
+    with transaction.atomic():
+        if verify_type == 'phone':
+            profile.phone_verified = True
+        elif verify_type == 'email':
+            profile.email_verified = True
 
-    profile.verification_code = ''
-    profile.verification_type = ''
-    profile.save()
+        profile.verification_code = ''
+        profile.verification_type = ''
+        profile.save()
+
+        if not was_verified:
+            award_verified_registration_reward(
+                user=request.user,
+                verification_type=verify_type,
+            )
+            award_referral_registration_rewards(
+                user=request.user,
+                verification_type=verify_type,
+            )
 
     if verify_type == 'email':
         _link_guest_orders_to_user(

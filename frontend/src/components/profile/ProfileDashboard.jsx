@@ -14,6 +14,7 @@ import { formatDate } from '../../lib/formatDate';
 import { JalaliDatePicker, toJalaliString } from '../ui/JalaliDatePicker';
 import ProfileDialogs from './ProfileDialogs';
 import ProfileCollections from './ProfileCollections';
+import CustomerClubSection from './CustomerClubSection';
 
 import {
   AmbientBg, CompletionRing, ErrorAlert, Field, SectionCard, SectionHead, SuccessAlert,
@@ -318,6 +319,8 @@ const ProfileDashboard = ({ model }) => {
             </SectionCard>
 
             {/* ── Personal Info ── */}
+            <CustomerClubSection />
+
             <SectionCard delay={0.08}>
               <SectionHead icon={User} title="اطلاعات شخصی" />
               <div className="p-5 sm:p-6">

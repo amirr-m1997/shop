@@ -265,6 +265,8 @@ def initiate_payment(request):
         payment.status = 'failed'
         payment.error_message = 'مبلغ سفارش کمتر از حداقل مجاز درگاه است.'
         payment.save(update_fields=['status', 'error_message', 'updated_at'])
+        from loyalty.services import release_redemption_for_order
+        release_redemption_for_order(order=order)
         log_payment_failure(payment.id, order.id, 0, payment.error_message)
         return Response(
             {'error': payment.error_message},
@@ -346,6 +348,8 @@ def initiate_payment(request):
         payment.save(update_fields=[
             'status', 'error_code', 'error_message', 'updated_at',
         ])
+        from loyalty.services import release_redemption_for_order
+        release_redemption_for_order(order=order)
         log_payment_failure(payment.id, order.id, code, msg)
         return Response({'error': msg, 'code': code}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -406,6 +410,8 @@ def payment_verify_callback(request):
         payment.status = 'failed'
         payment.error_message = 'پرداخت توسط کاربر لغو شد.'
         payment.save(update_fields=['status', 'error_message', 'updated_at'])
+        from loyalty.services import release_redemption_for_order
+        release_redemption_for_order(order=order)
         log_payment_failure(payment.id, order.id, -1, 'User cancelled payment')
         return HttpResponseRedirect(
             f'{FRONTEND_URL}/payment/callback?error=cancelled&order={order.id}'
@@ -511,6 +517,11 @@ def payment_verify_callback(request):
                     'payment_status', 'status', 'tracking_number', 'expires_at', 'updated_at',
                 ])
 
+                from loyalty.services import award_purchase_rewards_for_order
+                award_purchase_rewards_for_order(order=fresh_order, payment=fresh_payment)
+                from loyalty.services import consume_redemption_for_order
+                consume_redemption_for_order(order=fresh_order)
+
                 payment = fresh_payment
                 order = fresh_order
 
@@ -561,6 +572,8 @@ def payment_verify_callback(request):
         payment.save(update_fields=[
             'status', 'error_code', 'error_message', 'updated_at',
         ])
+        from loyalty.services import release_redemption_for_order
+        release_redemption_for_order(order=order)
         log_payment_failure(payment.id, order.id, code, msg)
         return HttpResponseRedirect(
             f'{FRONTEND_URL}/payment/callback'

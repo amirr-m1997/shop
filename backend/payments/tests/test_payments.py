@@ -383,6 +383,37 @@ class PaymentVerifyCallbackTest(TestCase):
         self.assertIsNone(self.order.inventory_released_at)
         self.assertEqual(self.product.stock, stock_after_release - 2)
 
+    @patch('payments.views.FRONTEND_URL', 'http://localhost:3000')
+    @patch('payments.views.requests.post')
+    def test_successful_payment_does_not_re_reserve_explicit_variant(self, mock_post):
+        variant = make_variant(self.product, stock=5)
+        OrderItemFactory(
+            order=self.order, product=self.product, variant=variant,
+            quantity=2, price=Decimal('500000'),
+        )
+        reserve_inventory(self.order)
+        self.product.refresh_from_db()
+        variant.refresh_from_db()
+        product_stock_after_reservation = self.product.stock
+        variant_stock_after_reservation = variant.stock
+        mock_post.return_value = MagicMock(
+            json=MagicMock(return_value={
+                'data': {'code': 100, 'ref_id': 'VARIANT-PAYMENT', 'card_pan': '', 'fee': 0},
+                'errors': {},
+            }),
+            status_code=200,
+        )
+
+        response = self.client.get(
+            f'/api/payments/verify/?payment_id={self.payment.id}&Authority=AUTH123&Status=OK'
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.product.refresh_from_db()
+        variant.refresh_from_db()
+        self.assertEqual(self.product.stock, product_stock_after_reservation)
+        self.assertEqual(variant.stock, variant_stock_after_reservation)
+
     @patch('payments.views.ZARINPAL_MERCHANT_ID', 'a1b2c3d4-e5f6-7890-abcd-ef1234567890')
     @patch('payments.views.FRONTEND_URL', 'http://localhost:3000')
     @patch('payments.views.requests.post')

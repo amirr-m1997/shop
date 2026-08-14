@@ -22,6 +22,8 @@ from accounts.security import (
     record_otp_send, record_otp_failure, clear_otp_failures, is_otp_locked,
 )
 from orders.models import ShippingAddress
+from loyalty.models import LoyaltyAccount, LoyaltyEventType, LoyaltyRule, LoyaltyTransaction
+from loyalty.services import VERIFIED_REGISTRATION_EVENT_CODE
 from shop.tests import (
     UserFactory, UserProfileFactory, ShippingAddressFactory,
     create_user_with_token,
@@ -645,6 +647,136 @@ class VerifyCodeTests(APITestCase):
             'type': 'email',
         }, format='json')
         self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class VerifiedRegistrationLoyaltyTests(APITestCase):
+    """Registration loyalty is awarded only by the existing successful OTP flow."""
+
+    def setUp(self):
+        cache.clear()
+        self.user, self.token = create_user_with_token(username='loyaltyverifyuser')
+        self.user.email = 'loyalty-verify@example.com'
+        self.user.save()
+        self.profile = UserProfileFactory(user=self.user, phone='09121234567')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token}')
+
+    def _set_code(self, code, verify_type='email', generated_at=None):
+        self.profile.refresh_from_db()
+        self.profile.verification_code = code
+        self.profile.verification_type = verify_type
+        self.profile.code_generated_at = generated_at or timezone.now()
+        self.profile.save()
+
+    def _create_rule(self, *, points=41, priority=0, is_active=True, starts_at=None, ends_at=None):
+        event_type, _ = LoyaltyEventType.objects.get_or_create(
+            code=VERIFIED_REGISTRATION_EVENT_CODE,
+            defaults={'name': 'Verified registration'},
+        )
+        return LoyaltyRule.objects.create(
+            code=f'verified-registration-{LoyaltyRule.objects.count() + 1}',
+            event_type=event_type,
+            name='Verified registration reward',
+            points=points,
+            priority=priority,
+            is_active=is_active,
+            starts_at=starts_at,
+            ends_at=ends_at,
+        )
+
+    def _verify(self, code, verify_type='email'):
+        return self.client.post(VERIFY_CODE_URL, {
+            'code': code,
+            'type': verify_type,
+        }, format='json')
+
+    def test_new_unverified_user_has_no_registration_points(self):
+        self._create_rule(points=41)
+        self.assertFalse(LoyaltyAccount.objects.filter(user=self.user).exists())
+        self.assertFalse(LoyaltyTransaction.objects.filter(user=self.user).exists())
+
+    def test_successful_verification_awards_the_configured_points(self):
+        rule = self._create_rule(points=63)
+        self._set_code('123456')
+        response = self._verify('123456')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        transaction = LoyaltyTransaction.objects.get(user=self.user)
+        self.assertEqual(transaction.rule_id, rule.id)
+        self.assertEqual(transaction.points_delta, 63)
+        self.assertEqual(transaction.metadata['verification_type'], 'email')
+        self.assertEqual(transaction.metadata['source'], 'accounts.verify_code_view')
+        self.assertEqual(LoyaltyAccount.objects.get(user=self.user).available_points, 63)
+
+    def test_second_successful_channel_verification_does_not_award_twice(self):
+        self._create_rule(points=41)
+        self._set_code('123456', 'email')
+        self.assertEqual(self._verify('123456', 'email').status_code, status.HTTP_200_OK)
+        self._set_code('654321', 'phone')
+        self.assertEqual(self._verify('654321', 'phone').status_code, status.HTTP_200_OK)
+        self.assertEqual(LoyaltyTransaction.objects.filter(user=self.user).count(), 1)
+        self.assertEqual(LoyaltyAccount.objects.get(user=self.user).available_points, 41)
+
+    def test_disabled_or_out_of_window_rule_awards_no_points(self):
+        self._create_rule(is_active=False)
+        self._set_code('123456')
+        self.assertEqual(self._verify('123456').status_code, status.HTTP_200_OK)
+        self.assertFalse(LoyaltyAccount.objects.filter(user=self.user).exists())
+
+        other, token = create_user_with_token(username='loyaltyfutureuser')
+        other.email = 'future@example.com'
+        other.save()
+        other_profile = UserProfileFactory(user=other)
+        self._create_rule(
+            is_active=True,
+            starts_at=timezone.now() + timedelta(days=1),
+            ends_at=timezone.now() + timedelta(days=2),
+        )
+        other_profile.verification_code = '999999'
+        other_profile.verification_type = 'email'
+        other_profile.code_generated_at = timezone.now()
+        other_profile.save()
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token}')
+        self.assertEqual(self._verify('999999').status_code, status.HTTP_200_OK)
+        self.assertFalse(LoyaltyAccount.objects.filter(user=other).exists())
+
+    def test_rule_priority_uses_existing_rule_engine(self):
+        self._create_rule(points=3, priority=1)
+        high = self._create_rule(points=71, priority=10)
+        self._set_code('123456')
+        self.assertEqual(self._verify('123456').status_code, status.HTTP_200_OK)
+        transaction = LoyaltyTransaction.objects.get(user=self.user)
+        self.assertEqual(transaction.rule_id, high.id)
+        self.assertEqual(transaction.points_delta, 71)
+
+    def test_existing_verified_user_is_not_backfilled(self):
+        self._create_rule(points=41)
+        self.profile.email_verified = True
+        self.profile.save(update_fields=['email_verified'])
+        self._set_code('654321', 'phone')
+        self.assertEqual(self._verify('654321', 'phone').status_code, status.HTTP_200_OK)
+        self.assertFalse(LoyaltyAccount.objects.filter(user=self.user).exists())
+        self.assertFalse(LoyaltyTransaction.objects.filter(user=self.user).exists())
+
+    def test_invalid_or_expired_verification_does_not_award_points(self):
+        self._create_rule(points=41)
+        self._set_code('123456')
+        self.assertEqual(self._verify('000000').status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(LoyaltyAccount.objects.filter(user=self.user).exists())
+
+        self._set_code('654321', generated_at=timezone.now() - timedelta(minutes=11))
+        self.assertEqual(self._verify('654321').status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(LoyaltyTransaction.objects.filter(user=self.user).exists())
+
+    def test_successful_verification_updates_profile_account_and_ledger_together(self):
+        self._create_rule(points=41)
+        self._set_code('123456')
+        self.assertEqual(self._verify('123456').status_code, status.HTTP_200_OK)
+        self.profile.refresh_from_db()
+        transaction = LoyaltyTransaction.objects.get(user=self.user)
+        account = LoyaltyAccount.objects.get(user=self.user)
+        self.assertTrue(self.profile.email_verified)
+        self.assertEqual(self.profile.verification_code, '')
+        self.assertEqual(transaction.account_id, account.id)
+        self.assertEqual(account.available_points, transaction.points_delta)
 
 
 # ---------------------------------------------------------------------------

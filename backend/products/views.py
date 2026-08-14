@@ -190,12 +190,24 @@ class ReviewViewSet(viewsets.ModelViewSet):
         return Review.objects.select_related('user', 'product').order_by('-created_at', '-id')
 
     def perform_create(self, serializer):
+        from django.db import transaction
+
         product = serializer.validated_data['product']
         if Review.objects.filter(user=self.request.user, product=product).exists():
             from rest_framework.exceptions import ValidationError
             raise ValidationError({'product': ['شما قبلاً برای این محصول نظر ثبت کرده‌اید.']})
-        review = serializer.save(user=self.request.user)
-        review.product.update_rating()
+        with transaction.atomic():
+            review = serializer.save(user=self.request.user)
+            review.product.update_rating()
+            from loyalty.services import REVIEW_SUBMISSION_EVENT_CODE, award_points_for_event
+            award_points_for_event(
+                user=self.request.user,
+                event_type_code=REVIEW_SUBMISSION_EVENT_CODE,
+                idempotency_key=f'review-submission:user:{self.request.user.pk}:product:{review.product_id}',
+                product=review.product,
+                description='Review submission reward',
+                metadata={'source': 'products.review_create', 'review_id': review.pk},
+            )
 
     def perform_update(self, serializer):
         if serializer.instance.user != self.request.user:

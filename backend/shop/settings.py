@@ -34,11 +34,11 @@ TRUST_PROXY_HEADERS = os.getenv('TRUST_PROXY_HEADERS', 'False') == 'True'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 CORS_ALLOWED_ORIGINS = os.getenv(
     'CORS_ALLOWED_ORIGINS',
-    'CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002'
+    'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002'
 ).split(',')
 CSRF_TRUSTED_ORIGINS = os.getenv(
     'CSRF_TRUSTED_ORIGINS',
-    'http://localhost:3000,http://127.0.0.1:3000',
+    'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002',
 ).split(',')
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
@@ -85,6 +85,8 @@ INSTALLED_APPS = [
     'payments',
     'dashboard',
     'chat',
+    'style_rooms',
+    'loyalty',
 ]
 
 MIDDLEWARE = [
@@ -370,6 +372,8 @@ REST_FRAMEWORK = {
         'payment_webhook': '60/min',
         'coupon_apply': '20/min',
         'chat_send': '60/min',
+        'room_write': '60/min',
+        'room_invite': '10/hour',
     },
 
     # ── Exception handler for consistent throttle/lockout responses ──
@@ -381,8 +385,21 @@ REST_FRAMEWORK = {
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ─── Cache Configuration ───────────────────────────────────
-# Uses LocMemCache by default. Switch to Redis in production
-# by setting REDIS_URL in .env.
+# LocMemCache is used by default and is fine for development and
+# single-process deployments.
+#
+# PRODUCTION (multi-worker, e.g. gunicorn with several workers):
+# the API throttles (accounts, chat, style_rooms, payments, …) and the
+# session/OTP stores are backed by the default cache. LocMemCache is
+# per-process, so each worker would get its own throttle budget and the
+# configured rates would be effectively multiplied by the worker count.
+# A shared backend is REQUIRED for correct distributed limiting:
+#
+#   REDIS_URL=redis://<host>:6379/0
+#
+# must be provided by the environment; nothing here hardcodes a URL or
+# credentials. When REDIS_URL is empty we intentionally keep LocMemCache
+# as the safe development fallback — Redis is never assumed to exist.
 
 REDIS_URL = os.getenv('REDIS_URL', '')
 
