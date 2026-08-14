@@ -1,8 +1,14 @@
 from django.contrib import admin
+from django import forms
+from django.db import transaction
+from django.db.models import Q
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 
-from .models import ShippingAddress, Order, OrderItem, Coupon, CouponUsage, WelcomeClaim
+from .models import (
+    ShippingAddress, Order, OrderItem, Coupon, CouponUsage, WelcomeClaim,
+    LegacyInventoryReconciliation,
+)
 from shop.jalali import jalali_datetime
 
 def to_jalali(dt):
@@ -173,6 +179,76 @@ class OrderItemAdmin(ModelAdmin):
     def has_add_permission(self, request):
         # Order items must be created through the order workflow so inventory,
         # price snapshots and totals stay consistent.
+        return False
+
+
+class LegacyInventoryReconciliationForm(forms.ModelForm):
+    class Meta:
+        model = LegacyInventoryReconciliation
+        fields = ('order_item', 'decision', 'reason', 'evidence_reference')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['order_item'].queryset = OrderItem.objects.select_related(
+            'order', 'product', 'variant',
+        ).filter(
+            Q(inventory_source__isnull=True)
+            | Q(inventory_source=OrderItem.INVENTORY_SOURCE_LEGACY_UNKNOWN),
+        ).order_by('-order_id')
+
+    def clean(self):
+        cleaned = super().clean()
+        item = cleaned.get('order_item')
+        if item and item.inventory_source not in (None, OrderItem.INVENTORY_SOURCE_LEGACY_UNKNOWN):
+            raise forms.ValidationError('This OrderItem already has a resolved inventory source.')
+        if not cleaned.get('reason'):
+            self.add_error('reason', 'A reconciliation reason is required.')
+        return cleaned
+
+
+@admin.register(LegacyInventoryReconciliation)
+class LegacyInventoryReconciliationAdmin(ModelAdmin):
+    form = LegacyInventoryReconciliationForm
+    list_display = ('order_item', 'order_display', 'decision', 'operator', 'reconciled_at')
+    list_filter = ('decision', 'order_status_snapshot', 'payment_status_snapshot')
+    search_fields = ('order_item__order__order_number', 'order_item__product__name', 'evidence_reference')
+    readonly_fields = (
+        'operator', 'order_id_snapshot', 'product_id_snapshot', 'variant_id_snapshot',
+        'quantity_snapshot', 'reservation_started_at_snapshot', 'reservation_released_at_snapshot',
+        'order_status_snapshot', 'payment_status_snapshot', 'reconciled_at',
+    )
+    fields = (
+        'order_item', 'decision', 'reason', 'evidence_reference', 'operator',
+        'order_id_snapshot', 'product_id_snapshot', 'variant_id_snapshot',
+        'quantity_snapshot', 'reservation_started_at_snapshot', 'reservation_released_at_snapshot',
+        'order_status_snapshot', 'payment_status_snapshot', 'reconciled_at',
+    )
+
+    @display(description='Order')
+    def order_display(self, obj):
+        return obj.order_item.order.order_number
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            raise PermissionError('Reconciliation records are immutable audit entries.')
+        item = form.cleaned_data['order_item']
+        order = item.order
+        with transaction.atomic():
+            obj.operator = request.user
+            obj.order_id_snapshot = order.id
+            obj.product_id_snapshot = item.product_id
+            obj.variant_id_snapshot = item.variant_id
+            obj.quantity_snapshot = item.quantity
+            obj.reservation_started_at_snapshot = order.inventory_reserved_at
+            obj.reservation_released_at_snapshot = order.inventory_released_at
+            obj.order_status_snapshot = order.status
+            obj.payment_status_snapshot = order.payment_status
+            obj.save()
+            item.inventory_source = obj.decision
+            item.inventory_reserved_quantity = item.quantity
+            item.save(update_fields=['inventory_source', 'inventory_reserved_quantity'])
+
+    def has_delete_permission(self, request, obj=None):
         return False
 
 

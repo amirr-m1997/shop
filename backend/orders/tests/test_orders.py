@@ -7,6 +7,7 @@ from datetime import timedelta
 from rest_framework.test import APITestCase
 from rest_framework import status
 from unittest.mock import patch, MagicMock
+from types import SimpleNamespace
 from django.core.management import call_command
 from django.db.models import F
 from shop.tests import (
@@ -19,7 +20,9 @@ from shop.tests import (
 )
 from orders.models import (
     Order, OrderItem, Coupon, CouponUsage, WelcomeClaim, ShippingAddress,
+    LegacyInventoryReconciliation,
 )
+from orders.admin import LegacyInventoryReconciliationAdmin
 from orders.services import reserve_inventory, release_inventory, expire_orders
 from products.models import Product, ProductVariant, Category, Size, Color
 from cart.models import Cart, CartItem
@@ -232,6 +235,161 @@ class CreateOrderTest(APITestCase):
         self.assertEqual(self.cart.items.count(), 2)
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock, 5)
+
+    @patch('shop.email_service.send_order_confirmation', side_effect=Exception('email fail'))
+    def test_explicit_variant_stock_succeeds_when_parent_product_is_zero(self, mock_email):
+        variant = make_variant(self.product, stock=5)
+        self.product.stock = 0
+        self.product.save(update_fields=['stock'])
+        self._build_cart_item(quantity=1, variant=variant)
+
+        response = self.client.post('/api/orders/orders/create_order/', {
+            'shipping_address_id': self.shipping.id,
+            'payment_method': 'online',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.product.refresh_from_db()
+        variant.refresh_from_db()
+        self.assertEqual(self.product.stock, 0)
+        self.assertEqual(variant.stock, 4)
+
+    def test_explicit_zero_variant_stock_fails_even_when_parent_is_zero(self):
+        variant = make_variant(self.product, stock=0)
+        self.product.stock = 0
+        self.product.save(update_fields=['stock'])
+        self._build_cart_item(quantity=1, variant=variant)
+
+        response = self.client.post('/api/orders/orders/create_order/', {
+            'shipping_address_id': self.shipping.id,
+            'payment_method': 'online',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Order.objects.filter(user=self.user).count(), 0)
+        self.product.refresh_from_db()
+        variant.refresh_from_db()
+        self.assertEqual(self.product.stock, 0)
+        self.assertEqual(variant.stock, 0)
+
+    def test_inheriting_variant_uses_parent_product_stock(self):
+        variant = make_variant(self.product, stock=None)
+        self.product.stock = 0
+        self.product.save(update_fields=['stock'])
+        self._build_cart_item(quantity=1, variant=variant)
+
+        response = self.client.post('/api/orders/orders/create_order/', {
+            'shipping_address_id': self.shipping.id,
+            'payment_method': 'online',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock, 0)
+
+    @patch('shop.email_service.send_order_confirmation', side_effect=Exception('email fail'))
+    def test_explicit_variant_does_not_decrement_parent_product(self, mock_email):
+        variant = make_variant(self.product, stock=5)
+        self._build_cart_item(quantity=2, variant=variant)
+
+        response = self.client.post('/api/orders/orders/create_order/', {
+            'shipping_address_id': self.shipping.id,
+            'payment_method': 'online',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.product.refresh_from_db()
+        variant.refresh_from_db()
+        self.assertEqual(self.product.stock, 50)
+        self.assertEqual(variant.stock, 3)
+
+    @patch('shop.email_service.send_order_confirmation', side_effect=Exception('email fail'))
+    def test_multiple_quantities_consume_only_selected_variant(self, mock_email):
+        variant = make_variant(self.product, stock=5)
+        self.product.stock = 0
+        self.product.save(update_fields=['stock'])
+        self._build_cart_item(quantity=4, variant=variant)
+
+        response = self.client.post('/api/orders/orders/create_order/', {
+            'shipping_address_id': self.shipping.id,
+            'payment_method': 'online',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        variant.refresh_from_db()
+        self.assertEqual(variant.stock, 1)
+        self.assertGreaterEqual(variant.stock, 0)
+
+    @patch('shop.email_service.send_order_confirmation', side_effect=Exception('email fail'))
+    def test_same_product_variants_are_independent(self, mock_email):
+        first_variant = make_variant(self.product, stock=0)
+        second_variant = make_variant(self.product, stock=5)
+        self.product.stock = 0
+        self.product.save(update_fields=['stock'])
+        self._build_cart_item(quantity=1, variant=second_variant)
+
+        success = self.client.post('/api/orders/orders/create_order/', {
+            'shipping_address_id': self.shipping.id,
+            'payment_method': 'online',
+        })
+
+        self.assertEqual(success.status_code, status.HTTP_201_CREATED)
+        first_variant.refresh_from_db()
+        second_variant.refresh_from_db()
+        self.assertEqual(first_variant.stock, 0)
+        self.assertEqual(second_variant.stock, 4)
+
+        CartItem.objects.create(cart=self.cart, product=self.product, variant=first_variant, quantity=1)
+        failure = self.client.post('/api/orders/orders/create_order/', {
+            'shipping_address_id': self.shipping.id,
+            'payment_method': 'online',
+        })
+        self.assertEqual(failure.status_code, status.HTTP_400_BAD_REQUEST)
+        first_variant.refresh_from_db()
+        self.assertEqual(first_variant.stock, 0)
+
+    @patch('shop.email_service.send_order_confirmation', side_effect=Exception('email fail'))
+    def test_mixed_product_and_explicit_variant_inventory_are_independent(self, mock_email):
+        variant_product = ProductFactory(category=self.category, stock=0)
+        variant = make_variant(variant_product, stock=3)
+        self.product.stock = 5
+        self.product.save(update_fields=['stock'])
+        self._build_cart_item(quantity=2, product=self.product)
+        self._build_cart_item(quantity=1, product=variant_product, variant=variant)
+
+        response = self.client.post('/api/orders/orders/create_order/', {
+            'shipping_address_id': self.shipping.id,
+            'payment_method': 'online',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.product.refresh_from_db()
+        variant_product.refresh_from_db()
+        variant.refresh_from_db()
+        self.assertEqual(self.product.stock, 3)
+        self.assertEqual(variant_product.stock, 0)
+        self.assertEqual(variant.stock, 2)
+
+    def test_failed_mixed_order_does_not_partially_decrement_inventory(self):
+        variant_product = ProductFactory(category=self.category, stock=0)
+        variant = make_variant(variant_product, stock=5)
+        self.product.stock = 1
+        self.product.save(update_fields=['stock'])
+        self._build_cart_item(quantity=2, product=self.product)
+        self._build_cart_item(quantity=1, product=variant_product, variant=variant)
+
+        response = self.client.post('/api/orders/orders/create_order/', {
+            'shipping_address_id': self.shipping.id,
+            'payment_method': 'online',
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.product.refresh_from_db()
+        variant_product.refresh_from_db()
+        variant.refresh_from_db()
+        self.assertEqual(self.product.stock, 1)
+        self.assertEqual(variant_product.stock, 0)
+        self.assertEqual(variant.stock, 5)
 
     def test_exception_mid_order_rolls_back_everything(self):
         second_product = ProductFactory(category=self.category, stock=10)
@@ -478,10 +636,13 @@ class InventoryReserveReleaseTest(TestCase):
 
     def test_reserve_inventory_decrements_stock(self):
         order = OrderFactory()
-        OrderItemFactory(order=order, product=self.product, quantity=5, price=Decimal('100000'))
+        item = OrderItemFactory(order=order, product=self.product, quantity=5, price=Decimal('100000'))
         reserve_inventory(order)
         self.product.refresh_from_db()
+        item.refresh_from_db()
         self.assertEqual(self.product.stock, 45)
+        self.assertEqual(item.inventory_source, OrderItem.INVENTORY_SOURCE_PRODUCT)
+        self.assertEqual(item.inventory_reserved_quantity, 5)
 
     def test_release_inventory_restores_stock(self):
         order = OrderFactory()
@@ -493,17 +654,73 @@ class InventoryReserveReleaseTest(TestCase):
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock, 50)
 
-    def test_reserve_with_variant_decrements_both(self):
+    def test_reserve_with_explicit_variant_decrements_only_variant(self):
         variant = make_variant(self.product, stock=20)
         order = OrderFactory()
-        OrderItemFactory(order=order, product=self.product, variant=variant, quantity=3, price=Decimal('100000'))
+        item = OrderItemFactory(order=order, product=self.product, variant=variant, quantity=3, price=Decimal('100000'))
         reserve_inventory(order)
         self.product.refresh_from_db()
         variant.refresh_from_db()
-        self.assertEqual(self.product.stock, 47)
+        item.refresh_from_db()
+        self.assertEqual(self.product.stock, 50)
         self.assertEqual(variant.stock, 17)
+        self.assertEqual(item.inventory_source, OrderItem.INVENTORY_SOURCE_VARIANT)
+        self.assertEqual(item.inventory_reserved_quantity, 3)
 
-    def test_release_with_variant_restores_both(self):
+    def test_reserve_with_inheriting_variant_decrements_only_product(self):
+        variant = make_variant(self.product, stock=None)
+        order = OrderFactory()
+        item = OrderItemFactory(order=order, product=self.product, variant=variant, quantity=3, price=Decimal('100000'))
+        reserve_inventory(order)
+        self.product.refresh_from_db()
+        variant.refresh_from_db()
+        item.refresh_from_db()
+        self.assertEqual(self.product.stock, 47)
+        self.assertIsNone(variant.stock)
+        self.assertEqual(item.inventory_source, OrderItem.INVENTORY_SOURCE_PRODUCT)
+        self.assertEqual(item.inventory_reserved_quantity, 3)
+
+    def test_release_explicit_variant_uses_snapshot_after_variant_inherits(self):
+        variant = make_variant(self.product, stock=5)
+        order = OrderFactory()
+        item = OrderItemFactory(
+            order=order, product=self.product, variant=variant,
+            quantity=2, price=Decimal('100000'),
+        )
+        reserve_inventory(order)
+        variant.stock = None
+        variant.save(update_fields=['stock'])
+
+        release_inventory(order)
+
+        self.product.refresh_from_db()
+        variant.refresh_from_db()
+        item.refresh_from_db()
+        self.assertEqual(self.product.stock, 50)
+        self.assertEqual(variant.stock, 2)
+        self.assertEqual(item.inventory_source, OrderItem.INVENTORY_SOURCE_VARIANT)
+
+    def test_release_inherited_variant_uses_snapshot_after_variant_becomes_explicit(self):
+        variant = make_variant(self.product, stock=None)
+        order = OrderFactory()
+        item = OrderItemFactory(
+            order=order, product=self.product, variant=variant,
+            quantity=2, price=Decimal('100000'),
+        )
+        reserve_inventory(order)
+        variant.stock = 99
+        variant.save(update_fields=['stock'])
+
+        release_inventory(order)
+
+        self.product.refresh_from_db()
+        variant.refresh_from_db()
+        item.refresh_from_db()
+        self.assertEqual(self.product.stock, 50)
+        self.assertEqual(variant.stock, 99)
+        self.assertEqual(item.inventory_source, OrderItem.INVENTORY_SOURCE_PRODUCT)
+
+    def test_release_with_explicit_variant_restores_only_variant(self):
         variant = make_variant(self.product, stock=20)
         order = OrderFactory()
         OrderItemFactory(order=order, product=self.product, variant=variant, quantity=3, price=Decimal('100000'))
@@ -522,6 +739,105 @@ class InventoryReserveReleaseTest(TestCase):
         release_inventory(order)
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock, 50)
+
+    def test_legacy_unknown_reservation_release_is_blocked_without_stock_change(self):
+        variant = make_variant(self.product, stock=20)
+        order = OrderFactory()
+        item = OrderItemFactory(order=order, product=self.product, variant=variant, quantity=3, price=Decimal('100000'))
+        reserve_inventory(order)
+        item.inventory_source = OrderItem.INVENTORY_SOURCE_LEGACY_UNKNOWN
+        item.save(update_fields=['inventory_source'])
+        variant.refresh_from_db()
+        product_stock = self.product.stock
+        variant_stock = variant.stock
+
+        with self.assertRaisesRegex(ValueError, 'Unresolved legacy inventory source'):
+            release_inventory(order)
+
+        self.product.refresh_from_db()
+        variant.refresh_from_db()
+        order.refresh_from_db()
+        self.assertEqual(self.product.stock, product_stock)
+        self.assertEqual(variant.stock, variant_stock)
+        self.assertIsNone(order.inventory_released_at)
+
+    def test_admin_reconciliation_to_product_records_audit_and_enables_product_release(self):
+        variant = make_variant(self.product, stock=20)
+        order = OrderFactory()
+        item = OrderItemFactory(order=order, product=self.product, variant=variant, quantity=3, price=Decimal('100000'))
+        order.inventory_reserved_at = timezone.now()
+        order.save(update_fields=['inventory_reserved_at'])
+        self.product.stock = 47
+        self.product.save(update_fields=['stock'])
+        item.inventory_source = OrderItem.INVENTORY_SOURCE_LEGACY_UNKNOWN
+        item.save(update_fields=['inventory_source'])
+        operator = UserFactory(is_staff=True, is_superuser=True)
+        obj = LegacyInventoryReconciliation(
+            order_item=item,
+            decision=OrderItem.INVENTORY_SOURCE_PRODUCT,
+            reason='Authoritative warehouse record confirms product-level reservation.',
+            evidence_reference='warehouse-ledger-001',
+        )
+        form = SimpleNamespace(cleaned_data={'order_item': item})
+        LegacyInventoryReconciliationAdmin(OrderItem, None).save_model(
+            SimpleNamespace(user=operator), obj, form, False,
+        )
+        item.refresh_from_db()
+        self.assertEqual(item.inventory_source, OrderItem.INVENTORY_SOURCE_PRODUCT)
+        self.assertEqual(item.inventory_reserved_quantity, 3)
+        self.assertEqual(LegacyInventoryReconciliation.objects.get().operator_id, operator.id)
+        release_inventory(order)
+        self.product.refresh_from_db()
+        variant.refresh_from_db()
+        self.assertEqual(self.product.stock, 50)
+        self.assertEqual(variant.stock, 20)
+
+    def test_admin_reconciliation_to_variant_enables_variant_release(self):
+        variant = make_variant(self.product, stock=20)
+        order = OrderFactory()
+        item = OrderItemFactory(order=order, product=self.product, variant=variant, quantity=3, price=Decimal('100000'))
+        order.inventory_reserved_at = timezone.now()
+        order.save(update_fields=['inventory_reserved_at'])
+        variant.stock = 17
+        variant.save(update_fields=['stock'])
+        item.inventory_source = OrderItem.INVENTORY_SOURCE_LEGACY_UNKNOWN
+        item.save(update_fields=['inventory_source'])
+        operator = UserFactory(is_staff=True, is_superuser=True)
+        obj = LegacyInventoryReconciliation(
+            order_item=item,
+            decision=OrderItem.INVENTORY_SOURCE_VARIANT,
+            reason='Authoritative warehouse record confirms variant-level reservation.',
+        )
+        form = SimpleNamespace(cleaned_data={'order_item': item})
+        LegacyInventoryReconciliationAdmin(OrderItem, None).save_model(
+            SimpleNamespace(user=operator), obj, form, False,
+        )
+        release_inventory(order)
+        self.product.refresh_from_db()
+        variant.refresh_from_db()
+        self.assertEqual(self.product.stock, 50)
+        self.assertEqual(variant.stock, 20)
+
+    def test_admin_unknown_reconciliation_remains_blocked_and_is_audited(self):
+        variant = make_variant(self.product, stock=20)
+        order = OrderFactory()
+        item = OrderItemFactory(order=order, product=self.product, variant=variant, quantity=3, price=Decimal('100000'))
+        reserve_inventory(order)
+        item.inventory_source = OrderItem.INVENTORY_SOURCE_LEGACY_UNKNOWN
+        item.save(update_fields=['inventory_source'])
+        operator = UserFactory(is_staff=True, is_superuser=True)
+        obj = LegacyInventoryReconciliation(
+            order_item=item,
+            decision=OrderItem.INVENTORY_SOURCE_LEGACY_UNKNOWN,
+            reason='Evidence remains inconclusive.',
+        )
+        form = SimpleNamespace(cleaned_data={'order_item': item})
+        LegacyInventoryReconciliationAdmin(OrderItem, None).save_model(
+            SimpleNamespace(user=operator), obj, form, False,
+        )
+        with self.assertRaises(ValueError):
+            release_inventory(order)
+        self.assertEqual(LegacyInventoryReconciliation.objects.count(), 1)
 
 
 class CancelOrderReleasesInventoryTest(APITestCase):

@@ -12,6 +12,7 @@ management commands, cron jobs, or anywhere.
 import logging
 from django.db import transaction
 from django.db.models import F
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from shop.observability import (
@@ -77,23 +78,45 @@ def reserve_inventory(order):
         if locked_order.inventory_reserved_at and not locked_order.inventory_released_at:
             return False
         for item in locked_order.items.select_related('product', 'variant').all():
-            if item.product:
+            source = item.inventory_source
+            if source == item.INVENTORY_SOURCE_LEGACY_UNKNOWN:
+                raise ValueError(
+                    f'Unresolved legacy inventory source: order item {item.id}'
+                )
+            if source is None and locked_order.inventory_released_at:
+                # A released legacy row has no authoritative source snapshot.
+                # Do not infer a bucket during payment retry/re-reservation.
+                raise ValueError(
+                    f'Unresolved legacy inventory source: order item {item.id}'
+                )
+            if source is None:
+                # Legacy OrderItems predate source snapshots. A new
+                # reservation can safely determine and persist its source;
+                # a re-reservation of an old variant item cannot.
+                source = (
+                    item.INVENTORY_SOURCE_VARIANT
+                    if item.variant and item.variant.stock is not None
+                    else item.INVENTORY_SOURCE_PRODUCT
+                )
+            reserved_quantity = item.quantity
+
+            if item.product and source == item.INVENTORY_SOURCE_PRODUCT:
                 updated = Product.objects.filter(
-                    id=item.product.id, stock__gte=item.quantity,
-                ).update(stock=F('stock') - item.quantity)
+                    id=item.product.id, stock__gte=reserved_quantity,
+                ).update(stock=F('stock') - reserved_quantity)
                 if updated != 1:
                     raise ValueError(f'Insufficient product stock: {item.product_id}')
-            if item.variant:
-                # Only variants that track their own stock (stock IS NOT
-                # NULL) are decremented; inheriting variants rely on the
-                # product-level stock decremented above.
+            if source == item.INVENTORY_SOURCE_VARIANT:
                 updated = ProductVariant.objects.filter(
                     id=item.variant.id,
                     stock__isnull=False,
-                    stock__gte=item.quantity,
-                ).update(stock=F('stock') - item.quantity)
-                if item.variant.stock is not None and updated != 1:
+                    stock__gte=reserved_quantity,
+                ).update(stock=F('stock') - reserved_quantity)
+                if updated != 1:
                     raise ValueError(f'Insufficient variant stock: {item.variant_id}')
+            item.inventory_source = source
+            item.inventory_reserved_quantity = reserved_quantity
+            item.save(update_fields=['inventory_source', 'inventory_reserved_quantity'])
         locked_order.inventory_reserved_at = timezone.now()
         locked_order.inventory_released_at = None
         locked_order.save(update_fields=['inventory_reserved_at', 'inventory_released_at', 'updated_at'])
@@ -118,15 +141,23 @@ def release_inventory(order):
         if not locked_order.inventory_reserved_at or locked_order.inventory_released_at:
             return False
         for item in locked_order.items.select_related('product', 'variant').all():
-            if item.product:
+            quantity = item.inventory_reserved_quantity or item.quantity
+            source = item.inventory_source
+
+            if source == item.INVENTORY_SOURCE_PRODUCT and item.product:
                 Product.objects.filter(
                     id=item.product.id
-                ).update(stock=F('stock') + item.quantity)
-            if item.variant:
+                ).update(stock=F('stock') + quantity)
+            elif source == item.INVENTORY_SOURCE_VARIANT and item.variant:
                 ProductVariant.objects.filter(
                     id=item.variant.id,
-                    stock__isnull=False,
-                ).update(stock=F('stock') + item.quantity)
+                ).update(stock=Coalesce('stock', 0) + quantity)
+            elif source in (None, item.INVENTORY_SOURCE_LEGACY_UNKNOWN):
+                # Legacy reservations have no authoritative source snapshot.
+                # Never infer from mutable current stock or variant settings.
+                raise ValueError(
+                    f'Unresolved legacy inventory source: order item {item.id}'
+                )
         locked_order.inventory_released_at = timezone.now()
         locked_order.save(update_fields=['inventory_released_at', 'updated_at'])
         order.inventory_released_at = locked_order.inventory_released_at
@@ -170,6 +201,8 @@ def expire_orders():
                     continue
                 release_inventory(order)
                 release_coupon_hold(order)
+                from loyalty.services import release_redemption_for_order
+                release_redemption_for_order(order=order)
                 order.status = 'expired'
                 order.save(update_fields=['status', 'updated_at'])
 

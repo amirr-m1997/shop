@@ -89,6 +89,7 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
 
         cart, session_id = get_or_create_cart(request)
         coupon_code = serializer.validated_data.get('coupon_code', '')
+        loyalty_redemption_code = serializer.validated_data.get('loyalty_redemption_code', '')
 
         try:
             with transaction.atomic():
@@ -142,9 +143,13 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
-                    product_demand[product.pk] += item.quantity
                     if variant is not None and variant.stock is not None:
                         variant_demand[variant.pk] += item.quantity
+                    else:
+                        # A variant with explicit stock owns its inventory
+                        # bucket. Only unvaried items and variants that
+                        # inherit stock from the product consume product stock.
+                        product_demand[product.pk] += item.quantity
 
                     price = product.price + (
                         variant.price_adjustment if variant is not None else Decimal('0')
@@ -207,6 +212,7 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
                 shipping_cost = site_settings.calculate_shipping(subtotal)
                 discount = Decimal('0')
                 coupon = None
+                redemption = None
                 if coupon_code:
                     coupon = Coupon.objects.select_for_update().filter(
                         code=coupon_code, is_active=True,
@@ -223,6 +229,26 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
                     if not valid:
                         return Response({'error': msg}, status=status.HTTP_400_BAD_REQUEST)
                     discount = coupon.apply_discount(subtotal)
+
+                if loyalty_redemption_code:
+                    if is_guest:
+                        return Response({'error': 'Loyalty rewards require an authenticated account.'}, status=status.HTTP_400_BAD_REQUEST)
+                    from loyalty.models import LoyaltyRedemption
+                    from loyalty.services import RedemptionError, redemption_discount_and_shipping
+                    redemption = LoyaltyRedemption.objects.select_for_update().filter(
+                        redemption_code=loyalty_redemption_code,
+                        user=request.user,
+                        status=LoyaltyRedemption.STATUS_AVAILABLE,
+                    ).first()
+                    if redemption is None:
+                        return Response({'error': 'This loyalty reward is not available.'}, status=status.HTTP_400_BAD_REQUEST)
+                    try:
+                        loyalty_discount, shipping_cost = redemption_discount_and_shipping(
+                            redemption, subtotal=subtotal, shipping_cost=shipping_cost,
+                        )
+                    except RedemptionError as exc:
+                        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+                    discount += loyalty_discount
 
                 total = max(subtotal + shipping_cost - discount, Decimal('0'))
                 order = Order.objects.create(
@@ -242,6 +268,16 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
                     expires_at=timezone.now() + timedelta(minutes=RESERVATION_MINUTES),
                     coupon=coupon,
                 )
+
+                if redemption:
+                    from loyalty.services import reserve_redemption_for_order
+                    reserve_redemption_for_order(
+                        redemption_code=redemption.redemption_code,
+                        user=request.user,
+                        order=order,
+                        subtotal=subtotal,
+                        shipping_cost=shipping_cost,
+                    )
 
                 for item_data in order_items_data:
                     OrderItem.objects.create(order=order, **item_data)
@@ -324,6 +360,8 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
             if order.status == 'pending_payment':
                 release_inventory(order)
                 release_coupon_hold(order)
+                from loyalty.services import release_redemption_for_order
+                release_redemption_for_order(order=order)
                 log_inventory_released(order.id, order.items.count(), reason='order_cancelled')
 
             order.status = 'cancelled'

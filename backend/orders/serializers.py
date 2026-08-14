@@ -87,6 +87,7 @@ class CreateOrderSerializer(serializers.Serializer):
     )
     notes = serializers.CharField(required=False, allow_blank=True, default='')
     coupon_code = serializers.CharField(required=False, allow_blank=True, default='')
+    loyalty_redemption_code = serializers.CharField(required=False, allow_blank=True, default='')
 
     # Guest checkout fields
     guest_email = serializers.EmailField(

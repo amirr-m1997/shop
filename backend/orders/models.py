@@ -203,6 +203,15 @@ class Order(models.Model):
 
 
 class OrderItem(models.Model):
+    INVENTORY_SOURCE_PRODUCT = 'PRODUCT'
+    INVENTORY_SOURCE_VARIANT = 'VARIANT'
+    INVENTORY_SOURCE_LEGACY_UNKNOWN = 'LEGACY_UNKNOWN'
+    INVENTORY_SOURCE_CHOICES = [
+        (INVENTORY_SOURCE_PRODUCT, 'Product inventory'),
+        (INVENTORY_SOURCE_VARIANT, 'Variant inventory'),
+        (INVENTORY_SOURCE_LEGACY_UNKNOWN, 'Legacy source unresolved'),
+    ]
+
     order = models.ForeignKey(
         Order,
         on_delete=models.CASCADE,
@@ -222,6 +231,20 @@ class OrderItem(models.Model):
         blank=True,
         verbose_name="واریانت"
     )
+    # Nullable for historical rows whose original inventory bucket cannot be
+    # reconstructed safely. New reservations always persist both fields.
+    inventory_source = models.CharField(
+        max_length=14,
+        choices=INVENTORY_SOURCE_CHOICES,
+        null=True,
+        blank=True,
+        editable=False,
+    )
+    inventory_reserved_quantity = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        editable=False,
+    )
     quantity = models.PositiveIntegerField(default=1, verbose_name="تعداد")
     price = models.DecimalField(
         max_digits=10, decimal_places=2, verbose_name="قیمت واحد"
@@ -238,6 +261,48 @@ class OrderItem(models.Model):
     @property
     def total_price(self):
         return self.price * self.quantity
+
+
+class LegacyInventoryReconciliation(models.Model):
+    """Immutable operator decision for a legacy reservation source."""
+
+    DECISION_PRODUCT = OrderItem.INVENTORY_SOURCE_PRODUCT
+    DECISION_VARIANT = OrderItem.INVENTORY_SOURCE_VARIANT
+    DECISION_UNKNOWN = OrderItem.INVENTORY_SOURCE_LEGACY_UNKNOWN
+    DECISION_CHOICES = [
+        (DECISION_PRODUCT, 'PRODUCT'),
+        (DECISION_VARIANT, 'VARIANT'),
+        (DECISION_UNKNOWN, 'UNKNOWN / remain unresolved'),
+    ]
+
+    order_item = models.ForeignKey(
+        OrderItem, on_delete=models.PROTECT, related_name='legacy_reconciliations',
+    )
+    decision = models.CharField(max_length=14, choices=DECISION_CHOICES)
+    operator = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name='legacy_inventory_reconciliations',
+    )
+    reason = models.TextField()
+    evidence_reference = models.CharField(max_length=300)
+    order_id_snapshot = models.PositiveBigIntegerField()
+    product_id_snapshot = models.PositiveBigIntegerField(null=True, blank=True)
+    variant_id_snapshot = models.PositiveBigIntegerField(null=True, blank=True)
+    quantity_snapshot = models.PositiveIntegerField()
+    reservation_started_at_snapshot = models.DateTimeField(null=True, blank=True)
+    reservation_released_at_snapshot = models.DateTimeField(null=True, blank=True)
+    order_status_snapshot = models.CharField(max_length=20)
+    payment_status_snapshot = models.CharField(max_length=20)
+    reconciled_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-reconciled_at', '-id']
+        indexes = [
+            models.Index(fields=['order_item', '-reconciled_at'], name='legacy_recon_item_created_idx'),
+            models.Index(fields=['decision', '-reconciled_at'], name='legacy_recon_decision_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.order_item_id}: {self.decision} by {self.operator}'
 
 
 class Coupon(models.Model):
