@@ -1,4 +1,4 @@
-Django>=5.2,<5.3
+Django>=4.2.30,<4.3
 django-unfold==0.67.0
 djangorestframework>=3.16,<3.17
 django-cors-headers>=4.7,<5

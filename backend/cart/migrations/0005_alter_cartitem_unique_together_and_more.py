@@ -96,6 +96,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='cartitem',
-            constraint=models.CheckConstraint(condition=models.Q(('quantity__gt', 0)), name='cart_item_quantity_positive'),
+            constraint=models.CheckConstraint(check=models.Q(('quantity__gt', 0)), name='cart_item_quantity_positive'),
         ),
     ]

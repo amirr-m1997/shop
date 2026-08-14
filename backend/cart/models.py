@@ -92,7 +92,7 @@ class CartItem(models.Model):
                 name='unique_cart_product_variant',
             ),
             models.CheckConstraint(
-                condition=models.Q(quantity__gt=0),
+                check=models.Q(quantity__gt=0),
                 name='cart_item_quantity_positive',
             ),
         ]
