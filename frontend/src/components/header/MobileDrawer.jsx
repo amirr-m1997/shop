@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import {
-  X, ChevronDown, Home, ShoppingBag, Sparkles, Tag,
+  X, ChevronDown, Home, ShoppingBag, Sparkles, Tag, Shirt,
   BookOpen, Ruler, Info, Heart, MessageCircle, User, LogOut, Package, Moon, Sun, Phone
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -195,6 +195,11 @@ const MobileDrawer = ({
             {isAuthenticated && (
               <NavLink to="/chat" icon={MessageCircle} badge={unreadChat}>
                 استایل چت
+              </NavLink>
+            )}
+            {isAuthenticated && import.meta.env.VITE_SHOW_STYLE_ROOMS_MAIN_NAV && (
+              <NavLink to="/style-rooms" icon={Shirt}>
+                اتاق‌های استایل
               </NavLink>
             )}
             <NavLink to={isAuthenticated ? '/profile' : '/login'} icon={User}>

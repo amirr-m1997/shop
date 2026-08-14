@@ -167,6 +167,18 @@ export default function ChatPage() {
     });
   };
 
+  const handleContactStylist = async () => {
+    try {
+      const res = await chatAPI.contactStylist();
+      const updated = await chatAPI.getConversations();
+      const data = Array.isArray(updated.data) ? updated.data : (updated.data?.results || []);
+      setConversations(data);
+      selectConversation(res.data.id);
+    } catch {
+      toast({ title: 'خطا', description: 'ارتباط با استایلیست مد ممکن نشد.', variant: 'destructive' });
+    }
+  };
+
   const handleAcceptRequest = async () => {
     if (!activeId) return;
     try {
@@ -355,7 +367,7 @@ export default function ChatPage() {
     currentUserId, active, loadMessages, selectConversation, handleStartRequest,
     handleAcceptRequest, handleDeclineRequest, handleReopenRequest, handleCancelRequest,
     menuOpen, setMenuOpen, confirmDialog, askConfirm, closeConfirm, handleClearChat,
-    handleBlock, handleUnblock, handleSend, insertEmoji, filteredConversations
+    handleBlock, handleUnblock, handleSend, insertEmoji, filteredConversations, handleContactStylist
     }} />
   );
 }

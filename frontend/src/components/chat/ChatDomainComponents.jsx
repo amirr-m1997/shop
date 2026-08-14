@@ -218,11 +218,13 @@ const SendProductModal = ({ open, onClose, conversationId, onSent }) => {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(null);
   const [note, setNote] = useState('');
+  const [shareWithReferral, setShareWithReferral] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setQuery('');
     setNote('');
+    setShareWithReferral(false);
     setProducts([]);
     setLoading(true);
     productsAPI.getProducts({ page_size: 12, is_active: true })
@@ -252,9 +254,16 @@ const SendProductModal = ({ open, onClose, conversationId, onSent }) => {
     if (!conversationId || sending) return;
     setSending(product.id);
     try {
+      let messageText = note.trim();
+      if (shareWithReferral) {
+        const referral = await chatAPI.createReferral({ product_id: product.id });
+        const referralUrl = referral.data?.referral_url;
+        if (!referralUrl) throw new Error('Referral URL was not returned.');
+        messageText = [messageText, `Referral link: ${referralUrl}`].filter(Boolean).join('\n');
+      }
       await chatAPI.sendProduct(conversationId, {
         product_id: product.id,
-        text: note.trim() || '',
+        text: messageText,
       });
       toast({ title: 'ارسال شد', description: 'محصول برای دوست شما ارسال شد.' });
       onSent?.();
@@ -304,6 +313,15 @@ const SendProductModal = ({ open, onClose, conversationId, onSent }) => {
             placeholder="پیام همراه (اختیاری)..."
             className="w-full rounded-xl border border-border/60 bg-secondary/40 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40"
           />
+          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2.5 text-xs font-semibold text-foreground">
+            <input
+              type="checkbox"
+              checked={shareWithReferral}
+              onChange={(e) => setShareWithReferral(e.target.checked)}
+              className="h-4 w-4 accent-amber-500"
+            />
+            Include a referral link with this product share
+          </label>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -344,4 +362,4 @@ const SendProductModal = ({ open, onClose, conversationId, onSent }) => {
   );
 };
 
-export { Avatar, EMOJIS, MessageBubble, SendProductModal };
+export { Avatar, EMOJIS, MessageBubble, ProductMessageCard, SendProductModal };

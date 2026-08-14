@@ -7,7 +7,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
-from django.db.models import Q, Max
+from django.db.models import Q, Max, Prefetch
 from django.utils import timezone
 
 from .models import Conversation, Message, Notification, Block
@@ -74,9 +74,67 @@ class ConversationViewSet(viewsets.ModelViewSet):
         return super().get_throttles()
 
     def get_queryset(self):
+        user = self.request.user
+        messages_qs = Message.objects.exclude(deleted_for=user).order_by('-created_at', '-id')
         return Conversation.objects.filter(
-            Q(user1=self.request.user) | Q(user2=self.request.user)
-        ).select_related('user1', 'user2', 'user1__profile', 'user2__profile')
+            Q(user1=user) | Q(user2=user)
+        ).select_related(
+            'user1', 'user2', 'user1__profile', 'user2__profile', 'requested_by'
+        ).prefetch_related(
+            Prefetch('messages', queryset=messages_qs, to_attr='prefetched_messages')
+        )
+
+    @action(detail=False, methods=['post'])
+    def support_chat(self, request):
+        """ایجاد یا دریافت گفتگو با استایلیست مد و پشتیبانی سایت (به صورت خودکار تایید شده)."""
+        stylist = User.objects.filter(username__in=['stylist', 'support', 'site_stylist']).exclude(id=request.user.id).first()
+        if not stylist:
+            stylist = User.objects.filter(is_superuser=True).exclude(id=request.user.id).first()
+        if not stylist:
+            stylist = User.objects.create_user(
+                username='site_stylist',
+                email='stylist@fashion.com',
+                first_name='استایلیست',
+                last_name='ارشد مد',
+            )
+            stylist.set_unusable_password()
+            stylist.save()
+
+        if stylist.id == request.user.id:
+            return Response(
+                {'error': 'شما نمی‌توانید با خودتان گفتگو کنید.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        created = False
+        try:
+            with transaction.atomic():
+                conversation, created = Conversation.get_or_create_pair(
+                    request.user, stylist, requester=request.user
+                )
+                if conversation.status != Conversation.STATUS_ACCEPTED:
+                    conversation.status = Conversation.STATUS_ACCEPTED
+                    conversation.save(update_fields=['status'])
+
+                if created or not conversation.messages.exists():
+                    Message.objects.create(
+                        conversation=conversation,
+                        sender=stylist,
+                        text='سلام! من استایلیست ارشد مد و پشتیبان شما هستم. ✨ چطور می‌توانم در انتخاب لباس، ست کردن یا سایز مناسب به شما کمک کنم؟',
+                    )
+        except IntegrityError:
+            created = False
+            conversation = Conversation.objects.filter(
+                Q(user1=request.user, user2=stylist) | Q(user1=stylist, user2=request.user)
+            ).first()
+            if conversation and conversation.status != Conversation.STATUS_ACCEPTED:
+                conversation.status = Conversation.STATUS_ACCEPTED
+                conversation.save(update_fields=['status'])
+
+        return Response(
+            ConversationSerializer(conversation, context={'request': request}).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
     def create(self, request, *args, **kwargs):
         """ارسال درخواست گفتگو به کاربر دیگر. گفتگو تا زمان تایید طرف مقابل

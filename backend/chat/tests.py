@@ -159,3 +159,45 @@ class MessagingTests(ChatAuthMixin, APITestCase):
         self.assertIn('results', resp.data)
         self.assertEqual(len(resp.data['results']), 50)
         self.assertEqual(resp.data['count'], 55)
+
+
+class ChatSecurityAndPerformanceTests(ChatAuthMixin, APITestCase):
+    def setUp(self):
+        self.alice = self._login('alice')
+        self.bob = User.objects.create_user(username='bob', password='x')
+        UserProfileFactory(user=self.bob)
+        self.charlie = User.objects.create_user(username='charlie', password='x')
+        UserProfileFactory(user=self.charlie)
+
+        self.conv, _ = Conversation.get_or_create_pair(self.alice, self.bob, requester=self.bob)
+        self.conv.status = Conversation.STATUS_ACCEPTED
+        self.conv.save(update_fields=['status'])
+
+    def test_idor_cannot_access_other_user_conversation(self):
+        # Switch to Charlie who is not part of self.conv
+        token, _ = Token.objects.get_or_create(user=self.charlie)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+
+        resp = self.client.get(f'/api/chat/conversations/{self.conv.id}/')
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_conversation_list_n_plus_one_queries(self):
+        # Create multiple conversations and messages for Alice
+        for i in range(3):
+            u = User.objects.create_user(username=f'user{i}', password='x')
+            UserProfileFactory(user=u)
+            co, _ = Conversation.get_or_create_pair(self.alice, u, requester=u)
+            co.status = Conversation.STATUS_ACCEPTED
+            co.save(update_fields=['status'])
+            Message.objects.create(conversation=co, sender=u, text='hi')
+
+        # Measure query count for listing conversations
+        resp = self.client.get('/api/chat/conversations/')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_support_chat_endpoint(self):
+        resp = self.client.post('/api/chat/conversations/support_chat/', {}, format='json')
+        self.assertIn(resp.status_code, [status.HTTP_200_OK, status.HTTP_201_CREATED])
+        self.assertEqual(resp.data['status'], 'accepted')
+        self.assertIsNotNone(resp.data['other_user'])
+

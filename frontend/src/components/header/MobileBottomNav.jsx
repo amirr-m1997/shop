@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, LayoutGrid, MessageCircle, ShoppingCart, User } from 'lucide-react';
+import { Home, LayoutGrid, MessageCircle, ShoppingCart, User, Shirt } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 /**
@@ -46,6 +46,13 @@ const MobileBottomNav = ({
       badge: unreadChat,
     },
     {
+      id: 'rooms',
+      label: 'اتاق',
+      icon: Shirt,
+      to: isAuthenticated ? '/style-rooms' : '/login',
+      active: path.startsWith('/style-rooms'),
+    },
+    {
       id: 'cart',
       label: 'سبد',
       icon: ShoppingCart,
@@ -76,7 +83,7 @@ const MobileBottomNav = ({
             'dark:border-white/10 dark:bg-[#16161a]/80 dark:shadow-[0_8px_32px_-8px_rgba(0,0,0,0.55)]'
           )}
         >
-          {items.map((item) => {
+          {items.filter((item) => item.id !== 'rooms').map((item) => {
             const Icon = item.icon;
             const content = (
               <>

@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Search, ShoppingCart, User, Moon, Sun, Heart, MessageCircle,
-  ChevronDown, LogOut, Package
+  ChevronDown, LogOut, Package, Shirt
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -249,6 +249,12 @@ const DesktopHeader = ({
                       <Package className="h-4 w-4" />
                     </Link>
                   </DropdownMenuItem>
+                  {isAuthenticated && import.meta.env.VITE_SHOW_STYLE_ROOMS_MAIN_NAV && <DropdownMenuItem asChild>
+                    <Link to="/style-rooms" className="flex w-full cursor-pointer items-center justify-end gap-2">
+                      <span>اتاق‌های استایل</span>
+                      <Shirt className="h-4 w-4" />
+                    </Link>
+                  </DropdownMenuItem>}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={onLogout}
@@ -359,6 +365,12 @@ const DesktopHeader = ({
                   {item.label}
                 </Link>
               ))}
+
+              {isAuthenticated && import.meta.env.VITE_SHOW_STYLE_ROOMS_MAIN_NAV && (
+                <Link to="/style-rooms" className={navLinkClass(true)}>
+                  اتاق‌های استایل
+                </Link>
+              )}
             </nav>
           </div>
 

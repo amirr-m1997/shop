@@ -33,6 +33,9 @@ class Conversation(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['user1', 'user2'], name='unique_conversation_pair'),
         ]
+        indexes = [
+            models.Index(fields=['updated_at'], name='chat_conv_updated_idx'),
+        ]
 
     def __str__(self):
         return f'{self.user1.username} ↔ {self.user2.username}'
@@ -110,7 +113,14 @@ class Block(models.Model):
 
 class Message(models.Model):
     """پیام داخل یک گفتگو. می‌تواند متن، محصول یا هر دو را شامل شود."""
-    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='messages', verbose_name='گفتگو')
+    conversation = models.ForeignKey(
+        Conversation, on_delete=models.CASCADE, related_name='messages',
+        null=True, blank=True, verbose_name='گفتگو'
+    )
+    style_room = models.ForeignKey(
+        'style_rooms.StyleRoom', on_delete=models.CASCADE, related_name='messages',
+        null=True, blank=True, verbose_name='ناحیه استایل'
+    )
     sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_sent_messages', verbose_name='فرستنده')
     text = models.TextField(blank=True, verbose_name='متن')
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True, related_name='chat_messages', verbose_name='محصول')
@@ -128,9 +138,49 @@ class Message(models.Model):
         verbose_name = 'پیام'
         verbose_name_plural = 'پیام‌ها'
         ordering = ['created_at', 'id']
+        indexes = [
+            models.Index(fields=['conversation', 'created_at'], name='chat_msg_conv_created_idx'),
+            models.Index(fields=['conversation', 'is_read'], name='chat_msg_conv_read_idx'),
+            models.Index(fields=['style_room', 'created_at', 'id'], name='chat_msg_room_created_id_idx'),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                check=(
+                    models.Q(conversation__isnull=False, style_room__isnull=True) |
+                    models.Q(conversation__isnull=True, style_room__isnull=False)
+                ),
+                name='chat_msg_exactly_one_context',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.sender.username}: {self.text[:30]}'
+
+
+class StyleRoomMessageRead(models.Model):
+    """Per-user read state for messages posted in a Style Room."""
+
+    message = models.ForeignKey(
+        Message, on_delete=models.CASCADE, related_name='style_room_reads',
+        verbose_name='پیام'
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='style_room_message_reads',
+        verbose_name='کاربر'
+    )
+    read_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ خواندن')
+
+    class Meta:
+        verbose_name = 'خواندن پیام اتاق استایل'
+        verbose_name_plural = 'خواندن پیام‌های اتاق استایل'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['message', 'user'], name='chat_room_read_message_user_unique'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user', '-read_at'], name='chat_room_read_user_idx'),
+        ]
 
 
 class Notification(models.Model):

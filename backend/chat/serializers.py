@@ -23,6 +23,8 @@ class PublicUserSerializer(serializers.ModelSerializer):
                   'style_preferences', 'popular_categories']
 
     def get_display_name(self, obj):
+        if obj.username in ['stylist', 'support'] or obj.is_superuser:
+            return 'استایلیست مد و پشتیبانی 👔✨'
         profile = getattr(obj, 'profile', None)
         if profile and (profile.first_name or profile.last_name):
             return f'{profile.first_name} {profile.last_name}'.strip()
@@ -44,7 +46,11 @@ class PublicUserSerializer(serializers.ModelSerializer):
         """دسته‌بندی‌های محبوب کاربر بر اساس علاقه‌مندی‌های (لایک‌های) او."""
         from collections import Counter
         categories = Counter()
-        items = obj.wishlist.select_related('product__category').all()
+        prefetched = getattr(obj, '_prefetched_objects_cache', {})
+        if 'wishlist' in prefetched:
+            items = obj.wishlist.all()
+        else:
+            items = obj.wishlist.select_related('product__category').all()
         for item in items:
             category = getattr(item.product, 'category', None)
             if category:
@@ -114,10 +120,15 @@ class ConversationSerializer(serializers.ModelSerializer):
 
     def get_last_message(self, obj):
         request = self.context.get('request')
-        qs = obj.messages.all()
-        if request:
-            qs = qs.exclude(deleted_for=request.user)
-        last = qs.order_by('-created_at', '-id').first()
+        prefetched = getattr(obj, 'prefetched_messages', None)
+        if prefetched is not None:
+            last = prefetched[0] if prefetched else None
+        else:
+            qs = obj.messages.all()
+            if request:
+                qs = qs.exclude(deleted_for=request.user)
+            last = qs.order_by('-created_at', '-id').first()
+
         if last:
             return {
                 'id': last.id,
@@ -132,6 +143,12 @@ class ConversationSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request:
             return 0
+        prefetched = getattr(obj, 'prefetched_messages', None)
+        if prefetched is not None:
+            return sum(
+                1 for m in prefetched
+                if not m.is_read and m.sender_id != request.user.id
+            )
         return obj.messages.exclude(deleted_for=request.user).filter(
             is_read=False
         ).exclude(sender=request.user).count()

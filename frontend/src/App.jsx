@@ -38,6 +38,8 @@ const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const StylePage = lazy(() => import('./pages/StylePage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
+const StyleRoomsPage = lazy(() => import('./pages/StyleRoomsPage'));
+const StyleRoomDetailPage = lazy(() => import('./pages/StyleRoomDetailPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const DiscountPopup = lazy(() => import('./components/DiscountPopup'));
 
@@ -185,6 +187,8 @@ function AppShell() {
           <Route path="/style/:slug" element={<LazyPageLoader Component={StylePage} />} />
           <Route path="/chat" element={<LazyPageLoader Component={ChatPage} />} />
           <Route path="/chat/:conversationId" element={<LazyPageLoader Component={ChatPage} />} />
+          <Route path="/style-rooms" element={<LazyPageLoader Component={StyleRoomsPage} />} />
+          <Route path="/style-rooms/:roomId" element={<LazyPageLoader Component={StyleRoomDetailPage} />} />
           <Route path="*" element={<LazyPageLoader Component={NotFoundPage} />} />
         </Routes>
       </main>
