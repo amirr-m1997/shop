@@ -1,6 +1,6 @@
 from django.contrib import admin
-from unfold.admin import ModelAdmin, StackedInline, TabularInline
-from unfold.decorators import display
+from django.contrib.admin import ModelAdmin, StackedInline, TabularInline
+from django.contrib.admin import display
 from django.contrib.admin import widgets as admin_widgets
 from django import forms
 from django.conf import settings

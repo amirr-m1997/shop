@@ -1,5 +1,5 @@
 from django.contrib import admin
-from unfold.admin import ModelAdmin, TabularInline
+from django.contrib.admin import ModelAdmin, TabularInline
 from .models import Cart, CartItem
 from shop.jalali import jalali_datetime
 

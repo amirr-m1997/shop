@@ -13,7 +13,6 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
-from django.templatetags.static import static
 
 # Load .env from project root (parent of backend/)
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -60,9 +59,6 @@ FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 # Application definition
 
 INSTALLED_APPS = [
-    'unfold',
-    'unfold.contrib.filters',
-    'unfold.contrib.forms',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -85,8 +81,10 @@ INSTALLED_APPS = [
     'payments',
     'dashboard',
     'chat',
+    'support',
     'style_rooms',
     'loyalty',
+    'personalization',
 ]
 
 MIDDLEWARE = [
@@ -122,65 +120,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'shop.wsgi.application'
 
-
-# ---------------------------------------------------------------------------
-# پیکربندی پنل ادمین (Unfold)
-# مستندات: https://unfoldadmin.com/docs/
-# ---------------------------------------------------------------------------
-UNFOLD = {
-    "SITE_TITLE": "فروشگاه مد — مدیریت",
-    "SITE_HEADER": "LUXORA",
-    "SITE_SUBHEADER": "میز کار مدیریت لاکچری",
-    "SITE_SYMBOL": "checkroom",
-    "SHOW_HISTORY": True,
-    "SHOW_VIEW_ON_SITE": True,
-    "SHOW_LANGUAGES": False,
-    "THEME": None,
-    "BORDER_RADIUS": "0.5rem",
-    # Shell components use Unfold's global hook. Shared tokens and page-specific
-    # styles are loaded later by templates to preserve the established cascade.
-    "STYLES": [lambda request: static("admin/css/admin-layout.css")],
-    "DASHBOARD_CALLBACK": "shop.admin_dashboard.dashboard_callback",
-    "COLORS": {
-        "font": {
-            "subtle-light": "115 110 100",
-            "default-light": "61 56 49",
-            "important-light": "31 31 31",
-            "subtle-dark": "166 162 154",
-            "default-dark": "229 226 220",
-            "important-dark": "250 248 244",
-        },
-        "primary": {
-            "50": "250 249 246",
-            "100": "242 238 230",
-            "200": "229 222 208",
-            "300": "210 199 179",
-            "400": "181 166 141",
-            "500": "59 130 246",
-            "600": "37 99 235",
-            "700": "30 64 175",
-            "800": "30 58 138",
-            "900": "30 52 102",
-            "950": "23 37 84",
-        },
-        "base": {
-            "50": "246 241 232",
-            "100": "232 241 252",
-            "200": "214 228 247",
-            "300": "218 211 200",
-            "400": "184 176 163",
-            "500": "140 133 122",
-            "600": "98 91 82",
-            "700": "68 63 57",
-            "800": "38 35 32",
-            "900": "31 31 31",
-            "950": "23 26 28",
-        },
-    },
-    "SIDEBAR": {
-        "show_search": True,
-        "show_all_applications": False,
-        "navigation": [
+"""
             {"title": "داشبورد", "separator": False, "items": [
                 {"title": "خانه", "icon": "dashboard", "link": "/admin/"},
             ]},
@@ -268,7 +208,7 @@ UNFOLD = {
             ]},
         ],
     },
-}
+"""
 
 
 # Database

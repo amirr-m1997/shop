@@ -31,8 +31,10 @@ urlpatterns = [
     path('api/payments/', include('payments.urls')),
     path('api/dashboard/', include('dashboard.urls')),
     path('api/chat/', include('chat.urls')),
+    path('api/support/', include('support.urls')),
     path('api/style-rooms/', include('style_rooms.urls')),
     path('api/loyalty/', include('loyalty.urls')),
+    path('api/personalization/', include('personalization.urls')),
 ]
 
 if settings.DEBUG:

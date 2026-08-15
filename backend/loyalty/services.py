@@ -281,6 +281,25 @@ def create_referral_attribution(*, referrer, product, originating_message=None, 
                 referrer=referrer, product=product, originating_message=originating_message,
                 token_hash=_token_hash(token), expires_at=now + REFERRAL_TOKEN_TTL,
             )
+            try:
+                from personalization.services import record_product_share
+                share_key = (
+                    f'product-share:message:{originating_message.pk}'
+                    if originating_message is not None
+                    else f'product-share:referral:{attribution.pk}'
+                )
+                record_product_share(
+                    user=referrer,
+                    product=product,
+                    source='referral',
+                    idempotency_key=share_key,
+                    metadata={'referral_id': str(attribution.pk)},
+                )
+            except Exception:
+                import logging
+                logging.getLogger('loyalty').exception(
+                    '[personalization_product_share_error] referral_id=%s', attribution.pk,
+                )
             return attribution, token
         except IntegrityError:
             continue

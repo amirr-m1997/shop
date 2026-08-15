@@ -2,8 +2,8 @@ from django.contrib import admin
 from django import forms
 from django.db import transaction
 from django.db.models import Q
-from unfold.admin import ModelAdmin, TabularInline
-from unfold.decorators import display
+from django.contrib.admin import ModelAdmin, TabularInline
+from django.contrib.admin import display
 
 from .models import (
     ShippingAddress, Order, OrderItem, Coupon, CouponUsage, WelcomeClaim,
@@ -123,11 +123,11 @@ class OrderAdmin(ModelAdmin):
         email = obj.user.email if obj.user else (obj.guest_email or obj.guest_phone or '')
         return format_html('<div class="admin-customer-cell"><strong>{}</strong><span>{}</span></div>', name, email)
 
-    @display(description='وضعیت سفارش', label=STATUS_LABELS)
+    @display(description='وضعیت سفارش')
     def status_badge(self, obj):
         return obj.status, obj.get_status_display()
 
-    @display(description='وضعیت پرداخت', label=PAYMENT_STATUS_LABELS)
+    @display(description='وضعیت پرداخت')
     def payment_status_badge(self, obj):
         return obj.payment_status, obj.get_payment_status_display()
 

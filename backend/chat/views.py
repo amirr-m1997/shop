@@ -21,8 +21,20 @@ from .serializers import (
     NotificationSerializer,
 )
 from .throttles import ChatSendThrottle
+from support.models import SupportConversation, SupportMessage
+from support.serializers import SupportConversationSerializer
 
 logger = logging.getLogger('chat')
+SUPPORT_STAFF_ROLES = ('support_agent', 'fashion_stylist')
+
+
+def private_conversations_for(user):
+    return Conversation.objects.filter(
+        Q(user1=user) | Q(user2=user)
+    ).exclude(
+        Q(user1__profile__role__in=SUPPORT_STAFF_ROLES) |
+        Q(user2__profile__role__in=SUPPORT_STAFF_ROLES)
+    )
 
 
 class UserSearchViewSet(viewsets.ViewSet):
@@ -42,9 +54,7 @@ class UserSearchViewSet(viewsets.ViewSet):
 
         existing_pairs = {
             c.user1_id if c.user2_id == request.user.id else c.user2_id: c
-            for c in Conversation.objects.filter(
-                Q(user1=request.user) | Q(user2=request.user)
-            )
+            for c in private_conversations_for(request.user)
         }
 
         results = []
@@ -76,9 +86,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         messages_qs = Message.objects.exclude(deleted_for=user).order_by('-created_at', '-id')
-        return Conversation.objects.filter(
-            Q(user1=user) | Q(user2=user)
-        ).select_related(
+        return private_conversations_for(user).select_related(
             'user1', 'user2', 'user1__profile', 'user2__profile', 'requested_by'
         ).prefetch_related(
             Prefetch('messages', queryset=messages_qs, to_attr='prefetched_messages')
@@ -86,6 +94,12 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def support_chat(self, request):
+        conversation = SupportConversation.objects.filter(customer=request.user, department=SupportConversation.DEPARTMENT_FASHION_STYLIST).exclude(status=SupportConversation.STATUS_CLOSED).order_by('-updated_at').first()
+        created = conversation is None
+        if created:
+            conversation = SupportConversation.objects.create(customer=request.user, department=SupportConversation.DEPARTMENT_FASHION_STYLIST)
+            SupportMessage.objects.create(conversation=conversation, sender=request.user, text='Support request created through the legacy chat endpoint.')
+        return Response(SupportConversationSerializer(conversation, context={'request': request}).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
         """ایجاد یا دریافت گفتگو با استایلیست مد و پشتیبانی سایت (به صورت خودکار تایید شده)."""
         stylist = User.objects.filter(username__in=['stylist', 'support', 'site_stylist']).exclude(id=request.user.id).first()
         if not stylist:
@@ -384,6 +398,18 @@ class ConversationViewSet(viewsets.ModelViewSet):
             text=text,
             product=product,
         )
+        if product:
+            try:
+                from personalization.services import record_product_share
+                record_product_share(
+                    user=request.user,
+                    product=product,
+                    source='private_chat',
+                    idempotency_key=f'product-share:message:{message.pk}',
+                    metadata={'message_id': message.pk, 'conversation_id': conversation.pk},
+                )
+            except Exception:
+                logger.exception('[personalization_product_share_error] message_id=%s', message.pk)
         conversation.updated_at = timezone.now()
         conversation.save(update_fields=['updated_at'])
 

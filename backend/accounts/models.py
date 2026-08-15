@@ -9,6 +9,8 @@ class UserProfile(models.Model):
         ('moderator', 'ناظر'),
         ('admin', 'مدیر'),
         ('super_admin', 'مدیر اصلی'),
+        ('support_agent', 'پشتیبان'),
+        ('fashion_stylist', 'استایلیست مد'),
     ]
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')

@@ -18,6 +18,8 @@ from .serializers import (CategorySerializer, BrandSerializer, SizeSerializer, C
                           ReviewSerializer, SizeGuideSerializer, HomepageSectionSerializer,
                           BannerSerializer, StyleLookSerializer, WishlistSerializer)
 from dashboard.permissions import IsAdminUser
+from personalization.models import EventType
+from personalization.services import record_behavior, record_product_view
 
 
 class DatabaseAwareProductSearchFilter(filters.SearchFilter):
@@ -168,6 +170,24 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
             return ProductDetailSerializer
         return ProductListSerializer
 
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        term = request.query_params.get('search', '').strip()
+        if request.user.is_authenticated and term:
+            record_behavior(
+                user=request.user,
+                event_type=EventType.SEARCH,
+                source='product_list',
+                metadata={'query': term[:200]},
+            )
+        return response
+
+    def retrieve(self, request, *args, **kwargs):
+        response = super().retrieve(request, *args, **kwargs)
+        if response.status_code == 200 and request.user.is_authenticated:
+            record_product_view(user=request.user, product=self.get_object())
+        return response
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -207,6 +227,14 @@ class ReviewViewSet(viewsets.ModelViewSet):
                 product=review.product,
                 description='Review submission reward',
                 metadata={'source': 'products.review_create', 'review_id': review.pk},
+            )
+            record_behavior(
+                user=self.request.user,
+                event_type=EventType.REVIEW,
+                product=review.product,
+                source='review_create',
+                idempotency_key=f'review:{review.pk}',
+                metadata={'review_id': review.pk},
             )
 
     def perform_update(self, serializer):
@@ -248,7 +276,27 @@ class WishlistViewSet(viewsets.ModelViewSet):
         if product_id and Wishlist.objects.filter(user=self.request.user, product_id=product_id).exists():
             from rest_framework.exceptions import ValidationError
             raise ValidationError({'product_id': ['این محصول قبلاً به لیست علاقه‌مندی اضافه شده است.']})
-        serializer.save(user=self.request.user)
+        wishlist = serializer.save(user=self.request.user)
+        record_behavior(
+            user=self.request.user,
+            event_type=EventType.WISHLIST_ADD,
+            product=wishlist.product,
+            source='wishlist_add',
+            idempotency_key=f'wishlist-add:{wishlist.pk}',
+            metadata={'wishlist_id': wishlist.pk},
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        record_behavior(
+            user=request.user,
+            event_type=EventType.WISHLIST_REMOVE,
+            product=instance.product,
+            source='wishlist_remove',
+            idempotency_key=f'wishlist-remove:{instance.pk}',
+            metadata={'wishlist_id': instance.pk},
+        )
+        return super().destroy(request, *args, **kwargs)
 
 
 class HomepageSectionsView(APIView):

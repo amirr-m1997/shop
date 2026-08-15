@@ -168,6 +168,9 @@ export default function ChatPage() {
   };
 
   const handleContactStylist = async () => {
+    navigate('/support');
+    if (window.location.pathname.startsWith('/chat')) return;
+    /* Legacy private-chat stylist flow retained for unknown clients only. */
     try {
       const res = await chatAPI.contactStylist();
       const updated = await chatAPI.getConversations();
@@ -360,11 +363,12 @@ export default function ChatPage() {
 
   return (
     <ChatDashboard model={{
-      conversations, activeId, messages, loading, convLoading, text, setText, sending,
+      user, conversations, activeId, messages, loading, convLoading, text, setText, sending,
     query, setQuery, searchResults, setSearchResults, searching, mobilePane, setMobilePane, showEmoji,
     setShowEmoji, sendProductOpen, setSendProductOpen, filter, setFilter, profileOpen,
     setProfileOpen, sharedOpen, setSharedOpen, sharedProducts, messagesEndRef, textareaRef,
-    currentUserId, active, loadMessages, selectConversation, handleStartRequest,
+      currentUserId, active, loadMessages, selectConversation, handleStartRequest,
+    hideModeNavigation: true,
     handleAcceptRequest, handleDeclineRequest, handleReopenRequest, handleCancelRequest,
     menuOpen, setMenuOpen, confirmDialog, askConfirm, closeConfirm, handleClearChat,
     handleBlock, handleUnblock, handleSend, insertEmoji, filteredConversations, handleContactStylist

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
-from unfold.admin import ModelAdmin, TabularInline
+from django.contrib.admin import ModelAdmin, TabularInline
 from .models import UserProfile, LoginHistory
 from shop.jalali import jalali_date, jalali_datetime
 
@@ -36,10 +36,14 @@ class UserAdmin(BaseUserAdmin, ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(ModelAdmin):
-    list_display = ['user', 'first_name', 'last_name', 'phone', 'phone_verified', 'email_verified', 'created_at_jalali']
-    list_filter = ['phone_verified', 'email_verified']
+    list_display = ['user', 'role', 'account_active', 'first_name', 'last_name', 'phone', 'phone_verified', 'email_verified', 'created_at_jalali']
+    list_filter = ['role', 'user__is_active', 'phone_verified', 'email_verified']
     search_fields = ['user__username', 'user__email', 'first_name', 'last_name', 'phone']
     readonly_fields = ['created_at_jalali', 'updated_at_jalali']
+
+    @admin.display(boolean=True, description='Account active', ordering='user__is_active')
+    def account_active(self, obj):
+        return obj.user.is_active
 
     @admin.display(description='تاریخ تولد')
     def date_of_birth_jalali(self, obj):

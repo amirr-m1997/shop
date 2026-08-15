@@ -7,7 +7,7 @@ from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from django.utils.html import format_html
 
-from unfold.admin import ModelAdmin, TabularInline
+from django.contrib.admin import ModelAdmin, TabularInline
 
 from .models import (
     LoyaltyAccount, LoyaltyEventType, LoyaltyRule, LoyaltyTransaction,

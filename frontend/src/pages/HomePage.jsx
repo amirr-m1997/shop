@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { homeAPI, pagesAPI } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { usePersonalizedRecommendations } from '../queries/personalizationQueries';
 import ProductCarousel from '../components/ProductCarousel';
 import BannerSlider from '../components/BannerSlider';
 import AmbientMesh from '../components/home/AmbientMesh';
@@ -10,6 +12,7 @@ import TrendsSection from '../components/home/TrendsSection';
 import CtaBand from '../components/home/CtaBand';
 import TestimonialsSection from '../components/home/TestimonialsSection';
 import HomeSkeleton from '../components/home/HomeSkeleton';
+import PersonalizedSection from '../components/home/PersonalizedSection';
 import { ACCENT_COLORS, SECTION_LINKS } from '../components/home/constants';
 import { SEO } from '../lib/seo';
 
@@ -17,6 +20,7 @@ import { SEO } from '../lib/seo';
    Main Homepage
    ═══════════════════════════════════════ */
 const HomePage = () => {
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [sections, setSections] = useState([]);
   const [categories, setCategories] = useState([]);
   const [styles, setStyles] = useState([]);
@@ -36,6 +40,11 @@ const HomePage = () => {
   });
   const [testimonialSubmitting, setTestimonialSubmitting] = useState(false);
   const [testimonialSubmitted, setTestimonialSubmitted] = useState(false);
+
+  const personalizationQuery = usePersonalizedRecommendations({
+    enabled: isAuthenticated && !authLoading,
+    limit: 8,
+  });
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -71,6 +80,15 @@ const HomePage = () => {
     if (typeof link === 'function') return link(section.filter_value);
     return link || '/products';
   };
+
+  const fallbackProducts = useMemo(() => {
+    const fallbackSection = sections.find((section) => section.products?.length);
+    return fallbackSection?.products || [];
+  }, [sections]);
+
+  const personalizedProducts = personalizationQuery.data?.length
+    ? personalizationQuery.data
+    : fallbackProducts;
 
   const handleTestimonialSubmit = async (e) => {
     e.preventDefault();
@@ -129,6 +147,14 @@ const HomePage = () => {
 
       {/* ═══ PROMO BANNERS (Sale + New Arrivals) ═══ */}
       <PromoBanners />
+
+      {isAuthenticated && (
+        <PersonalizedSection
+          products={personalizedProducts}
+          isLoading={personalizationQuery.isLoading}
+          isFallback={personalizationQuery.isError || !personalizationQuery.data?.length}
+        />
+      )}
 
       {/* ═══ LOOKBOOK / TRENDS — dark editorial ═══ */}
       <TrendsSection styles={styles} />

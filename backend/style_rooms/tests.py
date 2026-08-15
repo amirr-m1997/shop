@@ -861,8 +861,9 @@ class RoomMessageApiTests(StyleRoomAuthMixin, APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data['results']), 3)
-        self.assertEqual(response.data['results'][0]['text'], 'Outfit question')
+        self.assertEqual(response.data['results'][0]['text'], 'This works.')
         self.assertEqual(response.data['results'][1]['product']['id'], self.product.id)
+        self.assertEqual(response.data['results'][2]['text'], 'Outfit question')
         response = self.client.post(self.url, {'text': 'Member reply'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 

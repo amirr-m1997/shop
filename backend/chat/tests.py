@@ -8,6 +8,7 @@ from rest_framework.authtoken.models import Token
 
 from shop.tests import ProductFactory, UserProfileFactory, create_user_with_token
 from .models import Conversation, Message, Notification
+from support.models import SupportConversation
 
 
 class ChatAuthMixin:
@@ -196,8 +197,24 @@ class ChatSecurityAndPerformanceTests(ChatAuthMixin, APITestCase):
         self.assertEqual(resp.status_code, 200)
 
     def test_support_chat_endpoint(self):
+        private_count = Conversation.objects.count()
         resp = self.client.post('/api/chat/conversations/support_chat/', {}, format='json')
         self.assertIn(resp.status_code, [status.HTTP_200_OK, status.HTTP_201_CREATED])
-        self.assertEqual(resp.data['status'], 'accepted')
-        self.assertIsNotNone(resp.data['other_user'])
+        self.assertEqual(resp.data['department'], SupportConversation.DEPARTMENT_FASHION_STYLIST)
+        self.assertEqual(Conversation.objects.count(), private_count)
+        self.assertEqual(SupportConversation.objects.count(), 1)
+
+    def test_legacy_support_conversation_is_hidden_without_deletion(self):
+        staff = User.objects.create_user(username='legacy_staff', password='x')
+        UserProfileFactory(user=staff, role='fashion_stylist')
+        support = User.objects.create_user(username='legacy_support', password='x')
+        UserProfileFactory(user=support, role='support_agent')
+        legacy, _ = Conversation.get_or_create_pair(self.alice, staff, requester=self.alice)
+        legacy_support, _ = Conversation.get_or_create_pair(self.alice, support, requester=self.alice)
+        response = self.client.get('/api/chat/conversations/')
+        rows = response.data['results'] if isinstance(response.data, dict) else response.data
+        self.assertNotIn(legacy.id, [row['id'] for row in rows])
+        self.assertNotIn(legacy_support.id, [row['id'] for row in rows])
+        self.assertTrue(Conversation.objects.filter(pk=legacy.pk).exists())
+        self.assertTrue(Conversation.objects.filter(pk=legacy_support.pk).exists())
 

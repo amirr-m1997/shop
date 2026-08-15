@@ -38,8 +38,11 @@ const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const StylePage = lazy(() => import('./pages/StylePage'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
+const SupportChatPage = lazy(() => import('./pages/SupportChatPage'));
+const SupportInboxPage = lazy(() => import('./pages/SupportInboxPage'));
 const StyleRoomsPage = lazy(() => import('./pages/StyleRoomsPage'));
 const StyleRoomDetailPage = lazy(() => import('./pages/StyleRoomDetailPage'));
+const ChatWorkspace = lazy(() => import('./components/chat/ChatWorkspace'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const DiscountPopup = lazy(() => import('./components/DiscountPopup'));
 
@@ -144,7 +147,7 @@ function AuthRedirectHandler() {
 
 function AppShell() {
   const location = useLocation();
-  const isChat = location.pathname.startsWith('/chat');
+  const isChat = location.pathname.startsWith('/chat') || location.pathname.startsWith('/support') || location.pathname.startsWith('/style-rooms');
 
   return (
     <div
@@ -185,10 +188,14 @@ function AppShell() {
           <Route path="/blog" element={<LazyPageLoader Component={BlogPage} />} />
           <Route path="/blog/:slug" element={<LazyPageLoader Component={BlogPostPage} />} />
           <Route path="/style/:slug" element={<LazyPageLoader Component={StylePage} />} />
-          <Route path="/chat" element={<LazyPageLoader Component={ChatPage} />} />
-          <Route path="/chat/:conversationId" element={<LazyPageLoader Component={ChatPage} />} />
-          <Route path="/style-rooms" element={<LazyPageLoader Component={StyleRoomsPage} />} />
-          <Route path="/style-rooms/:roomId" element={<LazyPageLoader Component={StyleRoomDetailPage} />} />
+          <Route element={<LazyPageLoader Component={ChatWorkspace} />}>
+            <Route path="/chat" element={<LazyPageLoader Component={ChatPage} />} />
+            <Route path="/chat/:conversationId" element={<LazyPageLoader Component={ChatPage} />} />
+            <Route path="/support" element={<LazyPageLoader Component={SupportChatPage} />} />
+            <Route path="/support/inbox" element={<LazyPageLoader Component={SupportInboxPage} />} />
+            <Route path="/style-rooms" element={<LazyPageLoader Component={StyleRoomsPage} />} />
+            <Route path="/style-rooms/:roomId" element={<LazyPageLoader Component={StyleRoomDetailPage} />} />
+          </Route>
           <Route path="*" element={<LazyPageLoader Component={NotFoundPage} />} />
         </Routes>
       </main>

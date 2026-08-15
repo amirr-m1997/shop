@@ -9,7 +9,6 @@ import EmptyState from '../components/ui/EmptyState';
 import { useStyleRoomsQuery } from '../queries/styleRoomQueries';
 import StyleRoomCard from '../components/style-rooms/StyleRoomCard';
 import CreateRoomDialog from '../components/style-rooms/CreateRoomDialog';
-import ChatModeNavigation from '../components/chat/ChatModeNavigation';
 
 const LoginGate = () => (
   <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-20 text-center bg-background">
@@ -44,7 +43,6 @@ const StyleRoomsPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 sm:py-12">
-      <ChatModeNavigation className="mb-6 max-w-xl" />
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">

@@ -2,13 +2,12 @@ import { Crown, Loader2, MessageSquare, Search, X } from 'lucide-react';
 import { formatRelativeDate } from '../../lib/formatDate';
 import Skeleton from '../ui/Skeleton';
 import { Avatar } from './ChatDomainComponents';
-import ChatModeNavigation from './ChatModeNavigation';
 
 const ConversationSidebar = ({ model }) => {
   const {
     conversations, activeId, loading, query, setQuery, searchResults,
     setSearchResults, searching, mobilePane, filter, setFilter,
-    handleStartRequest, filteredConversations, selectConversation, handleContactStylist,
+    handleStartRequest, filteredConversations, selectConversation,
   } = model;
 
   return (
@@ -17,7 +16,6 @@ const ConversationSidebar = ({ model }) => {
         >
           {/* Brand + search header */}
           <div className="border-b border-border/50 px-4 pt-5 pb-3 space-y-3">
-            <ChatModeNavigation />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-400 to-yellow-700 text-black shadow-lg shadow-amber-500/20">
@@ -72,8 +70,8 @@ const ConversationSidebar = ({ model }) => {
             {/* Stylist CTA Banner */}
             <button
               type="button"
-              onClick={handleContactStylist}
-              className="group relative flex w-full items-center justify-between overflow-hidden rounded-xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 p-2.5 text-black shadow-md shadow-amber-500/20 transition hover:brightness-105 active:scale-95"
+              onClick={() => {}}
+              className="hidden"
             >
               <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/15 text-black">

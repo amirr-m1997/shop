@@ -17,7 +17,6 @@ import RoomActionsMenu from '../components/style-rooms/RoomActionsMenu';
 import JoinRoomPrompt from '../components/style-rooms/JoinRoomPrompt';
 import StyleRoomConversation from '../components/style-rooms/StyleRoomConversation';
 import { RoomMetaChip, RoomRoleBadge, RoomVisibilityBadge } from '../components/style-rooms/StyleRoomCard';
-import ChatModeNavigation from '../components/chat/ChatModeNavigation';
 
 const DetailsSkeleton = () => (
   <div className="container mx-auto space-y-6 px-4 py-8"><Skeleton className="h-6 w-32 rounded-lg" /><div className="overflow-hidden rounded-3xl border border-border/60 bg-card"><Skeleton className="h-40 w-full rounded-none" noDelay /><div className="space-y-4 p-5"><div className="flex items-center gap-3"><Skeleton className="h-12 w-12 rounded-full" noDelay /><div className="flex-1 space-y-2"><Skeleton className="h-5 w-2/3 rounded" noDelay /><Skeleton className="h-3 w-1/3 rounded" noDelay /></div></div></div></div><Skeleton className="h-56 w-full rounded-3xl" noDelay /></div>
@@ -51,7 +50,6 @@ const StyleRoomDetailPage = () => {
 
   return (
     <div dir="rtl" className="container mx-auto px-3 py-4 sm:px-4 sm:py-6">
-      <ChatModeNavigation className="mb-4 max-w-xl" />
       <Link to="/style-rooms" className="mb-3 inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground transition hover:text-foreground"><ArrowRight className="h-4 w-4" />بازگشت به اتاق‌های استایل</Link>
       <header className="relative z-20 mb-4 rounded-3xl border border-border/60 bg-card shadow-sm">
         <div className="relative h-28 overflow-hidden rounded-t-3xl sm:h-40"><RoomCover room={room} className="h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" /><div className="absolute right-3 top-3"><RoomVisibilityBadge visibility={room.visibility} /></div><div className="absolute bottom-3 left-4 right-4 flex items-end justify-between sm:bottom-4 sm:left-5 sm:right-5"><div><RoomRoleBadge role={room.my_role} /><h1 className="mt-1 text-xl font-black tracking-tight text-white sm:text-2xl">{room.title}</h1></div><div className="flex items-center gap-2"><Avatar user={room.owner} size={30} ring={false} /><span className="hidden text-xs font-bold text-white/90 sm:block">{ownerName}</span></div></div></div>

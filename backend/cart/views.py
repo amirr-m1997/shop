@@ -7,6 +7,8 @@ from .serializers import CartSerializer, AddToCartSerializer, UpdateCartItemSeri
 from .services import get_or_create_cart, apply_session_header
 from products.models import Product, ProductVariant
 from orders.models import Coupon
+from personalization.models import EventType
+from personalization.services import record_behavior
 
 
 def _cart_qs():
@@ -90,6 +92,14 @@ class CartViewSet(viewsets.ModelViewSet):
                 cart_item.quantity += quantity
                 cart_item.save(update_fields=['quantity'])
 
+            record_behavior(
+                user=request.user,
+                event_type=EventType.CART_ADD,
+                product=product,
+                source='cart_add',
+                metadata={'quantity': quantity, 'variant_id': variant_id},
+            )
+
             # مهم: دوباره از DB بخوان — prefetch قبلی آیتم جدید را ندارد
             return self._serialized_cart(status_code=status.HTTP_201_CREATED)
 
@@ -146,6 +156,14 @@ class CartViewSet(viewsets.ModelViewSet):
         cart, _ = get_or_create_cart(request)
         try:
             cart_item = CartItem.objects.get(id=item_id, cart=cart)
+            record_behavior(
+                user=request.user,
+                event_type=EventType.CART_REMOVE,
+                product=cart_item.product,
+                source='cart_remove',
+                idempotency_key=f'cart-remove:{cart_item.pk}',
+                metadata={'cart_item_id': cart_item.pk},
+            )
             cart_item.delete()
             return self._serialized_cart()
         except CartItem.DoesNotExist:

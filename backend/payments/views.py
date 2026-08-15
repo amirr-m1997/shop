@@ -458,6 +458,13 @@ def payment_verify_callback(request):
                 fresh_payment = Payment.objects.select_for_update().get(id=payment.id)
 
                 if fresh_payment.status == 'success' and fresh_order.payment_status == 'paid':
+                    try:
+                        from personalization.services import record_purchase_events_for_order
+                        record_purchase_events_for_order(order=fresh_order, payment=fresh_payment)
+                    except Exception:
+                        logger.exception(
+                            '[personalization_purchase_event_error] order_id=%s', fresh_order.id,
+                        )
                     log_duplicate_callback(fresh_payment.id, fresh_order.id)
                     return HttpResponseRedirect(
                         f'{FRONTEND_URL}/payment/callback'
@@ -519,6 +526,13 @@ def payment_verify_callback(request):
 
                 from loyalty.services import award_purchase_rewards_for_order
                 award_purchase_rewards_for_order(order=fresh_order, payment=fresh_payment)
+                try:
+                    from personalization.services import record_purchase_events_for_order
+                    record_purchase_events_for_order(order=fresh_order, payment=fresh_payment)
+                except Exception:
+                    logger.exception(
+                        '[personalization_purchase_event_error] order_id=%s', fresh_order.id,
+                    )
                 from loyalty.services import consume_redemption_for_order
                 consume_redemption_for_order(order=fresh_order)
 

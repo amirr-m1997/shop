@@ -149,6 +149,15 @@ export const welcomeOfferAPI = {
 export const homeAPI = {
   getHomeData: () => api.get('/pages/home/'),
 };
+
+// Personalized homepage recommendations
+export const personalizationAPI = {
+  getRecommendations: (params = {}, config = {}) => api.get(
+    '/personalization/recommendations/',
+    { ...config, params, authRequired: true },
+  ),
+};
+
 export const paymentsAPI = {
   initiate: (data) => api.post('/payments/initiate/', data),
   getStatus: (paymentId) => api.get(`/payments/${paymentId}/status/`),
@@ -204,6 +213,23 @@ export const chatAPI = {
   getUnreadCount: (config = {}) => api.get('/chat/notifications/unread_count/', { ...config, authRequired: true }),
   markAllNotificationsRead: () => api.post('/chat/notifications/mark_all_read/', {}, { authRequired: true }),
   contactStylist: () => api.post('/chat/conversations/support_chat/', {}, { authRequired: true }),
+};
+
+export const supportAPI = {
+  listConversations: () => api.get('/support/conversations/', { authRequired: true }),
+  queue: () => api.get('/support/queue/', { authRequired: true }),
+  assigned: () => api.get('/support/assigned/', { authRequired: true }),
+  agents: () => api.get('/support/agents/', { authRequired: true }),
+  myDepartments: () => api.get('/support/my-departments/', { authRequired: true }),
+  createConversation: (department) => api.post('/support/conversations/', { department }, { authRequired: true }),
+  getMessages: (id) => api.get(`/support/conversations/${id}/messages/`, { authRequired: true }),
+  sendMessage: (id, data) => api.post(`/support/conversations/${id}/messages/`, data, { authRequired: true }),
+  close: (id) => api.post(`/support/conversations/${id}/close/`, {}, { authRequired: true }),
+  reopen: (id) => api.post(`/support/conversations/${id}/reopen/`, {}, { authRequired: true }),
+  markRead: (id) => api.post(`/support/conversations/${id}/read/`, {}, { authRequired: true }),
+  unreadCount: () => api.get('/support/unread-count/', { authRequired: true }),
+  claim: (id) => api.post(`/support/conversations/${id}/claim/`, {}, { authRequired: true }),
+  assign: (id, agentId) => api.post(`/support/conversations/${id}/assign/`, { agent_id: agentId }, { authRequired: true }),
 };
 
 // Style Rooms API (collaborative style rooms)

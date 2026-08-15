@@ -176,6 +176,21 @@ def create_room_message(room, sender, *, text='', product=None):
         product=product,
     )
     StyleRoomMessageRead.objects.create(message=message, user=sender)
+    if product:
+        try:
+            from personalization.services import record_product_share
+            record_product_share(
+                user=sender,
+                product=product,
+                source='style_room',
+                idempotency_key=f'product-share:message:{message.pk}',
+                metadata={'message_id': message.pk, 'style_room_id': str(room.pk)},
+            )
+        except Exception:
+            import logging
+            logging.getLogger('style_rooms').exception(
+                '[personalization_product_share_error] message_id=%s', message.pk,
+            )
     return message
 
 

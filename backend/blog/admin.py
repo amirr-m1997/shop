@@ -1,5 +1,5 @@
 from django.contrib import admin
-from unfold.admin import ModelAdmin
+from django.contrib.admin import ModelAdmin
 from .models import BlogCategory, BlogPost
 from shop.jalali import jalali_date, jalali_datetime
 
