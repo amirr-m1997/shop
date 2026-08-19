@@ -21,13 +21,12 @@ class AdminDashboardRegressionTests(TestCase):
         self.assertIn('recent_orders', context)
         self.assertIn('best_selling_products', context)
 
-    def test_admin_index_renders_custom_dashboard(self):
+    def test_admin_index_renders_standard_django_admin(self):
         response = admin.site.index(self.request)
         response.render()
 
-        self.assertContains(response, 'lux-dashboard')
-        self.assertContains(response, 'lux-sales-area')
-        self.assertNotContains(response, 'app-list')
+        self.assertContains(response, 'content-main')
+        self.assertNotContains(response, 'lux-dashboard')
 
     def test_every_registered_model_changelist_renders(self):
         self.user.is_superuser = True

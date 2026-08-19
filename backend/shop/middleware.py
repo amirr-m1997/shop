@@ -150,8 +150,8 @@ class SecurityHeadersMiddleware:
         response['X-XSS-Protection'] = '0'
 
         # Content Security Policy — basic policy for API responses
-        # Admin UI (unfold) ships Alpine.js which requires 'unsafe-eval',
-        # so relax script-src only on /admin/ paths.
+        # Keep the admin policy compatible with Django's built-in admin and
+        # the application's admin-specific functional scripts.
         is_admin = request is not None and request.path.startswith('/admin/')
         if is_admin:
             csp_parts = [
@@ -188,3 +188,24 @@ class SecurityHeadersMiddleware:
             )
 
         return response
+
+
+class AdminLocalizationMiddleware:
+    """
+    Applies runtime-only Persian presentation labels to the Django admin.
+
+    The localization mutates model metadata (verbose names, choice labels),
+    so it must run inside a request cycle instead of at URL import time —
+    otherwise `makemigrations` sees the relabelled fields and generates
+    spurious schema migrations. Running it per admin request is idempotent.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if request.path.startswith('/admin'):
+            from django.contrib import admin
+            from shop.admin_localization import localize_admin_site
+            localize_admin_site(admin.site)
+        return self.get_response(request)

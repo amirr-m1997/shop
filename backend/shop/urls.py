@@ -19,6 +19,8 @@ from django.conf import settings
 from django.conf.urls.static import static
 from .image_views import optimized_image
 
+admin.autodiscover()
+
 urlpatterns = [
     path('api/images/optimized/', optimized_image, name='optimized-image'),
     path('admin/', admin.site.urls),

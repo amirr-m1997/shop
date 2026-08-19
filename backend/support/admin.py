@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.admin import ModelAdmin, TabularInline
 
 from .models import SupportConversation, SupportDepartmentMembership, SupportMessage
-from .permissions import has_department_access, SUPPORT_AGENT, FASHION_STYLIST
+from .permissions import has_department_access, is_support_eligible
 
 
 class SupportDepartmentMembershipForm(forms.ModelForm):
@@ -14,9 +14,8 @@ class SupportDepartmentMembershipForm(forms.ModelForm):
 
     def clean_staff(self):
         staff = self.cleaned_data['staff']
-        role = getattr(getattr(staff, 'profile', None), 'role', None)
-        if role not in (SUPPORT_AGENT, FASHION_STYLIST):
-            raise ValidationError('Only support-agent or fashion-stylist users can have department memberships.')
+        if not is_support_eligible(staff):
+            raise ValidationError('Only support-eligible staff (support agent, fashion stylist, admin, super admin, or Django staff/superuser) can have department memberships.')
         return staff
 
 
@@ -51,6 +50,12 @@ class SupportConversationAdmin(ModelAdmin):
     search_fields = ('customer__username', 'assigned_agent__username')
     readonly_fields = ('created_at', 'updated_at', 'closed_at', 'last_message_at')
     inlines = (SupportMessageInline,)
+
+    def get_deleted_objects(self, objs, request):
+        deleted_objects, model_count, perms_needed, protected = super().get_deleted_objects(objs, request)
+        message_label = SupportMessage._meta.verbose_name
+        perms_needed = {label for label in perms_needed if label != message_label}
+        return deleted_objects, model_count, perms_needed, protected
 
 
 @admin.register(SupportDepartmentMembership)
