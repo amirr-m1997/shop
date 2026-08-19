@@ -8,6 +8,8 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
+from chat.pagination import MessageCursorPagination
+
 from .models import SupportConversation, SupportMessage
 from .permissions import (
     departments_for, is_support_eligible, is_support_staff, ELIGIBLE_ROLES,
@@ -137,9 +139,8 @@ class SupportConversationViewSet(viewsets.GenericViewSet):
         touch_presence(request.user)
         if request.method == 'GET':
             qs = conversation.messages.select_related('sender', 'sender__profile', 'product')
-            page = self.paginate_queryset(qs)
-            return self.get_paginated_response(
-                SupportMessageSerializer(page, many=True, context={'request': request}).data
+            return MessageCursorPagination().paginate(
+                request, qs, SupportMessageSerializer, context={'request': request},
             )
         serializer = SupportMessageCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -201,7 +202,12 @@ class SupportConversationViewSet(viewsets.GenericViewSet):
         conversation = self._conversation(pk)
         touch_presence(request.user)
         from .services import mark_support_read
-        return Response(mark_support_read(request.user, conversation))
+        try:
+            return Response(mark_support_read(
+                request.user, conversation, message_ids=(request.data or {}).get('message_ids'),
+            ))
+        except ValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
 
     def unread_count(self, request):
         qs = self.get_queryset()

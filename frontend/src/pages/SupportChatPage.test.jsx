@@ -50,7 +50,7 @@ describe('SupportChatPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /پشتیبانی مشتری/ }));
 
-    await waitFor(() => expect(getMessages).toHaveBeenCalledWith(42));
+    await waitFor(() => expect(getMessages).toHaveBeenCalledWith(42, { limit: 50 }));
     expect(screen.getByTestId('support-chat-workspace')).toBe(workspace);
     expect(screen.getByTestId('support-message-pane')).toBeTruthy();
     expect(container.querySelector('[aria-label="Chat modes"]')).toBeTruthy();
@@ -66,7 +66,7 @@ describe('SupportChatPage', () => {
     const workspace = screen.getByTestId('support-chat-workspace');
     fireEvent.click(screen.getByRole('button', { name: /مشاوره با استایلیست/ }));
 
-    await waitFor(() => expect(getMessages).toHaveBeenCalledWith(71));
+    await waitFor(() => expect(getMessages).toHaveBeenCalledWith(71, { limit: 50 }));
     expect(screen.getByTestId('support-chat-workspace')).toBe(workspace);
     expect(screen.getByText('استایلیست مد')).toBeTruthy();
   });
@@ -79,7 +79,7 @@ describe('SupportChatPage', () => {
     await screen.findByText('پشتیبانی مشتری');
     fireEvent.click(within(screen.getByLabelText('شروع گفت‌وگوی پشتیبانی')).getByRole('button', { name: /پشتیبانی مشتری/ }));
 
-    await waitFor(() => expect(getMessages).toHaveBeenCalledWith(42));
+    await waitFor(() => expect(getMessages).toHaveBeenCalledWith(42, { limit: 50 }));
     expect(createConversation).not.toHaveBeenCalled();
     expect(screen.getByText('گفت‌وگو را شروع کنید')).toBeTruthy();
   });
@@ -94,7 +94,7 @@ describe('SupportChatPage', () => {
     fireEvent.click(within(screen.getByLabelText('شروع گفت‌وگوی پشتیبانی')).getByRole('button', { name: /پشتیبانی مشتری/ }));
 
     await waitFor(() => expect(reopen).toHaveBeenCalledWith(42));
-    await waitFor(() => expect(getMessages).toHaveBeenCalledWith(42));
+    await waitFor(() => expect(getMessages).toHaveBeenCalledWith(42, { limit: 50 }));
     expect(createConversation).not.toHaveBeenCalled();
   });
 

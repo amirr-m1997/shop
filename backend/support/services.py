@@ -176,20 +176,40 @@ def _publish_support_message(conversation, user, message):
 
 
 @transaction.atomic
-def mark_support_read(user, conversation):
+def mark_support_read(user, conversation, message_ids=None):
     if user != conversation.customer and user != conversation.assigned_agent:
         raise PermissionDenied('You are not a participant in this conversation.')
-    conversation.messages.filter(is_read=False).exclude(sender=user).update(is_read=True)
+    if not message_ids:
+        raise ValidationError({'message_ids': 'Seen message ids are required.'})
+    if not isinstance(message_ids, (list, tuple)):
+        raise ValidationError({'message_ids': 'message_ids must be a list.'})
+    ids = []
+    for item in message_ids:
+        try:
+            value = int(item)
+        except (TypeError, ValueError):
+            raise ValidationError({'message_ids': 'Invalid message id.'})
+        if value > 0:
+            ids.append(value)
+    ids = list(dict.fromkeys(ids))
+    if not ids:
+        raise ValidationError({'message_ids': 'Seen message ids are required.'})
+    marked = list(
+        conversation.messages.filter(id__in=ids, is_read=False).exclude(sender=user).values_list('id', flat=True)
+    )
+    if marked:
+        conversation.messages.filter(id__in=marked).update(is_read=True)
     broadcast_after_commit(
         f'support.conv.{conversation.pk}',
         {
             'type': 'read_receipt',
             'conversation_id': conversation.pk,
             'user_id': user.pk,
-            'mark_all': True,
+            'message_ids': marked,
+            'mark_all': False,
         },
     )
-    return {'status': 'ok'}
+    return {'status': 'ok', 'marked_ids': marked}
 
 
 @transaction.atomic

@@ -137,7 +137,14 @@ class SupportChatConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
 
     async def _handle_read(self, content):
         allow_rate_limit(self.scope, 'support_read', 60, 60)
-        await database_sync_to_async(mark_support_read)(self.user, self.conversation)
+        payload = content.get('payload') if isinstance(content.get('payload'), dict) else content
+        try:
+            await database_sync_to_async(mark_support_read)(
+                self.user, self.conversation, message_ids=payload.get('message_ids'),
+            )
+        except ValidationError as exc:
+            await self.send_json({'type': 'error', 'message': exc.detail})
+            return
         await self.send_json({'type': 'read.marked', 'ok': True})
 
     async def _handle_presence(self, content):

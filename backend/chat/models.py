@@ -127,6 +127,20 @@ class Message(models.Model):
     is_read = models.BooleanField(default=False, verbose_name='خوانده شده')
     reaction = models.CharField(max_length=20, blank=True, verbose_name='واکنش')
     is_favorite = models.BooleanField(default=False, verbose_name='علاقه‌مندی')
+    reply_to = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='replies', verbose_name='پاسخ به',
+    )
+    forwarded_from = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='forwards', verbose_name='هدایت‌شده از',
+    )
+    deleted_at = models.DateTimeField(null=True, blank=True, verbose_name='حذف برای همه')
+    deleted_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='chat_tombstones', verbose_name='حذف‌کننده',
+    )
+    idempotency_key = models.CharField(max_length=64, blank=True, default='', verbose_name='کلید تکرارنشدن')
     deleted_for = models.ManyToManyField(
         User, related_name='chat_deleted_messages', blank=True,
         verbose_name='حذف‌شده برای کاربران',
@@ -142,6 +156,7 @@ class Message(models.Model):
             models.Index(fields=['conversation', 'created_at'], name='chat_msg_conv_created_idx'),
             models.Index(fields=['conversation', 'is_read'], name='chat_msg_conv_read_idx'),
             models.Index(fields=['style_room', 'created_at', 'id'], name='chat_msg_room_created_id_idx'),
+            models.Index(fields=['conversation', 'idempotency_key'], name='chat_msg_conv_idem_idx'),
         ]
         constraints = [
             models.CheckConstraint(
@@ -150,6 +165,11 @@ class Message(models.Model):
                     models.Q(conversation__isnull=True, style_room__isnull=False)
                 ),
                 name='chat_msg_exactly_one_context',
+            ),
+            models.UniqueConstraint(
+                fields=['conversation', 'sender', 'idempotency_key'],
+                condition=models.Q(idempotency_key__gt=''),
+                name='chat_msg_conv_sender_idem_uniq',
             ),
         ]
 
@@ -183,6 +203,32 @@ class StyleRoomMessageRead(models.Model):
         ]
 
 
+class MessageReceipt(models.Model):
+    """Per-recipient delivery/seen state. Opening a thread is not enough for seen."""
+
+    message = models.ForeignKey(
+        Message, on_delete=models.CASCADE, related_name='receipts', verbose_name='پیام',
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='chat_message_receipts', verbose_name='گیرنده',
+    )
+    delivered_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان تحویل')
+    seen_at = models.DateTimeField(null=True, blank=True, verbose_name='زمان مشاهده')
+
+    class Meta:
+        verbose_name = 'رسید پیام'
+        verbose_name_plural = 'رسیدهای پیام'
+        constraints = [
+            models.UniqueConstraint(fields=['message', 'user'], name='chat_receipt_message_user_unique'),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'seen_at'], name='chat_receipt_user_seen_idx'),
+        ]
+
+    def __str__(self):
+        return f'receipt {self.message_id} → {self.user_id}'
+
+
 class Notification(models.Model):
     """اعلان‌های داخل برنامه (مثل ارسال محصول برای کاربر)."""
     recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_notifications', verbose_name='گیرنده')
@@ -200,3 +246,81 @@ class Notification(models.Model):
 
     def __str__(self):
         return f'{self.actor.username if self.actor else "?"} → {self.recipient.username}: {self.text}'
+
+
+class MessageReport(models.Model):
+    """گزارش پیام/کاربر. هویت گزارش‌دهنده فقط در ادمین دیده می‌شود."""
+
+    REASON_SPAM = 'spam'
+    REASON_ABUSE = 'abuse'
+    REASON_HARASSMENT = 'harassment'
+    REASON_OTHER = 'other'
+    REASON_CHOICES = [
+        (REASON_SPAM, 'هرزنامه'),
+        (REASON_ABUSE, 'محتوای نامناسب'),
+        (REASON_HARASSMENT, 'آزار'),
+        (REASON_OTHER, 'سایر'),
+    ]
+
+    STATUS_OPEN = 'open'
+    STATUS_REVIEWED = 'reviewed'
+    STATUS_DISMISSED = 'dismissed'
+    STATUS_CHOICES = [
+        (STATUS_OPEN, 'باز'),
+        (STATUS_REVIEWED, 'بررسی‌شده'),
+        (STATUS_DISMISSED, 'رد شده'),
+    ]
+
+    reporter = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='chat_reports_made', verbose_name='گزارش‌دهنده',
+    )
+    target_user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='chat_reports_received', verbose_name='کاربر گزارش‌شده',
+    )
+    message = models.ForeignKey(
+        Message, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='reports', verbose_name='پیام',
+    )
+    conversation = models.ForeignKey(
+        Conversation, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='reports', verbose_name='گفتگو',
+    )
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES, default=REASON_OTHER, verbose_name='دلیل')
+    details = models.TextField(blank=True, verbose_name='توضیح')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN, verbose_name='وضعیت')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ')
+
+    class Meta:
+        verbose_name = 'گزارش پیام'
+        verbose_name_plural = 'گزارش‌های پیام'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['reporter', 'created_at'], name='chat_report_reporter_idx'),
+            models.Index(fields=['status', 'created_at'], name='chat_report_status_idx'),
+        ]
+
+    def __str__(self):
+        return f'report {self.pk} → {self.target_user_id}'
+
+
+class PushSubscription(models.Model):
+    """Web Push subscription for a single browser/device."""
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='chat_push_subscriptions', verbose_name='کاربر',
+    )
+    endpoint = models.URLField(max_length=500, unique=True, verbose_name='آدرس پوش')
+    p256dh = models.CharField(max_length=200, verbose_name='کلید p256dh')
+    auth = models.CharField(max_length=200, verbose_name='کلید auth')
+    user_agent = models.CharField(max_length=300, blank=True, verbose_name='مرورگر')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ')
+
+    class Meta:
+        verbose_name = 'اشتراک پوش'
+        verbose_name_plural = 'اشتراک‌های پوش'
+        indexes = [
+            models.Index(fields=['user', 'created_at'], name='chat_push_user_idx'),
+        ]
+
+    def __str__(self):
+        return f'push {self.user_id}'

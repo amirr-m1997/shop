@@ -83,7 +83,7 @@ afterEach(() => {
 describe('useStyleRoomRealtime', () => {
   it('opens the room socket and connects', () => {
     render(<Harness userId={9} roomId={77} />);
-    expect(mocks.getRealtimeSocket).toHaveBeenCalledWith('/style-rooms/77/');
+    expect(mocks.getRealtimeSocket).toHaveBeenCalledWith('/ws/style-rooms/77/');
     const [socket] = mocks.getRealtimeSocket.mock.results.map((r) => r.value);
     expect(socket.connected).toBe(true);
   });
@@ -120,7 +120,7 @@ describe('useStyleRoomRealtime', () => {
     ]);
   });
 
-  it('sends read.mark for room messages not sent by the current user', () => {
+  it('does not send read.mark when a room message arrives', () => {
     render(<Harness userId={9} roomId={77} />);
     const [socket] = mocks.getRealtimeSocket.mock.results.map((r) => r.value);
     act(() =>
@@ -129,7 +129,7 @@ describe('useStyleRoomRealtime', () => {
         message: { id: 22, sender_id: 3, created_at: '2026-08-19T08:00:00Z' },
       }),
     );
-    expect(socket.sent).toEqual([{ type: 'read.mark' }]);
+    expect(socket.sent).toEqual([]);
   });
 
   it('does not send read.mark for the current user own message', () => {
@@ -205,6 +205,6 @@ describe('useStyleRoomRealtime', () => {
   it('releases the socket on unmount when the last listener is removed', () => {
     const { unmount } = render(<Harness userId={9} roomId={77} />);
     act(() => unmount());
-    expect(mocks.releaseRealtimeSocket).toHaveBeenCalledWith('/style-rooms/77/');
+    expect(mocks.releaseRealtimeSocket).toHaveBeenCalledWith('/ws/style-rooms/77/');
   });
 });

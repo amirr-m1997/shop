@@ -19,6 +19,11 @@ const ChatDashboard = ({ model }) => {
     handleAcceptRequest, handleDeclineRequest, handleReopenRequest, handleCancelRequest,
     menuOpen, setMenuOpen, confirmDialog, askConfirm, closeConfirm, handleClearChat,
     handleBlock, handleUnblock, handleSend, insertEmoji,
+    peerTyping = false, peerPresence = 'offline',
+    replyTo, setReplyTo, threadQuery, setThreadQuery, threadHits,
+    handleReply, handleForward, handleDeleteMessage, handleReportMessage,
+    forwardingMessage, setForwardingMessage, handleConfirmForward,
+    filteredConversations = [],
   } = model;
 
   return (
@@ -51,19 +56,31 @@ const ChatDashboard = ({ model }) => {
                     }}
                     className="flex min-w-0 items-center gap-3 text-start"
                   >
-                    <Avatar user={active.other_user} size={44} online ring />
+                    <Avatar user={active.other_user} size={44} online={peerPresence === 'online'} ring />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="truncate text-sm font-black text-foreground transition group-hover:text-amber-600 dark:group-hover:text-amber-400">
                           {active.other_user?.display_name || active.other_user?.username}
                         </p>
+                        {peerPresence === 'online' && (
                         <span className="relative flex h-2 w-2 shrink-0">
                           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
                           <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                         </span>
+                        )}
                       </div>
-                      <p className="mt-0.5 flex items-center gap-1.5 text-[11px] font-medium text-emerald-600/85 dark:text-emerald-400/85">
-                        <span>{active.status === 'accepted' ? 'آنلاین' : 'در انتظار پاسخ'}</span>
+                      <p className={`mt-0.5 flex items-center gap-1.5 text-[11px] font-medium ${peerTyping || peerPresence === 'online' ? 'text-emerald-600/85 dark:text-emerald-400/85' : 'text-muted-foreground'}`}>
+                        <span>
+                          {active.status !== 'accepted'
+                            ? 'در انتظار پاسخ'
+                            : peerTyping
+                              ? 'در حال نوشتن...'
+                              : peerPresence === 'online'
+                                ? 'آنلاین'
+                                : peerPresence === 'away'
+                                  ? 'فعال اخیراً'
+                                  : (active.other_user?.last_seen_at ? 'آخرین بازدید ثبت شده' : 'آفلاین')}
+                        </span>
                         {sharedProducts.length > 0 && (
                           <span className="truncate text-muted-foreground">• {sharedProducts.length.toLocaleString('fa-IR')} محصول مشترک</span>
                         )}
@@ -84,6 +101,35 @@ const ChatDashboard = ({ model }) => {
                       <span className="hidden xl:inline">محصولات</span>
                       <span className="tabular-nums">({sharedProducts.length.toLocaleString('fa-IR')})</span>
                     </button>
+                  )}
+
+                  {active.status === 'accepted' && (
+                    <div className="relative hidden sm:block">
+                      <Search className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                      <input
+                        value={threadQuery || ''}
+                        onChange={(event) => setThreadQuery?.(event.target.value)}
+                        placeholder="جستجو در پیام‌ها"
+                        className="h-9 w-36 rounded-xl border border-border/60 bg-secondary/40 pe-3 ps-8 text-[11px] outline-none focus:border-amber-500/40"
+                      />
+                      {threadHits?.length > 0 && (
+                        <div className="absolute left-0 top-full z-30 mt-1 max-h-56 w-64 overflow-y-auto rounded-xl border border-border/60 bg-popover p-1 text-[11px] shadow-xl">
+                          {threadHits.map((hit) => (
+                            <button
+                              key={hit.id}
+                              type="button"
+                              onClick={() => {
+                                const node = document.querySelector(`[data-message-id="${hit.id}"]`);
+                                node?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              }}
+                              className="block w-full truncate rounded-lg px-2 py-1.5 text-start text-foreground hover:bg-muted"
+                            >
+                              {hit.text}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   <button
@@ -222,6 +268,10 @@ const ChatDashboard = ({ model }) => {
                           key={m.id}
                           message={m}
                           isMine={m.sender_id === currentUserId}
+                          onReply={handleReply}
+                          onForward={handleForward}
+                          onDelete={handleDeleteMessage}
+                          onReport={handleReportMessage}
                         />
                       ))}
                       <div ref={messagesEndRef} />
@@ -351,6 +401,19 @@ const ChatDashboard = ({ model }) => {
                     </div>
                   )}
 
+                  {replyTo && (
+                    <div className="mb-2 flex items-start justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                          پاسخ به {replyTo.sender_name || replyTo.sender_username || 'پیام'}
+                        </p>
+                        <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{replyTo.deleted_for_everyone ? 'پیام حذف شده' : replyTo.text}</p>
+                      </div>
+                      <button type="button" onClick={() => setReplyTo?.(null)} className="rounded-lg p-1 text-muted-foreground hover:bg-muted" aria-label="لغو پاسخ">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                   <form onSubmit={handleSend} className="flex items-end gap-2">
                     <div className="flex items-center gap-2 shrink-0 pb-1">
                       <button
@@ -595,7 +658,7 @@ const ChatDashboard = ({ model }) => {
         closeConfirm={closeConfirm}
       />
     </div>
-  );;
+  );
 };
 
 export default ChatDashboard;

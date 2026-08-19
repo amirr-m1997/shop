@@ -60,6 +60,11 @@ def presence_mark(user_id, connection_id, status='online'):
     data = cache.get(key) or {}
     data[connection_id] = {'status': status, 'at': timezone.now().isoformat()}
     cache.set(key, data, timeout=ttl)
+    seen_key = f'realtime:last-seen-write:{user_id}'
+    if not cache.get(seen_key):
+        cache.set(seen_key, 1, timeout=60)
+        from accounts.models import UserProfile
+        UserProfile.objects.filter(user_id=user_id).update(last_seen_at=timezone.now())
 
 
 def presence_unmark(user_id, connection_id):
@@ -107,6 +112,8 @@ def allow_rate_limit(scope, bucket, limit, window_seconds):
 
     In production the cache is Redis (shared across workers) so limits are
     global; in single-process dev the LocMem cache applies per-process limits.
+    ``add`` + ``incr`` avoids the lost-update where two first hits both
+    ``set(1)`` and both proceed.
     """
     user_id = getattr(scope.get('user'), 'id', None)
     if not user_id:
@@ -115,8 +122,10 @@ def allow_rate_limit(scope, bucket, limit, window_seconds):
     try:
         current = cache.incr(cache_key)
     except ValueError:
-        cache.set(cache_key, 1, timeout=window_seconds * 2)
-        current = 1
+        if cache.add(cache_key, 1, timeout=window_seconds * 2):
+            current = 1
+        else:
+            current = cache.incr(cache_key)
     if current > limit:
         raise RealtimeRateLimitExceeded(bucket)
     return True

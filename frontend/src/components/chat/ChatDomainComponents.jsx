@@ -121,8 +121,20 @@ const ProductMessageCard = ({ product }) => {
 };
 
 /* ── Message bubble ── */
-const MessageBubble = ({ message, isMine }) => {
+const tickForStatus = (status, isRead) => {
+  const resolved = status || (isRead ? 'seen' : 'sent');
+  if (resolved === 'seen') {
+    return <CheckCheck className="h-3.5 w-3.5 text-sky-500 dark:text-sky-300" aria-label="دیده‌شده" />;
+  }
+  if (resolved === 'delivered') {
+    return <CheckCheck className="h-3.5 w-3.5 opacity-70" aria-label="تحویل‌شده" />;
+  }
+  return <Check className="h-3.5 w-3.5 opacity-70" aria-label="ارسال‌شده" />;
+};
+
+const MessageBubble = ({ message, isMine, onReply, onForward, onDelete, onReport }) => {
   const [showReactions, setShowReactions] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const { toast } = useToast();
 
   const react = async (emoji) => {
@@ -134,11 +146,15 @@ const MessageBubble = ({ message, isMine }) => {
     }
   };
 
-  const isProduct = Boolean(message.product);
+  const isProduct = Boolean(message.product) && !message.deleted_for_everyone;
   const timeStr = formatTime(message.created_at);
 
   return (
-    <div className={`flex items-end gap-2.5 ${isMine ? 'flex-row-reverse' : ''}`}>
+    <div
+      className={`flex items-end gap-2.5 ${isMine ? 'flex-row-reverse' : ''}`}
+      data-message-id={typeof message.id === 'number' ? message.id : undefined}
+      data-message-receipt={!isMine && typeof message.id === 'number' && !message.deleted_for_everyone ? '1' : undefined}
+    >
       {!isMine && (
         <Avatar
           user={{ display_name: message.sender_name, avatar: null, username: message.sender_username }}
@@ -158,13 +174,28 @@ const MessageBubble = ({ message, isMine }) => {
             ? 'bg-[#effdde] dark:bg-[#2b5278] text-foreground rounded-tr-md shadow-sm'
             : 'bg-card border border-border/60 text-foreground rounded-tl-md'
         }`}
-            onDoubleClick={() => typeof message.id === 'number' && setShowReactions(true)}
+            onDoubleClick={() => typeof message.id === 'number' && !message.deleted_for_everyone && setShowReactions(true)}
           >
+            {message.is_forwarded && !message.deleted_for_everyone && (
+              <p className="mb-1 text-[10px] font-bold text-muted-foreground">هدایت‌شده</p>
+            )}
+            {message.reply_to && !message.deleted_for_everyone && (
+              <div className="mb-2 rounded-xl border border-border/50 bg-background/50 px-2.5 py-1.5 text-[11px]">
+                <p className="font-bold text-amber-600 dark:text-amber-400">{message.reply_to.deleted ? 'پیام حذف شده' : (message.reply_to.sender_name || 'پاسخ')}</p>
+                {!message.reply_to.deleted && <p className="mt-0.5 line-clamp-2 text-muted-foreground">{message.reply_to.text}</p>}
+              </div>
+            )}
+            {message.deleted_for_everyone ? (
+              <p className="text-xs italic text-muted-foreground">این پیام حذف شده است</p>
+            ) : (
+              <>
             {isProduct && <ProductMessageCard product={message.product} />}
             {message.text && (
               <p className={`${isProduct ? 'mt-2.5' : ''} whitespace-pre-wrap break-words font-medium ${isMine ? 'text-black/90' : 'text-foreground'}`}>
                 {message.text}
               </p>
+            )}
+              </>
             )}
 
             {message.reaction && (
@@ -179,14 +210,31 @@ const MessageBubble = ({ message, isMine }) => {
 
             <div className={`mt-1 flex items-center justify-end gap-1 text-[10px] font-semibold ${isMine ? 'text-emerald-700/80 dark:text-sky-200/70' : 'text-muted-foreground'}`}>
               <span dir="ltr">{timeStr}</span>
-              {isMine && (
-                message.is_read
-                  ? <CheckCheck className="h-3.5 w-3.5 text-sky-500 dark:text-sky-300" />
-                  : <Check className="h-3.5 w-3.5 opacity-70" />
-              )}
+              {isMine && tickForStatus(message.status, message.is_read)}
             </div>
           </div>
 
+          {typeof message.id === 'number' && !message.deleted_for_everyone && (
+            <button
+              type="button"
+              onClick={() => setShowMenu((value) => !value)}
+              className={`absolute top-1 ${isMine ? 'right-full mr-1' : 'left-full ml-1'} hidden rounded-lg bg-muted/80 px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground group-hover:block`}
+            >
+              بیشتر
+            </button>
+          )}
+          {showMenu && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+              <div className={`absolute z-50 w-40 overflow-hidden rounded-xl border border-border/60 bg-popover text-xs shadow-xl ${isMine ? 'left-0' : 'right-0'} top-8`}>
+                <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); onReply?.(message); }}>پاسخ</button>
+                <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); onForward?.(message); }}>هدایت</button>
+                <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); onDelete?.(message, 'me'); }}>حذف برای من</button>
+                {isMine && <button type="button" className="block w-full px-3 py-2 text-start text-rose-600 hover:bg-rose-500/10" onClick={() => { setShowMenu(false); onDelete?.(message, 'everyone'); }}>حذف برای همه</button>}
+                {!isMine && <button type="button" className="block w-full px-3 py-2 text-start text-rose-600 hover:bg-rose-500/10" onClick={() => { setShowMenu(false); onReport?.(message); }}>گزارش</button>}
+              </div>
+            </>
+          )}
           {showReactions && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setShowReactions(false)} />

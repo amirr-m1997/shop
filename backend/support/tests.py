@@ -183,7 +183,14 @@ class SupportApiTests(APITestCase):
         self.auth(self.customer)
         unread = self.client.get('/api/support/unread-count/')
         self.assertEqual(unread.data['unread_count'], 1)
-        self.client.post(f'/api/support/conversations/{conversation_id}/read/')
+        message_id = SupportMessage.objects.get(conversation_id=conversation_id).id
+        blank = self.client.post(f'/api/support/conversations/{conversation_id}/read/', {}, format='json')
+        self.assertEqual(blank.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.client.get('/api/support/unread-count/').data['unread_count'], 1)
+        self.client.post(
+            f'/api/support/conversations/{conversation_id}/read/',
+            {'message_ids': [message_id]}, format='json',
+        )
         self.assertEqual(self.client.get('/api/support/unread-count/').data['unread_count'], 0)
 
     def test_close_and_customer_reopen_requeues(self):
@@ -476,9 +483,14 @@ class SupportMessagesPaginationTests(SupportAuthMixin, APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('results', response.data)
         self.assertEqual(len(response.data['results']), 50)
-        self.assertEqual(response.data['count'], 55)
-        page2 = self.client.get(f'/api/support/conversations/{conversation_id}/messages/?page=2')
-        self.assertEqual(len(page2.data['results']), 5)
+        self.assertTrue(response.data['has_older'])
+        self.assertEqual(response.data['results'][-1]['text'], 'm54')
+        older = self.client.get(
+            f'/api/support/conversations/{conversation_id}/messages/',
+            {'before': response.data['oldest_id']},
+        )
+        self.assertEqual(len(older.data['results']), 5)
+        self.assertFalse(older.data['has_older'])
 
 
 class SupportUnreadCountPerfTests(SupportAuthMixin, APITestCase):

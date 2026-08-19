@@ -225,9 +225,10 @@ def create_room_message(room, sender, *, text='', product=None):
 
 @transaction.atomic
 def mark_room_messages_read(room, user, message_ids=None):
-    queryset = room.messages.filter(style_room=room)
-    if message_ids is not None:
-        queryset = queryset.filter(id__in=message_ids)
+    if not message_ids:
+        from rest_framework.exceptions import ValidationError
+        raise ValidationError({'message_ids': 'شناسه پیام‌های دیده‌شده الزامی است.'})
+    queryset = room.messages.filter(style_room=room, id__in=message_ids)
     messages = list(queryset.only('id'))
     reads = [
         StyleRoomMessageRead(message=message, user=user)

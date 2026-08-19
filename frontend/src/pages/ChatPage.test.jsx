@@ -9,7 +9,12 @@ const mocks = vi.hoisted(() => ({
   getConversations: vi.fn(),
   getMessages: vi.fn(),
   markRead: vi.fn(() => Promise.resolve({ data: {} })),
+  markDelivered: vi.fn(() => Promise.resolve({ data: {} })),
   sendMessage: vi.fn(),
+  searchMessages: vi.fn(() => Promise.resolve({ data: { results: [] } })),
+  deleteMessage: vi.fn(() => Promise.resolve({ data: {} })),
+  forwardMessage: vi.fn(() => Promise.resolve({ data: {} })),
+  reportMessage: vi.fn(() => Promise.resolve({ data: {} })),
   toast: vi.fn(),
 }));
 
@@ -18,6 +23,7 @@ vi.mock('../services/api', () => ({
     getConversations: mocks.getConversations,
     getMessages: mocks.getMessages,
     markRead: mocks.markRead,
+    markDelivered: mocks.markDelivered,
     sendMessage: mocks.sendMessage,
     createConversation: vi.fn(() => Promise.resolve({ data: { id: 99 } })),
     acceptConversation: vi.fn(),
@@ -27,6 +33,10 @@ vi.mock('../services/api', () => ({
     blockConversation: vi.fn(),
     unblockConversation: vi.fn(),
     contactStylist: vi.fn(),
+    searchMessages: mocks.searchMessages,
+    deleteMessage: mocks.deleteMessage,
+    forwardMessage: mocks.forwardMessage,
+    reportMessage: mocks.reportMessage,
   },
 }));
 
@@ -87,12 +97,12 @@ beforeAll(() => {
 });
 
 describe('ChatPage infinite pagination', () => {
-  it('loads the latest page first and marks the conversation read', async () => {
+  it('loads the newest page first without marking the conversation seen', async () => {
     mocks.getConversations.mockResolvedValue({ data: [conversation42] });
     mocks.getMessages.mockResolvedValue({ data: {
-      count: 55,
-      previous: 'http://testserver/api/chat/conversations/42/messages/?page=1',
-      next: null,
+      has_older: true,
+      oldest_id: 51,
+      newest_id: 52,
       results: [
         { id: 51, sender_id: 9, text: 'پیام ۵۱', created_at: '2026-08-17T10:00:00Z', is_read: true },
         { id: 52, sender_id: 5, text: 'پیام ۵۲', created_at: '2026-08-17T10:01:00Z', is_read: false },
@@ -101,28 +111,28 @@ describe('ChatPage infinite pagination', () => {
 
     renderChat();
 
-    await waitFor(() => expect(mocks.getMessages).toHaveBeenCalledWith(42, { params: { page: 'last' } }));
+    await waitFor(() => expect(mocks.getMessages).toHaveBeenCalledWith(42, { limit: 50 }));
     expect(await screen.findByText('پیام ۵۲')).toBeTruthy();
     expect(screen.getByText('پیام ۵۱')).toBeTruthy();
-    expect(mocks.markRead).toHaveBeenCalledWith(42);
+    expect(mocks.markRead).not.toHaveBeenCalled();
   });
 
   it('loads older messages on scroll-to-top, merging without duplicates and anchoring scroll', async () => {
     mocks.getConversations.mockResolvedValue({ data: [conversation42] });
     mocks.getMessages
       .mockResolvedValueOnce({ data: {
-        count: 150,
-        previous: 'http://testserver/api/chat/conversations/42/messages/?page=2',
-        next: null,
+        has_older: true,
+        oldest_id: 101,
+        newest_id: 150,
         results: [
           { id: 101, sender_id: 9, text: 'm101', created_at: '2026-08-17T09:00:00Z', is_read: true },
           { id: 150, sender_id: 5, text: 'm150', created_at: '2026-08-17T10:00:00Z', is_read: false },
         ],
       } })
       .mockResolvedValueOnce({ data: {
-        count: 150,
-        previous: 'http://testserver/api/chat/conversations/42/messages/?page=1',
-        next: 'http://testserver/api/chat/conversations/42/messages/?page=3',
+        has_older: false,
+        oldest_id: 51,
+        newest_id: 101,
         results: [
           { id: 51, sender_id: 9, text: 'm51', created_at: '2026-08-17T08:00:00Z', is_read: true },
           { id: 101, sender_id: 9, text: 'm101', created_at: '2026-08-17T09:00:00Z', is_read: true },
@@ -131,7 +141,7 @@ describe('ChatPage infinite pagination', () => {
 
     renderChat();
     await screen.findByText('m150');
-    await waitFor(() => expect(mocks.getMessages).toHaveBeenCalledWith(42, { params: { page: 'last' } }));
+    await waitFor(() => expect(mocks.getMessages).toHaveBeenCalledWith(42, { limit: 50 }));
 
     const viewport = screen.getByTestId('messages-viewport');
     Object.defineProperty(viewport, 'scrollHeight', { value: 1000, configurable: true });
@@ -139,7 +149,7 @@ describe('ChatPage infinite pagination', () => {
 
     fireEvent.scroll(viewport);
 
-    await waitFor(() => expect(mocks.getMessages).toHaveBeenCalledWith(42, { params: { page: 2 } }));
+    await waitFor(() => expect(mocks.getMessages).toHaveBeenCalledWith(42, { before: 101, limit: 50 }));
     expect(await screen.findByText('m51')).toBeTruthy();
     expect(screen.getByText('m150')).toBeTruthy();
     expect(viewport.scrollTop).toBe(40);
@@ -149,22 +159,22 @@ describe('ChatPage infinite pagination', () => {
     mocks.getConversations.mockResolvedValue({ data: [conversation42, conversation7] });
     mocks.getMessages
       .mockResolvedValueOnce({ data: {
-        count: 55,
-        previous: 'http://testserver/api/chat/conversations/42/messages/?page=1',
-        next: null,
+        has_older: false,
+        oldest_id: 51,
+        newest_id: 51,
         results: [{ id: 51, sender_id: 5, text: 'from 42', created_at: '2026-08-17T10:00:00Z', is_read: false }],
       } })
       .mockResolvedValueOnce({ data: {
-        count: 3,
-        previous: null,
-        next: null,
+        has_older: false,
+        oldest_id: 1,
+        newest_id: 1,
         results: [{ id: 1, sender_id: 6, text: 'from 7', created_at: '2026-08-17T10:00:00Z', is_read: false }],
       } });
 
     renderChat();
     await screen.findByText('from 42');
     fireEvent.click(screen.getByTestId('select-conversation-7'));
-    await waitFor(() => expect(mocks.getMessages).toHaveBeenLastCalledWith(7, { params: { page: 'last' } }));
+    await waitFor(() => expect(mocks.getMessages).toHaveBeenLastCalledWith(7, { limit: 50 }));
     await screen.findByText('from 7');
     expect(screen.queryByText('from 42')).toBeNull();
   });
@@ -182,10 +192,10 @@ describe('ChatPage infinite pagination', () => {
       } });
 
     renderChat();
-    await waitFor(() => expect(mocks.getMessages).toHaveBeenCalledWith(42, { params: { page: 'last' } }));
+    await waitFor(() => expect(mocks.getMessages).toHaveBeenCalledWith(42, { limit: 50 }));
 
     fireEvent.click(screen.getByTestId('select-conversation-7'));
-    await waitFor(() => expect(mocks.getMessages).toHaveBeenCalledWith(7, { params: { page: 'last' } }));
+    await waitFor(() => expect(mocks.getMessages).toHaveBeenCalledWith(7, { limit: 50 }));
     await screen.findByText('second chat');
 
     await act(async () => {
@@ -203,9 +213,9 @@ describe('ChatPage infinite pagination', () => {
   it('merges an optimistic message and replaces it with the server response', async () => {
     mocks.getConversations.mockResolvedValue({ data: [conversation42] });
     mocks.getMessages.mockResolvedValue({ data: {
-      count: 1,
-      previous: null,
-      next: null,
+      has_older: false,
+      oldest_id: 1,
+      newest_id: 1,
       results: [{ id: 1, sender_id: 5, text: 'welcome', created_at: '2026-08-17T10:00:00Z', is_read: false }],
     } });
     let resolveSend;
@@ -241,6 +251,7 @@ describe('ChatPage infinite pagination', () => {
 
     mocks.getMessages.mockClear();
     await act(async () => { await args.refreshMessages(42); });
-    expect(mocks.getMessages).toHaveBeenCalledWith(42, { params: { page: 'last' } });
+    expect(mocks.getMessages).toHaveBeenCalledWith(42, { limit: 50 });
+    expect(mocks.markRead).not.toHaveBeenCalled();
   });
 });

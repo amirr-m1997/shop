@@ -88,8 +88,8 @@ describe('useChatRealtime', () => {
   it('opens the per-user inbox socket and listens for conversation.updated', () => {
     render(<Harness activeId={7} />);
     const [userSocket, privateSocket] = mocks.getRealtimeSocket.mock.results.map((r) => r.value);
-    expect(mocks.getRealtimeSocket).toHaveBeenCalledWith('/chat/user/9');
-    expect(mocks.getRealtimeSocket).toHaveBeenCalledWith('/chat/private/7');
+    expect(mocks.getRealtimeSocket).toHaveBeenCalledWith('/ws/chat/user/9/');
+    expect(mocks.getRealtimeSocket).toHaveBeenCalledWith('/ws/chat/private/7/');
     expect(userSocket.connected).toBe(true);
     expect(privateSocket.connected).toBe(true);
 
@@ -120,7 +120,7 @@ describe('useChatRealtime', () => {
     expect(callbacks.onSupportUpdated).toHaveBeenCalledWith({ type: 'support.updated', conversation_id: 5 });
   });
 
-  it('merges incoming chat messages and marks them read when not the sender', () => {
+  it('merges incoming chat messages without marking them seen', () => {
     render(<Harness userId={9} activeId={7} />);
     const [, privateSocket] = mocks.getRealtimeSocket.mock.results.map((r) => r.value);
     act(() =>
@@ -133,7 +133,7 @@ describe('useChatRealtime', () => {
     expect(applyUpdater(updater, [])).toEqual([
       { id: 11, sender_id: 3, text: 'hi', created_at: '2026-08-19T08:00:00Z' },
     ]);
-    expect(privateSocket.sent).toEqual([{ type: 'read.mark' }]);
+    expect(privateSocket.sent).toEqual([]);
   });
 
   it('does not send read.mark for the current user own message', () => {
@@ -164,21 +164,36 @@ describe('useChatRealtime', () => {
     ).toHaveLength(1);
   });
 
-  it('marks received messages as read up to up_to_message_id per user', () => {
+  it('marks the current user outgoing messages as seen from a receipt', () => {
     render(<Harness userId={9} activeId={7} />);
     const [, privateSocket] = mocks.getRealtimeSocket.mock.results.map((r) => r.value);
-    act(() => privateSocket.dispatch({ type: 'read_receipt', user_id: 3, up_to_message_id: 20 }));
+    act(() => privateSocket.dispatch({ type: 'read_receipt', user_id: 3, message_ids: [10], up_to_message_id: 10 }));
     const updater = callbacks.setMessages.mock.calls[0][0];
     expect(
       applyUpdater(updater, [
-        { id: 10, sender_id: 3, is_read: false },
-        { id: 21, sender_id: 3, is_read: false },
-        { id: 15, sender_id: 5, is_read: false },
+        { id: 10, sender_id: 9, is_read: false },
+        { id: 21, sender_id: 9, is_read: false },
+        { id: 15, sender_id: 3, is_read: false },
       ]),
     ).toEqual([
-      { id: 10, sender_id: 3, is_read: true },
-      { id: 21, sender_id: 3, is_read: false },
-      { id: 15, sender_id: 5, is_read: false },
+      { id: 10, sender_id: 9, is_read: true, status: 'seen' },
+      { id: 21, sender_id: 9, is_read: false },
+      { id: 15, sender_id: 3, is_read: false },
+    ]);
+  });
+
+  it('tombstones a message deleted for everyone and removes one deleted for me', () => {
+    render(<Harness userId={9} activeId={7} />);
+    const [, privateSocket] = mocks.getRealtimeSocket.mock.results.map((r) => r.value);
+    act(() => privateSocket.dispatch({ type: 'message.deleted', message_id: 11, for_everyone: true, user_id: 3 }));
+    const tombstone = callbacks.setMessages.mock.calls[0][0];
+    expect(applyUpdater(tombstone, [{ id: 11, text: 'hi', product: { id: 1 } }])).toEqual([
+      { id: 11, text: '', product: null, deleted_for_everyone: true },
+    ]);
+    act(() => privateSocket.dispatch({ type: 'message.deleted', message_id: 12, for_everyone: false, user_id: 9 }));
+    const removed = callbacks.setMessages.mock.calls[1][0];
+    expect(applyUpdater(removed, [{ id: 12, text: 'mine' }, { id: 13, text: 'keep' }])).toEqual([
+      { id: 13, text: 'keep' },
     ]);
   });
 
@@ -220,7 +235,7 @@ describe('useChatRealtime', () => {
   it('releases both sockets on unmount when the last listener is removed', () => {
     const { unmount } = render(<Harness userId={9} activeId={7} />);
     act(() => unmount());
-    expect(mocks.releaseRealtimeSocket).toHaveBeenCalledWith('/chat/user/9');
-    expect(mocks.releaseRealtimeSocket).toHaveBeenCalledWith('/chat/private/7');
+    expect(mocks.releaseRealtimeSocket).toHaveBeenCalledWith('/ws/chat/user/9/');
+    expect(mocks.releaseRealtimeSocket).toHaveBeenCalledWith('/ws/chat/private/7/');
   });
 });

@@ -71,6 +71,7 @@ const Harness = ({ userId = 9, activeId = null }) => {
     setMessages: callbacks.setMessages,
     onQueueUpdated: callbacks.onQueueUpdated,
     onUnread: callbacks.onUnread,
+    departments: ['support'],
   });
   return null;
 };
@@ -98,15 +99,15 @@ afterEach(() => {
 });
 
 describe('useSupportRealtime', () => {
-  it('opens the conversation socket and the queue socket', () => {
+  it('opens the conversation socket and department queue sockets', () => {
     render(<Harness userId={9} activeId={5} />);
-    expect(mocks.getRealtimeSocket).toHaveBeenCalledWith('/support/conversations/5/');
-    expect(mocks.getRealtimeSocket).toHaveBeenCalledWith('/support/departments/all/');
+    expect(mocks.getRealtimeSocket).toHaveBeenCalledWith('/ws/support/conversations/5/');
+    expect(mocks.getRealtimeSocket).toHaveBeenCalledWith('/ws/support/departments/support/');
     const sockets = mocks.getRealtimeSocket.mock.results.map((r) => r.value);
     expect(sockets.every((socket) => socket.connected)).toBe(true);
   });
 
-  it('merges incoming support messages and sends read.mark for others', () => {
+  it('merges incoming support messages without marking them seen', () => {
     render(<Harness userId={9} activeId={5} />);
     const [socket] = mocks.getRealtimeSocket.mock.results.map((r) => r.value);
     act(() =>
@@ -119,7 +120,7 @@ describe('useSupportRealtime', () => {
     expect(applyUpdater(updater, [])).toEqual([
       { id: 31, sender: { id: 3 }, text: 'how can I help?', created_at: '2026-08-19T08:00:00Z' },
     ]);
-    expect(socket.sent).toEqual([{ type: 'read.mark' }]);
+    expect(socket.sent).toEqual([]);
   });
 
   it('does not send read.mark for the current user own message', () => {
@@ -134,10 +135,10 @@ describe('useSupportRealtime', () => {
     expect(socket.sent).toEqual([]);
   });
 
-  it('marks messages read when the read receipt matches the sender', () => {
+  it('marks the current user outgoing messages as seen from a receipt', () => {
     render(<Harness userId={9} activeId={5} />);
     const [socket] = mocks.getRealtimeSocket.mock.results.map((r) => r.value);
-    act(() => socket.dispatch({ type: 'read_receipt', user_id: 3 }));
+    act(() => socket.dispatch({ type: 'read_receipt', user_id: 3, message_ids: [32] }));
     const updater = callbacks.setMessages.mock.calls[0][0];
     expect(
       applyUpdater(updater, [
@@ -145,8 +146,8 @@ describe('useSupportRealtime', () => {
         { id: 32, sender: { id: 9 }, is_read: false },
       ]),
     ).toEqual([
-      { id: 31, sender: { id: 3 }, is_read: true },
-      { id: 32, sender: { id: 9 }, is_read: false },
+      { id: 31, sender: { id: 3 }, is_read: false },
+      { id: 32, sender: { id: 9 }, is_read: true, status: 'seen' },
     ]);
   });
 
@@ -169,8 +170,8 @@ describe('useSupportRealtime', () => {
 
   it('opens no queue socket when no queue callbacks are provided', () => {
     render(<NoQueueHarness />);
-    expect(mocks.getRealtimeSocket).toHaveBeenCalledWith('/support/conversations/5/');
-    expect(mocks.getRealtimeSocket).not.toHaveBeenCalledWith('/support/departments/all/');
+    expect(mocks.getRealtimeSocket).toHaveBeenCalledWith('/ws/support/conversations/5/');
+    expect(mocks.getRealtimeSocket).not.toHaveBeenCalledWith('/ws/support/departments/support/');
   });
 
   it('does nothing without a current user', () => {
@@ -181,7 +182,7 @@ describe('useSupportRealtime', () => {
   it('releases both sockets on unmount', () => {
     const { unmount } = render(<Harness userId={9} activeId={5} />);
     act(() => unmount());
-    expect(mocks.releaseRealtimeSocket).toHaveBeenCalledWith('/support/conversations/5/');
-    expect(mocks.releaseRealtimeSocket).toHaveBeenCalledWith('/support/departments/all/');
+    expect(mocks.releaseRealtimeSocket).toHaveBeenCalledWith('/ws/support/conversations/5/');
+    expect(mocks.releaseRealtimeSocket).toHaveBeenCalledWith('/ws/support/departments/support/');
   });
 });

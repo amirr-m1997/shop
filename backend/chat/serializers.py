@@ -16,11 +16,23 @@ class PublicUserSerializer(serializers.ModelSerializer):
     avatar = serializers.SerializerMethodField()
     style_preferences = serializers.SerializerMethodField()
     popular_categories = serializers.SerializerMethodField()
+    last_seen_at = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ['id', 'username', 'display_name', 'avatar', 'first_name', 'last_name',
-                  'style_preferences', 'popular_categories']
+                  'style_preferences', 'popular_categories', 'last_seen_at']
+
+    def get_last_seen_at(self, obj):
+        request = self.context.get('request')
+        viewer = getattr(request, 'user', None) if request else None
+        viewer_profile = getattr(viewer, 'profile', None) if viewer and getattr(viewer, 'is_authenticated', False) else None
+        if viewer_profile and getattr(viewer_profile, 'hide_last_seen', False):
+            return None
+        profile = getattr(obj, 'profile', None)
+        if not profile or getattr(profile, 'hide_last_seen', False):
+            return None
+        return profile.last_seen_at
 
     def get_display_name(self, obj):
         if obj.username in ['stylist', 'support'] or obj.is_superuser:
@@ -74,13 +86,64 @@ class MessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.SerializerMethodField()
     product = ProductShareSerializer(read_only=True)
     product_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    status = serializers.SerializerMethodField()
+    reply_to = serializers.SerializerMethodField()
+    is_forwarded = serializers.SerializerMethodField()
+    deleted_for_everyone = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
         fields = ['id', 'conversation', 'sender_id', 'sender_username', 'sender_name',
-                  'text', 'product', 'product_id', 'is_read', 'reaction', 'is_favorite', 'created_at']
+                  'text', 'product', 'product_id', 'is_read', 'status', 'reaction', 'is_favorite',
+                  'reply_to', 'is_forwarded', 'deleted_for_everyone', 'created_at']
         read_only_fields = ['conversation', 'sender_id', 'sender_username', 'sender_name',
-                            'is_read', 'reaction', 'is_favorite', 'created_at']
+                            'is_read', 'status', 'reaction', 'is_favorite',
+                            'reply_to', 'is_forwarded', 'deleted_for_everyone', 'created_at']
+
+    def get_status(self, obj):
+        request = self.context.get('request')
+        if not request or obj.sender_id != getattr(request.user, 'id', None):
+            return None
+        receipts = list(getattr(obj, 'receipts', []).all()) if hasattr(obj, 'receipts') else []
+        if any(receipt.seen_at for receipt in receipts):
+            return 'seen'
+        if any(receipt.delivered_at for receipt in receipts):
+            return 'delivered'
+        if obj.is_read:
+            return 'seen'
+        return 'sent'
+
+    def get_reply_to(self, obj):
+        reply = obj.reply_to
+        if not reply:
+            return None
+        hidden = bool(reply.deleted_at)
+        request = self.context.get('request')
+        viewer = getattr(request, 'user', None) if request else None
+        if not hidden and viewer and getattr(viewer, 'is_authenticated', False):
+            hidden = reply.deleted_for.filter(pk=viewer.pk).exists()
+        if hidden:
+            return {'id': reply.id, 'text': '', 'sender_name': '', 'deleted': True}
+        return {
+            'id': reply.id,
+            'text': (reply.text or '')[:140],
+            'sender_name': getattr(reply.sender, 'username', ''),
+            'deleted': False,
+        }
+
+    def get_is_forwarded(self, obj):
+        return bool(obj.forwarded_from_id)
+
+    def get_deleted_for_everyone(self, obj):
+        return bool(obj.deleted_at)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.deleted_at:
+            data['text'] = ''
+            data['product'] = None
+            data['deleted_for_everyone'] = True
+        return data
 
     def get_sender_name(self, obj):
         profile = getattr(obj.sender, 'profile', None)
@@ -116,7 +179,7 @@ class ConversationSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         user = request.user if request else None
         other = obj.other_user(user) if user else obj.user2
-        return PublicUserSerializer(other).data
+        return PublicUserSerializer(other, context=self.context).data
 
     def get_last_message(self, obj):
         if hasattr(obj, '_last_message_id'):
@@ -135,7 +198,7 @@ class ConversationSerializer(serializers.ModelSerializer):
         if prefetched is not None:
             last = prefetched[0] if prefetched else None
         else:
-            qs = obj.messages.all()
+            qs = obj.messages.filter(deleted_at__isnull=True)
             if request:
                 qs = qs.exclude(deleted_for=request.user)
             last = qs.order_by('-created_at', '-id').first()
@@ -163,7 +226,7 @@ class ConversationSerializer(serializers.ModelSerializer):
                 if not m.is_read and m.sender_id != request.user.id
             )
         return obj.messages.exclude(deleted_for=request.user).filter(
-            is_read=False
+            deleted_at__isnull=True, is_read=False,
         ).exclude(sender=request.user).count()
 
     def get_is_requester(self, obj):

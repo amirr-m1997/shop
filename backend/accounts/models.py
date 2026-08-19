@@ -33,6 +33,8 @@ class UserProfile(models.Model):
     )
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True, verbose_name="تصویر پروفایل")
     style_preferences = models.JSONField(default=list, blank=True, verbose_name="ترجیحات سبک پوشاک")
+    last_seen_at = models.DateTimeField(null=True, blank=True, verbose_name="آخرین بازدید")
+    hide_last_seen = models.BooleanField(default=False, verbose_name="مخفی کردن آخرین بازدید")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

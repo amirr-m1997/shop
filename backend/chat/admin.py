@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import Block, Conversation, Message, Notification
+from .models import Block, Conversation, Message, MessageReceipt, MessageReport, Notification, PushSubscription
 from shop.jalali import jalali_datetime
 
 
@@ -70,6 +70,13 @@ class MessageAdmin(admin.ModelAdmin):
         return bool(obj.product_id)
 
 
+@admin.register(MessageReceipt)
+class MessageReceiptAdmin(admin.ModelAdmin):
+    list_display = ('id', 'message', 'user', 'delivered_at', 'seen_at')
+    search_fields = ('user__username',)
+    readonly_fields = ('message', 'user', 'delivered_at', 'seen_at')
+
+
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
     list_display = ('id', 'recipient', 'actor', 'short_text', 'is_read', 'created_at_jalali')
@@ -93,6 +100,21 @@ class NotificationAdmin(admin.ModelAdmin):
     @admin.action(description='علامت‌گذاری به‌عنوان خوانده‌نشده')
     def mark_as_unread(self, request, queryset):
         queryset.update(is_read=False)
+
+
+@admin.register(MessageReport)
+class MessageReportAdmin(admin.ModelAdmin):
+    list_display = ('id', 'reporter', 'target_user', 'reason', 'status', 'created_at')
+    list_filter = ('reason', 'status', 'created_at')
+    search_fields = ('reporter__username', 'target_user__username', 'details')
+    readonly_fields = ('reporter', 'target_user', 'message', 'conversation', 'reason', 'details', 'created_at')
+
+
+@admin.register(PushSubscription)
+class PushSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'created_at')
+    search_fields = ('user__username', 'endpoint')
+    readonly_fields = ('user', 'endpoint', 'p256dh', 'auth', 'user_agent', 'created_at')
 
 
 @admin.register(Block)

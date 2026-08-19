@@ -82,6 +82,7 @@ export default function SupportInboxPage() {
     currentUserId: user?.id,
     activeId,
     setMessages,
+    departments,
     onQueueUpdated: isStaff ? refreshSoon : undefined,
     onUnread: isStaff ? refreshSoon : undefined,
   });
@@ -90,10 +91,8 @@ export default function SupportInboxPage() {
     setActiveId(conversation.id);
     setMessagesLoading(true);
     try {
-      const response = await supportAPI.getMessages(conversation.id);
+      const response = await supportAPI.getMessages(conversation.id, { limit: 50 });
       setMessages(normalize(response));
-      await supportAPI.markRead(conversation.id);
-      await refresh();
     } catch { toast({ title: 'Unable to load this conversation.', variant: 'destructive' }); }
     finally { setMessagesLoading(false); }
   };

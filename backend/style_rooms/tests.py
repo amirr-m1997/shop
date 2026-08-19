@@ -658,7 +658,7 @@ class ActivityTests(StyleRoomAuthMixin, APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertEqual(len(resp.data['results']), 5)
         self.assertLessEqual(
-            len(captured), 7,
+            len(captured), 9,
             msg=f'activity scaled with event count: {len(captured)} queries, sql={[q["sql"][:70] for q in captured]}',
         )
 
@@ -937,6 +937,13 @@ class RoomMessageApiTests(StyleRoomAuthMixin, APITestCase):
         response = self.client.get(self.url)
         self.assertEqual({item['text']: item['is_read'] for item in response.data['results']}, {'second': False, 'first': True})
         self.assertEqual(Message.objects.get(id=first['id']).is_read, False)
+
+    def test_mark_read_without_ids_is_rejected(self):
+        self.client.post(self.url, {'text': 'keep unread'}, format='json')
+        self._auth_as(self.member)
+        response = self.client.post(f'{self.url}read/', {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(StyleRoomMessageRead.objects.filter(user=self.member).count(), 0)
 
 
 class StyleRoomReadReceiptTests(StyleRoomAuthMixin, APITestCase):

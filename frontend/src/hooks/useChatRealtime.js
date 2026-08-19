@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
-import { getRealtimeSocket, releaseRealtimeSocket } from '../services/realtime';
+import { chatPrivateSocketPath, chatUserSocketPath } from '../lib/realtimePaths';
 import { mergeMessages } from '../lib/messages';
+import { getRealtimeSocket, releaseRealtimeSocket } from '../services/realtime';
 
 /**
- * Live private-chat integration for ChatPage.
+ * Live private-chat integration.
  *
- * Opens the personal inbox channel (per-user) and a private socket per active
- * conversation. Writes stay on REST (authoritative); this hook only receives
- * realtime events and pushes lightweight read-marking over the socket.
+ * Writes stay on REST. This hook only receives events. It never marks
+ * messages seen — opening a socket or receiving a frame is not a read.
  */
 export const useChatRealtime = ({
   currentUserId,
@@ -22,7 +22,7 @@ export const useChatRealtime = ({
 }) => {
   useEffect(() => {
     if (!currentUserId) return undefined;
-    const path = `/chat/user/${currentUserId}`;
+    const path = chatUserSocketPath(currentUserId);
     const socket = getRealtimeSocket(path);
     const listener = (message) => {
       switch (message.type) {
@@ -58,24 +58,34 @@ export const useChatRealtime = ({
 
   useEffect(() => {
     if (!currentUserId || !activeId) return undefined;
-    const path = `/chat/private/${activeId}`;
+    const path = chatPrivateSocketPath(activeId);
     const socket = getRealtimeSocket(path);
     const listener = (message) => {
       switch (message.type) {
         case 'chat.message':
           setMessages?.((previous) => mergeMessages(previous, [message.message]));
-          if (message.message?.sender_id !== currentUserId) {
-            socket.send({ type: 'read.mark' });
-          }
           break;
-        case 'read_receipt': {
-          const upTo = message.up_to_message_id;
-          if (upTo == null) break;
+        case 'delivery_receipt': {
+          const markedIds = new Set((message.message_ids || []).map(Number));
           setMessages?.((previous) => previous.map((item) => (
-            item.sender_id === message.user_id && Number(item.id) <= Number(upTo)
-              ? { ...item, is_read: true }
+            item.sender_id === currentUserId && markedIds.has(Number(item.id)) && item.status !== 'seen'
+              ? { ...item, status: 'delivered' }
               : item
           )));
+          break;
+        }
+        case 'read_receipt': {
+          const markedIds = new Set((message.message_ids || []).map(Number));
+          const upTo = message.up_to_message_id;
+          setMessages?.((previous) => previous.map((item) => {
+            const isMine = item.sender_id === currentUserId;
+            if (!isMine) return item;
+            const itemId = Number(item.id);
+            const matched = markedIds.size
+              ? markedIds.has(itemId)
+              : (upTo != null && itemId <= Number(upTo));
+            return matched ? { ...item, is_read: true, status: 'seen' } : item;
+          }));
           break;
         }
         case 'message.updated':
@@ -89,6 +99,19 @@ export const useChatRealtime = ({
               : item
           )));
           break;
+        case 'message.deleted': {
+          const deletedId = Number(message.message_id);
+          if (message.for_everyone) {
+            setMessages?.((previous) => previous.map((item) => (
+              Number(item.id) === deletedId
+                ? { ...item, deleted_for_everyone: true, text: '', product: null }
+                : item
+            )));
+          } else if (message.user_id === currentUserId) {
+            setMessages?.((previous) => previous.filter((item) => Number(item.id) !== deletedId));
+          }
+          break;
+        }
         case 'typing':
           onTyping?.(message);
           break;

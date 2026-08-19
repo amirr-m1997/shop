@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useWishlist } from '../contexts/WishlistContext';
 import { useProductCategories } from '../queries/productQueries';
 import { useChatUnreadCount } from '../queries/chatQueries';
+import { useChatPush } from '../hooks/useChatPush';
 import { cn } from '../lib/utils';
 import { useHeaderScroll } from './header/useHeaderScroll';
 import DesktopHeader from './header/DesktopHeader';
@@ -38,6 +39,7 @@ const Header = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [categorySheetOpen, setCategorySheetOpen] = useState(false);
   const { data: unreadChat = 0 } = useChatUnreadCount(user?.id, isAuthenticated, authLoading);
+  useChatPush(isAuthenticated && !authLoading);
 
   const searchInputRef = useRef(null);
   const searchDebounceRef = useRef(null);

@@ -55,7 +55,7 @@ class StyleRoomMessageCreateSerializer(serializers.Serializer):
 
 class StyleRoomMessageReadSerializer(serializers.Serializer):
     message_ids = serializers.ListField(
-        child=serializers.IntegerField(min_value=1), required=False,
+        child=serializers.IntegerField(min_value=1), required=True, allow_empty=False,
     )
 
     def validate_message_ids(self, value):

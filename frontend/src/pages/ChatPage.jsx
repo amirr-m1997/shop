@@ -8,15 +8,10 @@ import ChatDashboard from '../components/chat/ChatDashboard';
 import { useChatVisibilityRefresh } from '../hooks/useChatVisibilityRefresh';
 import { useChatUserSearch } from '../hooks/useChatUserSearch';
 import { useChatRealtime } from '../hooks/useChatRealtime';
-import { mergeMessages } from '../lib/messages';
-
-const pageFromUrl = (url) => {
-  if (!url) return null;
-  try { return Number(new URL(url).searchParams.get('page')) || null; }
-  catch { return null; }
-};
-
-
+import { useMessageViewportReceipts } from '../hooks/useMessageViewportReceipts';
+import { chatPrivateSocketPath } from '../lib/realtimePaths';
+import { getRealtimeSocket } from '../services/realtime';
+import { mergeMessages, replaceOptimisticMessage, unwrapMessagePage } from '../lib/messages';
 
 /* ═══════════════════════ Main Chat Page ═══════════════════════ */
 export default function ChatPage() {
@@ -39,6 +34,13 @@ export default function ChatPage() {
   const [filter, setFilter] = useState('all'); // all | friends
   const [profileOpen, setProfileOpen] = useState(true);
   const [sharedOpen, setSharedOpen] = useState(false);
+  const [peerTyping, setPeerTyping] = useState(false);
+  const [peerPresence, setPeerPresence] = useState('offline');
+  const [replyTo, setReplyTo] = useState(null);
+  const [threadQuery, setThreadQuery] = useState('');
+  const [threadHits, setThreadHits] = useState([]);
+  const [forwardingMessage, setForwardingMessage] = useState(null);
+  const typingTimerRef = useRef(null);
 
   const sharedProducts = useMemo(
     () => messages.filter((m) => m.product).map((m) => m.product).reverse(),
@@ -49,7 +51,7 @@ export default function ChatPage() {
   const textareaRef = useRef(null);
   const messagesScrollRef = useRef(null);
   const restoreScrollRef = useRef(null);
-  const paginationRef = useRef({ id: null, page: 1, hasOlder: false, token: 0 });
+  const paginationRef = useRef({ id: null, oldestId: null, hasOlder: false, token: 0 });
   const [hasOlder, setHasOlder] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
 
@@ -102,17 +104,13 @@ export default function ChatPage() {
     setHasOlder(false);
     setLoadingOlder(false);
     try {
-      const res = await chatAPI.getMessages(id, { params: { page: 'last' } });
+      const res = await chatAPI.getMessages(id, { limit: 50 });
       if (paginationRef.current.token !== token || paginationRef.current.id !== id) return;
-      const data = res.data || {};
-      const results = Array.isArray(data) ? data : (data.results || []);
-      setMessages(results);
-      const previousPage = pageFromUrl(data.previous);
-      paginationRef.current.page = previousPage ? previousPage + 1 : 1;
-      paginationRef.current.hasOlder = Boolean(data.previous);
-      setHasOlder(Boolean(data.previous));
-      await chatAPI.markRead(id);
-      setConversations((prev) => prev.map((c) => (c.id === Number(id) ? { ...c, unread_count: 0 } : c)));
+      const page = unwrapMessagePage(res.data);
+      setMessages(page.results);
+      paginationRef.current.oldestId = page.oldestId;
+      paginationRef.current.hasOlder = page.hasOlder;
+      setHasOlder(page.hasOlder);
     } catch {
       toast({ title: 'خطا', description: 'بارگذاری پیام‌ها ممکن نشد.', variant: 'destructive' });
     } finally {
@@ -128,15 +126,13 @@ export default function ChatPage() {
     const token = state.token;
     setLoadingOlder(true);
     try {
-      const res = await chatAPI.getMessages(state.id, { params: { page: state.page - 1 } });
+      const res = await chatAPI.getMessages(state.id, { before: state.oldestId, limit: 50 });
       if (paginationRef.current.token !== token || paginationRef.current.id !== state.id) return;
-      const data = res.data || {};
-      const results = Array.isArray(data) ? data : (data.results || []);
-      setMessages((prev) => mergeMessages(prev, results));
-      const previousPage = pageFromUrl(data.previous);
-      state.page = previousPage ? previousPage + 1 : state.page - 1;
-      state.hasOlder = Boolean(data.previous);
-      setHasOlder(Boolean(data.previous));
+      const page = unwrapMessagePage(res.data);
+      setMessages((prev) => mergeMessages(prev, page.results));
+      state.oldestId = page.oldestId ?? state.oldestId;
+      state.hasOlder = page.hasOlder;
+      setHasOlder(page.hasOlder);
       if (anchor) restoreScrollRef.current = anchor;
     } catch {
       toast({ title: 'خطا', description: 'بارگذاری پیام‌های قدیمی‌تر ممکن نشد.', variant: 'destructive' });
@@ -169,7 +165,62 @@ export default function ChatPage() {
     onNotification: (notification) => {
       toast({ title: 'اعلان جدید', description: notification.text });
     },
+    onTyping: (event) => {
+      if (event.user_id === currentUserId) return;
+      setPeerTyping(event.status !== 'stopped');
+    },
+    onPresence: (event) => {
+      if (event.user_id === currentUserId) return;
+      setPeerPresence(event.status || (event.online ? 'online' : 'offline'));
+    },
   });
+
+  useMessageViewportReceipts({
+    conversationId: activeId,
+    currentUserId,
+    messages,
+    enabled: Boolean(activeId && active?.status === 'accepted'),
+    rootRef: messagesScrollRef,
+  });
+
+  useEffect(() => {
+    setPeerTyping(false);
+    setPeerPresence('offline');
+    setReplyTo(null);
+    setThreadQuery('');
+    setThreadHits([]);
+    setForwardingMessage(null);
+  }, [activeId]);
+
+  useEffect(() => {
+    if (!activeId || threadQuery.trim().length < 2) {
+      setThreadHits([]);
+      return undefined;
+    }
+    const handle = setTimeout(async () => {
+      try {
+        const response = await chatAPI.searchMessages(activeId, threadQuery.trim());
+        setThreadHits(response.data?.results || []);
+      } catch {
+        setThreadHits([]);
+      }
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [activeId, threadQuery]);
+
+  const updateDraft = (value) => {
+    const next = typeof value === 'function' ? value(text) : value;
+    setText(next);
+    if (!activeId) return;
+    const socket = getRealtimeSocket(chatPrivateSocketPath(activeId));
+    socket.send({ type: 'typing', status: String(next || '').trim() ? 'typing' : 'stopped' });
+    clearTimeout(typingTimerRef.current);
+    if (String(next || '').trim()) {
+      typingTimerRef.current = setTimeout(() => {
+        socket.send({ type: 'typing', status: 'stopped' });
+      }, 2000);
+    }
+  };
 
 
 
@@ -368,11 +419,89 @@ export default function ChatPage() {
     }
   };
 
+  const handleReply = (message) => {
+    if (!message || typeof message.id !== 'number' || message.deleted_for_everyone) return;
+    setReplyTo(message);
+    textareaRef.current?.focus();
+  };
+
+  const handleForward = (message) => {
+    if (!message || typeof message.id !== 'number' || message.deleted_for_everyone) return;
+    setForwardingMessage(message);
+  };
+
+  const handleConfirmForward = async (conversationIds) => {
+    if (!forwardingMessage || !conversationIds?.length) {
+      setForwardingMessage(null);
+      return;
+    }
+    try {
+      await chatAPI.forwardMessage(forwardingMessage.id, conversationIds);
+      toast({ title: 'هدایت شد', description: 'پیام به گفتگوهای انتخاب‌شده ارسال شد.' });
+    } catch (err) {
+      toast({
+        title: 'خطا',
+        description: err?.response?.data?.error || 'هدایت پیام ممکن نشد.',
+        variant: 'destructive',
+      });
+    } finally {
+      setForwardingMessage(null);
+    }
+  };
+
+  const handleDeleteMessage = async (message, mode) => {
+    if (!message || typeof message.id !== 'number') return;
+    try {
+      await chatAPI.deleteMessage(message.id, mode);
+      if (mode === 'everyone') {
+        setMessages((prev) => prev.map((item) => (
+          item.id === message.id
+            ? { ...item, deleted_for_everyone: true, text: '', product: null }
+            : item
+        )));
+      } else {
+        setMessages((prev) => prev.filter((item) => item.id !== message.id));
+      }
+    } catch (err) {
+      toast({
+        title: 'خطا',
+        description: err?.response?.data?.error || 'حذف پیام ممکن نشد.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleReportMessage = (message) => {
+    if (!message || typeof message.id !== 'number') return;
+    askConfirm({
+      title: 'گزارش پیام',
+      message: 'این پیام به‌خاطر محتوای نامناسب گزارش شود؟',
+      confirm: 'گزارش',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await chatAPI.reportMessage(message.id, { reason: 'other' });
+          toast({ title: 'ثبت شد', description: 'گزارش شما برای بررسی ارسال شد.' });
+        } catch (err) {
+          toast({
+            title: 'خطا',
+            description: err?.response?.data?.error || 'ارسال گزارش ممکن نشد.',
+            variant: 'destructive',
+          });
+        }
+      },
+    });
+  };
+
   const handleSend = async (e, overrideText) => {
     e?.preventDefault();
     const payload = (overrideText ?? text).trim();
     if (!activeId || !payload || sending) return;
     setSending(true);
+    const replySnapshot = replyTo;
+    const idempotencyKey = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `local-${Date.now()}`;
     const optimistic = {
       id: `temp-${Date.now()}`,
       sender_id: currentUserId,
@@ -383,14 +512,27 @@ export default function ChatPage() {
       is_read: false,
       reaction: '',
       is_favorite: false,
+      reply_to: replySnapshot
+        ? {
+            id: replySnapshot.id,
+            text: (replySnapshot.text || '').slice(0, 140),
+            sender_name: replySnapshot.sender_name || replySnapshot.sender_username || '',
+            deleted: Boolean(replySnapshot.deleted_for_everyone),
+          }
+        : null,
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, optimistic]);
     setText('');
+    setReplyTo(null);
     setShowEmoji(false);
     try {
-      const res = await chatAPI.sendMessage(activeId, { text: payload });
-      setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? res.data : m)));
+      const res = await chatAPI.sendMessage(activeId, {
+        text: payload,
+        reply_to_id: replySnapshot?.id,
+        idempotency_key: idempotencyKey,
+      });
+      setMessages((prev) => replaceOptimisticMessage(prev, optimistic.id, { ...res.data, status: 'sent' }));
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
       toast({ title: 'خطا', description: 'ارسال پیام ممکن نشد.', variant: 'destructive' });
@@ -434,15 +576,20 @@ export default function ChatPage() {
 
   return (
     <ChatDashboard model={{
-      user, conversations, activeId, messages, loading, convLoading, text, setText, sending,
+      user, conversations, activeId, messages, loading, convLoading, text, setText: updateDraft, sending,
     query, setQuery, searchResults, setSearchResults, searching, mobilePane, setMobilePane, showEmoji,
     setShowEmoji, sendProductOpen, setSendProductOpen, filter, setFilter, profileOpen,
     setProfileOpen, sharedOpen, setSharedOpen, sharedProducts, messagesEndRef, textareaRef,
       messagesScrollRef, handleMessagesScroll, hasOlder, loadingOlder, currentUserId, active, loadMessages, selectConversation, handleStartRequest,
     hideModeNavigation: true,
+    peerTyping,
+    peerPresence,
     handleAcceptRequest, handleDeclineRequest, handleReopenRequest, handleCancelRequest,
     menuOpen, setMenuOpen, confirmDialog, askConfirm, closeConfirm, handleClearChat,
-    handleBlock, handleUnblock, handleSend, insertEmoji, filteredConversations, handleContactStylist
+    handleBlock, handleUnblock, handleSend, insertEmoji, filteredConversations, handleContactStylist,
+    replyTo, setReplyTo, threadQuery, setThreadQuery, threadHits,
+    handleReply, handleForward, handleDeleteMessage, handleReportMessage,
+    forwardingMessage, setForwardingMessage, handleConfirmForward,
     }} />
   );
 }

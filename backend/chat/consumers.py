@@ -19,8 +19,9 @@ from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
+from rest_framework.exceptions import ValidationError
 
-from .models import Conversation
+from .models import Block, Conversation
 from .realtime import (
     RealtimeRateLimitExceeded,
     allow_rate_limit,
@@ -32,6 +33,7 @@ from .services import (
     SendMessageError,
     mark_conversation_read,
     send_private_message,
+    send_rate_limit,
 )
 
 logger = logging.getLogger('chat')
@@ -238,7 +240,12 @@ class PrivateChatConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
         }
 
     async def _handle_send(self, content):
-        allow_rate_limit(self.scope, 'send', settings.REALTIME['MESSAGE_RATE'], 60)
+        allow_rate_limit(
+            self.scope,
+            'send',
+            send_rate_limit(self.user, settings.REALTIME['MESSAGE_RATE']),
+            60,
+        )
         payload = content.get('payload')
         if not isinstance(payload, dict):
             await self.send_json({'type': 'message.error', 'error': 'invalid_payload'})
@@ -249,9 +256,14 @@ class PrivateChatConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
                 self.conversation,
                 text=payload.get('text') or '',
                 product_id=payload.get('product_id'),
+                reply_to_id=payload.get('reply_to_id'),
+                idempotency_key=payload.get('idempotency_key') or '',
             )
         except SendMessageError as exc:
             await self.send_json({'type': 'message.error', 'error': exc.message})
+            return
+        except ValidationError:
+            await self.send_json({'type': 'message.error', 'error': 'invalid_payload'})
             return
         # The broadcast (echo to sender + peers) is emitted inside the service
         # via transaction.on_commit.
@@ -259,6 +271,11 @@ class PrivateChatConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
 
     async def _handle_typing(self, content):
         allow_rate_limit(self.scope, 'typing', 30, 60)
+        blocked = await database_sync_to_async(Block.is_blocked)(
+            self.user, self.conversation.other_user(self.user),
+        )
+        if blocked:
+            return
         status = content.get('status')
         if status not in ('typing', 'stopped'):
             status = 'typing'
@@ -277,7 +294,14 @@ class PrivateChatConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
 
     async def _handle_read(self, content):
         allow_rate_limit(self.scope, 'read', 60, 60)
-        await database_sync_to_async(mark_conversation_read)(self.user, self.conversation)
+        payload = content.get('payload') if isinstance(content.get('payload'), dict) else content
+        try:
+            await database_sync_to_async(mark_conversation_read)(
+                self.user, self.conversation, message_ids=payload.get('message_ids'),
+            )
+        except SendMessageError as exc:
+            await self.send_json({'type': 'error', 'message': exc.message})
+            return
         await self.send_json({'type': 'read.marked', 'ok': True})
 
     async def _handle_presence(self, content):
@@ -295,7 +319,16 @@ class PrivateChatConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
         await self.send_json({
             'type': 'read_receipt',
             'conversation_id': event['conversation_id'],
-            'up_to_message_id': event['up_to_message_id'],
+            'up_to_message_id': event.get('up_to_message_id'),
+            'message_ids': event.get('message_ids') or [],
+            'user_id': event['user_id'],
+        })
+
+    async def delivery_receipt(self, event):
+        await self.send_json({
+            'type': 'delivery_receipt',
+            'conversation_id': event['conversation_id'],
+            'message_ids': event.get('message_ids') or [],
             'user_id': event['user_id'],
         })
 
@@ -305,6 +338,15 @@ class PrivateChatConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
             'message_id': event['message_id'],
             'reaction': event.get('reaction'),
             'is_favorite': event.get('is_favorite'),
+        })
+
+    async def message_deleted(self, event):
+        await self.send_json({
+            'type': 'message.deleted',
+            'message_id': event['message_id'],
+            'for_everyone': event.get('for_everyone', False),
+            'user_id': event.get('user_id'),
+            'conversation_id': event.get('conversation_id'),
         })
 
 

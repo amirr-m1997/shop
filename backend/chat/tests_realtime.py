@@ -15,12 +15,14 @@ closed loop and time out. Driving one communicator end-to-end inside one
 """
 
 import asyncio
+from datetime import timedelta
 
 from channels.routing import URLRouter
 from channels.testing import WebsocketCommunicator
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.test import TransactionTestCase, override_settings
+from django.utils import timezone
 from rest_framework.authtoken.models import Token
 
 from accounts.models import UserProfile
@@ -178,9 +180,21 @@ class PrivateChatRealtimeTests(TransactionTestCase):
             await _expect_presence(alice_comm, 2)
             await _expect_presence(bob_comm, 1)
 
-            await bob_comm.send_json_to({'type': 'read.mark'})
-            await bob_comm.receive_json_from()  # read.marked ack
-            receipt = await alice_comm.receive_json_from()
+            await bob_comm.send_json_to({'type': 'read.mark', 'payload': {'message_ids': [message.pk]}})
+            bob_ack = None
+            for _ in range(4):
+                frame = await bob_comm.receive_json_from()
+                if frame['type'] == 'read.marked':
+                    bob_ack = frame
+                    break
+            self.assertIsNotNone(bob_ack)
+            receipt = None
+            for _ in range(4):
+                frame = await alice_comm.receive_json_from()
+                if frame['type'] == 'read_receipt':
+                    receipt = frame
+                    break
+            self.assertIsNotNone(receipt)
             self.assertEqual(receipt['type'], 'read_receipt')
             self.assertEqual(receipt['up_to_message_id'], message.pk)
             self.assertEqual(receipt['user_id'], self.bob.id)
@@ -263,6 +277,9 @@ class PrivateChatRealtimeTests(TransactionTestCase):
 
     @override_settings(REALTIME={**settings.REALTIME, 'MESSAGE_RATE': 3})
     def test_message_rate_limit(self):
+        self.alice.date_joined = timezone.now() - timedelta(days=30)
+        self.alice.save(update_fields=['date_joined'])
+
         async def scenario():
             comm = self._chat(f'/ws/chat/private/{self.conversation.pk}/', self.alice_token)
             await comm.connect()
@@ -328,10 +345,13 @@ class StyleRoomRealtimeTests(TransactionTestCase):
 
             await alice_comm.send_json_to({'type': 'message.send', 'payload': {'text': 'بخوان'}})
             await alice_comm.receive_json_from()  # message.sent ack
-            await bob_comm.receive_json_from()  # chat.message for bob
+            delivered = await bob_comm.receive_json_from()  # chat.message for bob
             await alice_comm.receive_json_from()  # echo chat.message for alice
-
-            await bob_comm.send_json_to({'type': 'read.mark'})
+            self.assertEqual(delivered['type'], 'chat.message')
+            await bob_comm.send_json_to({
+                'type': 'read.mark',
+                'payload': {'message_ids': [delivered['message']['id']]},
+            })
             await bob_comm.receive_json_from()  # read.marked ack
             read_event = await alice_comm.receive_json_from()
             self.assertEqual(read_event['type'], 'read')

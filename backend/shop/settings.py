@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 from dotenv import load_dotenv
 
 # Load .env from project root (parent of backend/)
@@ -166,6 +167,13 @@ REALTIME = {
     'PRESENCE_TTL': int(os.getenv('WS_PRESENCE_TTL', '90')),
 }
 
+# Web Push (VAPID). Empty keys disable delivery; subscriptions are still stored.
+WEB_PUSH = {
+    'VAPID_PUBLIC_KEY': os.getenv('VAPID_PUBLIC_KEY', ''),
+    'VAPID_PRIVATE_KEY': os.getenv('VAPID_PRIVATE_KEY', ''),
+    'VAPID_CLAIM_EMAIL': os.getenv('VAPID_CLAIM_EMAIL', 'mailto:support@localhost'),
+}
+
 
 
 # Database
@@ -269,6 +277,7 @@ REST_FRAMEWORK = {
         'payment_webhook': '60/min',
         'coupon_apply': '20/min',
         'chat_send': '60/min',
+        'chat_request': '10/hour',
         'room_write': '60/min',
         'room_invite': '10/hour',
     },
@@ -295,8 +304,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 #   REDIS_URL=redis://<host>:6379/0
 #
 # must be provided by the environment; nothing here hardcodes a URL or
-# credentials. When REDIS_URL is empty we intentionally keep LocMemCache
-# as the safe development fallback — Redis is never assumed to exist.
+# credentials. When REDIS_URL is empty, LocMemCache remains the development
+# fallback. Production (DEBUG=False, not a test process) refuses to start
+# without a Redis cache, and also requires CHANNELS_REDIS_URL when realtime
+# is enabled — see assert_production_shared_cache below.
 
 REDIS_URL = os.getenv('REDIS_URL', '')
 
@@ -316,6 +327,51 @@ else:
             'LOCATION': 'shop-security',
         }
     }
+
+
+def _is_test_process():
+    """True for ``manage.py test`` / pytest so LocMem remains valid in CI."""
+    if os.getenv('PYTEST_CURRENT_TEST'):
+        return True
+    return len(sys.argv) > 1 and sys.argv[1] == 'test'
+
+
+def assert_production_shared_cache(
+    *,
+    debug,
+    cache_backend,
+    channel_backend,
+    realtime_enabled,
+    allow_inprocess=False,
+):
+    """Refuse per-process cache / channel fallbacks outside debug and tests.
+
+    Chat send-budget, REST throttles and presence all share ``CACHES['default']``.
+    LocMem multiplies every budget by the worker count. The channel layer must
+    also be Redis when realtime is on, or sockets only work in one process.
+    """
+    if debug or allow_inprocess:
+        return
+    if 'redis' not in (cache_backend or '').lower():
+        raise RuntimeError(
+            'REDIS_URL must be set when DEBUG is False. '
+            'LocMemCache is per-process and splits chat send-budget, REST throttles '
+            'and presence across workers.'
+        )
+    if realtime_enabled and 'redis' not in (channel_backend or '').lower():
+        raise RuntimeError(
+            'CHANNELS_REDIS_URL must be set when DEBUG is False and realtime is enabled. '
+            'InMemoryChannelLayer cannot fan out WebSocket events across processes.'
+        )
+
+
+assert_production_shared_cache(
+    debug=DEBUG,
+    cache_backend=(CACHES.get('default') or {}).get('BACKEND', ''),
+    channel_backend=(CHANNEL_LAYERS.get('default') or {}).get('BACKEND', ''),
+    realtime_enabled=bool(REALTIME.get('ENABLED')),
+    allow_inprocess=_is_test_process(),
+)
 
 # ─── Security Settings ─────────────────────────────────────
 

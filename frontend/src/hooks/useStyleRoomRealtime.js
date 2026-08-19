@@ -1,40 +1,36 @@
 import { useEffect } from 'react';
-import { getRealtimeSocket, releaseRealtimeSocket } from '../services/realtime';
+import { styleRoomSocketPath } from '../lib/realtimePaths';
 import { mergeMessages } from '../lib/messages';
+import { getRealtimeSocket, releaseRealtimeSocket } from '../services/realtime';
 
 const mapRoomMessage = (dto) => ({
   id: dto.id,
   sender: {
-    id: dto.sender_id,
-    username: dto.sender_username,
-    display_name: dto.sender_name,
+    id: dto.sender_id ?? dto.sender?.id,
+    username: dto.sender_username ?? dto.sender?.username,
+    display_name: dto.sender_name ?? dto.sender?.display_name,
   },
   text: dto.text || '',
   product: dto.product,
   created_at: dto.created_at,
-  is_read: false,
-  read_count: 0,
-  read_by_all: false,
+  is_read: Boolean(dto.is_read),
+  read_count: dto.read_count || 0,
+  read_by_all: Boolean(dto.read_by_all),
 });
 
 /**
- * Live style-room integration for StyleRoomConversation. Receives room events
- * (messages, read receipts, reactions) and pushes read-marking over the
- * socket; REST remains the authoritative fallback.
+ * Live style-room integration. Receiving a frame is not a read.
  */
 export const useStyleRoomRealtime = ({ roomId, currentUserId, setMessages, onTyping, onPresence }) => {
   useEffect(() => {
     if (!roomId || !currentUserId) return undefined;
-    const path = `/style-rooms/${roomId}/`;
+    const path = styleRoomSocketPath(roomId);
     const socket = getRealtimeSocket(path);
     const listener = (message) => {
       switch (message.type) {
         case 'chat.message': {
           if (!message.message) break;
           setMessages?.((previous) => mergeMessages(previous, [mapRoomMessage(message.message)]));
-          if (message.message.sender_id !== currentUserId) {
-            socket.send({ type: 'read.mark' });
-          }
           break;
         }
         case 'read': {

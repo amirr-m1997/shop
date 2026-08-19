@@ -12,6 +12,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from .models import Conversation, Message, Notification, Block
+from .pagination import MessageCursorPagination
 from .serializers import (
     MAX_MESSAGE_LENGTH,
     PublicUserSerializer,
@@ -21,7 +22,7 @@ from .serializers import (
     SendMessageSerializer,
     NotificationSerializer,
 )
-from .throttles import ChatSendThrottle
+from .throttles import ChatRequestThrottle, ChatSendThrottle
 from support.models import SupportConversation, SupportMessage
 from support.serializers import SupportConversationSerializer
 
@@ -49,8 +50,15 @@ class UserSearchViewSet(viewsets.ViewSet):
 
         # Privacy: search by username only — never by email. Email is not
         # returned in the public payload either.
+        blocked_ids = Block.objects.filter(
+            Q(blocker=request.user) | Q(blocked=request.user)
+        ).values_list('blocker_id', 'blocked_id')
+        hidden = {request.user.id}
+        for blocker_id, blocked_id in blocked_ids:
+            hidden.add(blocker_id)
+            hidden.add(blocked_id)
         users = User.objects.filter(username__icontains=q).exclude(
-            id=request.user.id
+            id__in=hidden
         ).order_by('username')[:10]
 
         existing_pairs = {
@@ -80,13 +88,15 @@ class ConversationViewSet(viewsets.ModelViewSet):
     pagination_class = ConversationPagination
 
     def get_throttles(self):
-        if self.action in ('create', 'accept', 'decline', 'send_message', 'send_product'):
+        if self.action == 'create':
+            return [ChatRequestThrottle()]
+        if self.action in ('accept', 'decline', 'send_message', 'send_product', 'forward'):
             return [ChatSendThrottle()]
         return super().get_throttles()
 
     def get_queryset(self):
         user = self.request.user
-        last_message = Message.objects.filter(conversation=OuterRef('pk')).exclude(
+        last_message = Message.objects.filter(conversation=OuterRef('pk'), deleted_at__isnull=True).exclude(
             deleted_for=user
         ).order_by('-created_at', '-id')
         return private_conversations_for(user).select_related(
@@ -99,7 +109,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
             _last_message_created_at=Subquery(last_message.values('created_at')[:1]),
             _unread_count=Coalesce(
                 Subquery(
-                    Message.objects.filter(conversation=OuterRef('pk'))
+                    Message.objects.filter(conversation=OuterRef('pk'), deleted_at__isnull=True)
                     .exclude(deleted_for=user)
                     .filter(is_read=False)
                     .exclude(sender=user)
@@ -114,59 +124,24 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def support_chat(self, request):
-        conversation = SupportConversation.objects.filter(customer=request.user, department=SupportConversation.DEPARTMENT_FASHION_STYLIST).exclude(status=SupportConversation.STATUS_CLOSED).order_by('-updated_at').first()
+        """Legacy alias: open or reuse the fashion-stylist support conversation."""
+        conversation = SupportConversation.objects.filter(
+            customer=request.user,
+            department=SupportConversation.DEPARTMENT_FASHION_STYLIST,
+        ).exclude(status=SupportConversation.STATUS_CLOSED).order_by('-updated_at').first()
         created = conversation is None
         if created:
-            conversation = SupportConversation.objects.create(customer=request.user, department=SupportConversation.DEPARTMENT_FASHION_STYLIST)
-            SupportMessage.objects.create(conversation=conversation, sender=request.user, text='Support request created through the legacy chat endpoint.')
-        return Response(SupportConversationSerializer(conversation, context={'request': request}).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
-        """ایجاد یا دریافت گفتگو با استایلیست مد و پشتیبانی سایت (به صورت خودکار تایید شده)."""
-        stylist = User.objects.filter(username__in=['stylist', 'support', 'site_stylist']).exclude(id=request.user.id).first()
-        if not stylist:
-            stylist = User.objects.filter(is_superuser=True).exclude(id=request.user.id).first()
-        if not stylist:
-            stylist = User.objects.create_user(
-                username='site_stylist',
-                email='stylist@fashion.com',
-                first_name='استایلیست',
-                last_name='ارشد مد',
+            conversation = SupportConversation.objects.create(
+                customer=request.user,
+                department=SupportConversation.DEPARTMENT_FASHION_STYLIST,
             )
-            stylist.set_unusable_password()
-            stylist.save()
-
-        if stylist.id == request.user.id:
-            return Response(
-                {'error': 'شما نمی‌توانید با خودتان گفتگو کنید.'},
-                status=status.HTTP_400_BAD_REQUEST,
+            SupportMessage.objects.create(
+                conversation=conversation,
+                sender=request.user,
+                text='Support request created through the legacy chat endpoint.',
             )
-
-        created = False
-        try:
-            with transaction.atomic():
-                conversation, created = Conversation.get_or_create_pair(
-                    request.user, stylist, requester=request.user
-                )
-                if conversation.status != Conversation.STATUS_ACCEPTED:
-                    conversation.status = Conversation.STATUS_ACCEPTED
-                    conversation.save(update_fields=['status'])
-
-                if created or not conversation.messages.exists():
-                    Message.objects.create(
-                        conversation=conversation,
-                        sender=stylist,
-                        text='سلام! من استایلیست ارشد مد و پشتیبان شما هستم. ✨ چطور می‌توانم در انتخاب لباس، ست کردن یا سایز مناسب به شما کمک کنم؟',
-                    )
-        except IntegrityError:
-            created = False
-            conversation = Conversation.objects.filter(
-                Q(user1=request.user, user2=stylist) | Q(user1=stylist, user2=request.user)
-            ).first()
-            if conversation and conversation.status != Conversation.STATUS_ACCEPTED:
-                conversation.status = Conversation.STATUS_ACCEPTED
-                conversation.save(update_fields=['status'])
-
         return Response(
-            ConversationSerializer(conversation, context={'request': request}).data,
+            SupportConversationSerializer(conversation, context={'request': request}).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
 
@@ -266,11 +241,11 @@ class ConversationViewSet(viewsets.ModelViewSet):
     def messages(self, request, pk=None):
         conversation = self.get_object()
         qs = conversation.messages.exclude(deleted_for=request.user).select_related(
-            'sender', 'sender__profile', 'product'
-        ).order_by('created_at', 'id')
-        page = self.paginate_queryset(qs)
-        data = MessageSerializer(page, many=True, context={'request': request}).data
-        return self.get_paginated_response(data)
+            'sender', 'sender__profile', 'product', 'reply_to', 'reply_to__sender', 'forwarded_from'
+        ).prefetch_related('receipts')
+        return MessageCursorPagination().paginate(
+            request, qs, MessageSerializer, context={'request': request},
+        )
 
     @action(detail=True, methods=['post'])
     def accept(self, request, pk=None):
@@ -345,10 +320,6 @@ class ConversationViewSet(viewsets.ModelViewSet):
     def clear(self, request, pk=None):
         """پاک کردن سابقه پیام‌ها فقط برای خود کاربر (حذف یک‌طرفه)."""
         conversation = self.get_object()
-        # Each user clears their own copy; the other user keeps the history.
-        conversation.messages.exclude(deleted_for=request.user).update(
-            is_read=True,
-        )
         for msg in conversation.messages.exclude(deleted_for=request.user).iterator():
             msg.deleted_for.add(request.user)
         return Response({'status': 'ok', 'cleared': True})
@@ -391,6 +362,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 text=request.data.get('text', ''),
                 product_id=request.data.get('product_id'),
                 require_active_product=require_active_product,
+                reply_to_id=request.data.get('reply_to_id'),
+                idempotency_key=request.headers.get('Idempotency-Key') or request.data.get('idempotency_key') or '',
             )
         except SendMessageError as exc:
             return Response({'error': exc.message}, status=exc.status)
@@ -409,6 +382,28 @@ class ConversationViewSet(viewsets.ModelViewSet):
             )
         return self._send(request, conversation, require_active_product=True)
 
+    @action(detail=True, methods=['get'])
+    def search(self, request, pk=None):
+        conversation = self.get_object()
+        from .services import SendMessageError, search_conversation_messages
+        try:
+            rows = search_conversation_messages(
+                request.user, conversation, request.query_params.get('q', ''),
+            )
+        except SendMessageError as exc:
+            return Response({'error': exc.message}, status=exc.status)
+        return Response({
+            'results': [
+                {
+                    'id': row.id,
+                    'text': row.text[:180],
+                    'sender_id': row.sender_id,
+                    'created_at': row.created_at,
+                }
+                for row in rows
+            ]
+        })
+
     @action(detail=True, methods=['post'])
     def send_product(self, request, pk=None):
         """ارسال یک محصول مشخص به گفتگو."""
@@ -421,10 +416,29 @@ class ConversationViewSet(viewsets.ModelViewSet):
         return self._send(request, conversation, require_active_product=True)
 
     @action(detail=True, methods=['post'])
+    def mark_delivered(self, request, pk=None):
+        conversation = self.get_object()
+        message_ids = request.data.get('message_ids') if isinstance(request.data, dict) else None
+        from .services import SendMessageError, mark_conversation_delivered
+        try:
+            return Response(mark_conversation_delivered(request.user, conversation, message_ids=message_ids))
+        except SendMessageError as exc:
+            return Response({'error': exc.message}, status=exc.status)
+
+    @action(detail=True, methods=['post'])
     def mark_read(self, request, pk=None):
         conversation = self.get_object()
-        from .services import mark_conversation_read
-        return Response(mark_conversation_read(request.user, conversation))
+        message_ids = request.data.get('message_ids') if isinstance(request.data, dict) else None
+        from .services import SendMessageError, mark_conversation_read
+        try:
+            return Response(mark_conversation_read(request.user, conversation, message_ids=message_ids))
+        except SendMessageError as exc:
+            return Response({'error': exc.message}, status=exc.status)
+
+    @action(detail=False, methods=['get'])
+    def unread_summary(self, request):
+        from .services import unread_summary
+        return Response(unread_summary(request.user))
 
 
 class MessageViewSet(viewsets.ModelViewSet):
@@ -433,7 +447,7 @@ class MessageViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_throttles(self):
-        if self.action in ('react', 'favorite'):
+        if self.action in ('react', 'favorite', 'forward', 'report', 'remove'):
             return [ChatSendThrottle()]
         return super().get_throttles()
 
@@ -442,11 +456,13 @@ class MessageViewSet(viewsets.ModelViewSet):
             conversation__in=Conversation.objects.filter(
                 Q(user1=self.request.user) | Q(user2=self.request.user)
             )
-        ).select_related('sender', 'sender__profile', 'product')
+        ).exclude(deleted_for=self.request.user).select_related(
+            'sender', 'sender__profile', 'product', 'conversation',
+        )
 
     def get_object(self):
         obj = super().get_object()
-        if not obj.conversation.is_member(self.request.user):
+        if not obj.conversation or not obj.conversation.is_member(self.request.user):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied('شما به این پیام دسترسی ندارید.')
         return obj
@@ -476,6 +492,45 @@ class MessageViewSet(viewsets.ModelViewSet):
         except SendMessageError as exc:
             return Response({'error': exc.message}, status=exc.status)
 
+    @action(detail=True, methods=['post'])
+    def remove(self, request, pk=None):
+        from .services import SendMessageError, delete_message
+        try:
+            return Response(delete_message(request.user, self.get_object(), request.data.get('mode', 'me')))
+        except SendMessageError as exc:
+            return Response({'error': exc.message}, status=exc.status)
+
+    @action(detail=True, methods=['post'])
+    def forward(self, request, pk=None):
+        from .serializers import MessageSerializer
+        from .services import SendMessageError, forward_message
+        try:
+            messages = forward_message(
+                request.user,
+                self.get_object(),
+                request.data.get('conversation_ids') if isinstance(request.data, dict) else None,
+            )
+        except SendMessageError as exc:
+            return Response({'error': exc.message}, status=exc.status)
+        return Response({
+            'status': 'ok',
+            'forwarded': len(messages),
+            'messages': MessageSerializer(messages, many=True, context={'request': request}).data,
+        }, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'])
+    def report(self, request, pk=None):
+        from .services import SendMessageError, report_message
+        try:
+            return Response(report_message(
+                request.user,
+                self.get_object(),
+                reason=request.data.get('reason', ''),
+                details=request.data.get('details', ''),
+            ))
+        except SendMessageError as exc:
+            return Response({'error': exc.message}, status=exc.status)
+
 
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = NotificationSerializer
@@ -496,3 +551,30 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     def mark_all_read(self, request):
         Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
         return Response({'status': 'ok'})
+
+    @action(detail=False, methods=['post'])
+    def push_subscribe(self, request):
+        from .services import SendMessageError, subscribe_push
+        try:
+            subscribe_push(
+                request.user,
+                endpoint=request.data.get('endpoint', ''),
+                p256dh=request.data.get('p256dh', ''),
+                auth=request.data.get('auth', ''),
+                user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            )
+        except SendMessageError as exc:
+            return Response({'error': exc.message}, status=exc.status)
+        return Response({'status': 'ok'})
+
+    @action(detail=False, methods=['post'])
+    def push_unsubscribe(self, request):
+        from .services import unsubscribe_push
+        return Response(unsubscribe_push(request.user, request.data.get('endpoint', '')))
+
+    @action(detail=False, methods=['get'])
+    def push_public_key(self, request):
+        from django.conf import settings as django_settings
+        return Response({
+            'public_key': getattr(django_settings, 'WEB_PUSH', {}).get('VAPID_PUBLIC_KEY') or '',
+        })

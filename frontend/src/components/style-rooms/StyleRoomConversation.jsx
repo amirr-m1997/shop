@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Check, CheckCheck, Gift, Loader2, MessageCircle, RefreshCw, Send, Smile } from 'lucide-react';
 import { useToast } from '../ui/use-toast';
 import { Avatar, EMOJIS, ProductMessageCard } from '../chat/ChatDomainComponents';
-import { useMarkStyleRoomMessagesRead, useSendStyleRoomMessage, useStyleRoomMessagesQuery } from '../../queries/styleRoomQueries';
+import { useSendStyleRoomMessage, useStyleRoomMessagesQuery } from '../../queries/styleRoomQueries';
 import { useStyleRoomRealtime } from '../../hooks/useStyleRoomRealtime';
 import { formatTime } from '../../lib/formatDate';
 import { mergeMessages } from '../../lib/messages';
@@ -44,7 +44,6 @@ const StyleRoomConversation = ({ roomId, currentUserId }) => {
   const loadingMoreRef = useRef(false);
   const query = useStyleRoomMessagesQuery(roomId, page);
   const sendMessage = useSendStyleRoomMessage(roomId);
-  const markRead = useMarkStyleRoomMessagesRead(roomId);
 
   useStyleRoomRealtime({ roomId, currentUserId, setMessages });
 
@@ -76,15 +75,6 @@ const StyleRoomConversation = ({ roomId, currentUserId }) => {
       shouldScrollToBottomRef.current = false;
     }
   }, [messages.length, page]);
-
-  useEffect(() => {
-    if (messages.length) {
-      const unreadIds = messages.filter((message) => !message.is_read && message.sender?.id !== currentUserId).map((message) => message.id);
-      if (unreadIds.length) markRead.mutate({ message_ids: unreadIds });
-    }
-  // Marking read is intentionally tied to loaded messages, not private chat state.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length, currentUserId]);
 
   const isSending = sendMessage.isPending;
   const hasMore = Boolean(query.data?.next);

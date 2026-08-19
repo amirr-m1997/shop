@@ -55,10 +55,8 @@ export default function SupportChatPage() {
     if (updateUrl) setSearchParams({ conversation: String(id) }, { replace: true });
     setMessagesLoading(true);
     try {
-      const response = await supportAPI.getMessages(id);
+      const response = await supportAPI.getMessages(id, { limit: 50 });
       setMessages(normalize(response));
-      await supportAPI.markRead(id);
-      setConversations((items) => items.map((item) => item.id === id ? { ...item, unread_count: 0 } : item));
     } catch {
       toast({ title: 'بارگذاری پیام‌ها ممکن نبود.', variant: 'destructive' });
     } finally {

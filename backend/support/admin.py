@@ -3,8 +3,11 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.contrib.admin import ModelAdmin, TabularInline
 
-from .models import SupportConversation, SupportDepartmentMembership, SupportMessage
-from .permissions import has_department_access, is_support_eligible
+from .models import (
+    SupportAgentPresence, SupportAssignment, SupportConversation,
+    SupportDepartmentMembership, SupportMessage,
+)
+from .permissions import departments_for, has_department_access, is_support_eligible
 
 
 class SupportDepartmentMembershipForm(forms.ModelForm):
@@ -45,11 +48,20 @@ class SupportMessageInline(TabularInline):
 @admin.register(SupportConversation)
 class SupportConversationAdmin(ModelAdmin):
     form = SupportConversationAdminForm
-    list_display = ('id', 'customer', 'department', 'status', 'assigned_agent', 'last_message_at', 'created_at')
-    list_filter = ('department', 'status', 'created_at', 'updated_at')
+    list_display = ('id', 'customer', 'department', 'status', 'priority', 'assigned_agent', 'last_message_at', 'created_at')
+    list_filter = ('department', 'status', 'priority', 'assigned_agent', 'created_at', 'updated_at')
     search_fields = ('customer__username', 'assigned_agent__username')
     readonly_fields = ('created_at', 'updated_at', 'closed_at', 'last_message_at')
     inlines = (SupportMessageInline,)
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
+        departments = departments_for(request.user)
+        if not departments:
+            return qs.none()
+        return qs.filter(department__in=departments)
 
     def get_deleted_objects(self, objs, request):
         deleted_objects, model_count, perms_needed, protected = super().get_deleted_objects(objs, request)
@@ -86,3 +98,19 @@ class SupportMessageAdmin(ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(SupportAssignment)
+class SupportAssignmentAdmin(ModelAdmin):
+    list_display = ('id', 'conversation', 'action', 'agent', 'previous_agent', 'actor', 'created_at')
+    list_filter = ('action', 'created_at')
+    search_fields = ('agent__username', 'actor__username', 'conversation__customer__username')
+    readonly_fields = ('conversation', 'agent', 'action', 'actor', 'previous_agent', 'created_at')
+
+
+@admin.register(SupportAgentPresence)
+class SupportAgentPresenceAdmin(ModelAdmin):
+    list_display = ('staff', 'status', 'last_seen_at', 'heartbeat_at', 'updated_at')
+    list_filter = ('status',)
+    search_fields = ('staff__username',)
+    readonly_fields = ('staff', 'last_seen_at', 'heartbeat_at', 'updated_at')
