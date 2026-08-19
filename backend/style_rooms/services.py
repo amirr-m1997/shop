@@ -10,8 +10,10 @@ import secrets
 
 from django.db import transaction
 from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied
 
 from chat.models import Block, Message, Notification, StyleRoomMessageRead
+from chat.realtime import broadcast_after_commit
 
 from .models import (
     INVITE_TOKEN_TTL,
@@ -59,9 +61,26 @@ def log_room_event(room, actor, event_type, payload=None):
     )
 
 
+def _notification_snippet(notification):
+    return {
+        'id': notification.id,
+        'text': notification.text,
+        'actor_id': notification.actor_id,
+        'actor_username': notification.actor.username if notification.actor_id else None,
+        'conversation_id': notification.conversation_id,
+        'product_id': notification.product_id,
+        'created_at': notification.created_at.isoformat(),
+        'is_read': notification.is_read,
+    }
+
+
 def notify(recipient, actor, text):
     """Reuse chat.Notification — no new notification model."""
-    Notification.objects.create(recipient=recipient, actor=actor, text=text)
+    notification = Notification.objects.create(recipient=recipient, actor=actor, text=text)
+    broadcast_after_commit(
+        f'chat.user.{recipient.pk}',
+        {'type': 'notification', 'notification': _notification_snippet(notification)},
+    )
 
 
 @transaction.atomic
@@ -191,6 +210,16 @@ def create_room_message(room, sender, *, text='', product=None):
             logging.getLogger('style_rooms').exception(
                 '[personalization_product_share_error] message_id=%s', message.pk,
             )
+    from chat.serializers import MessageSerializer
+    dto = MessageSerializer(message).data
+    broadcast_after_commit(
+        f'room.{room.pk}',
+        {
+            'type': 'chat.message',
+            'message': dto,
+            'member_count': room.members.count(),
+        },
+    )
     return message
 
 
@@ -207,4 +236,42 @@ def mark_room_messages_read(room, user, message_ids=None):
     StyleRoomMessageRead.objects.bulk_create(
         reads, ignore_conflicts=True,
     )
+    broadcast_after_commit(
+        f'room.{room.pk}',
+        {
+            'type': 'read',
+            'message_ids': [message.id for message in messages],
+            'user_id': user.id,
+            'member_count': room.members.count(),
+        },
+    )
     return len(messages)
+
+
+@transaction.atomic
+def react_room_message(user, message, reaction):
+    room = message.style_room
+    if not room or not room.is_member(user):
+        raise PermissionDenied('شما به این پیام دسترسی ندارید.')
+    reaction = reaction if isinstance(reaction, str) and len(reaction) <= 20 else ''
+    message.reaction = reaction
+    message.save(update_fields=['reaction'])
+    broadcast_after_commit(
+        f'room.{room.pk}',
+        {'type': 'message.updated', 'message_id': message.pk, 'reaction': reaction},
+    )
+    return {'status': 'ok', 'reaction': reaction}
+
+
+@transaction.atomic
+def favorite_room_message(user, message):
+    room = message.style_room
+    if not room or not room.is_member(user):
+        raise PermissionDenied('شما به این پیام دسترسی ندارید.')
+    message.is_favorite = not message.is_favorite
+    message.save(update_fields=['is_favorite'])
+    broadcast_after_commit(
+        f'room.{room.pk}',
+        {'type': 'message.updated', 'message_id': message.pk, 'is_favorite': message.is_favorite},
+    )
+    return {'status': 'ok', 'is_favorite': message.is_favorite}

@@ -15,7 +15,7 @@ const ChatDashboard = ({ model }) => {
     mobilePane, setMobilePane, showEmoji,
     setShowEmoji, sendProductOpen, setSendProductOpen, profileOpen,
     setProfileOpen, sharedOpen, setSharedOpen, sharedProducts, messagesEndRef, textareaRef,
-    currentUserId, active, loadMessages,
+    messagesScrollRef, handleMessagesScroll, hasOlder, loadingOlder, currentUserId, active, loadMessages,
     handleAcceptRequest, handleDeclineRequest, handleReopenRequest, handleCancelRequest,
     menuOpen, setMenuOpen, confirmDialog, askConfirm, closeConfirm, handleClearChat,
     handleBlock, handleUnblock, handleSend, insertEmoji,
@@ -165,7 +165,7 @@ const ChatDashboard = ({ model }) => {
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto px-4 sm:px-6 pt-5 pb-[calc(12rem+env(safe-area-inset-bottom))] lg:pb-32 space-y-4 scrollbar-hide">
+              <div ref={messagesScrollRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-4 sm:px-6 pt-5 pb-[calc(12rem+env(safe-area-inset-bottom))] lg:pb-32 space-y-4 scrollbar-hide">
                 {convLoading ? (
                   <div className="flex h-full items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin text-amber-600 dark:text-amber-500" />
@@ -209,16 +209,24 @@ const ChatDashboard = ({ model }) => {
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {messages.map((m) => (
-                      <MessageBubble
-                        key={m.id}
-                        message={m}
-                        isMine={m.sender_id === currentUserId}
-                      />
-                    ))}
-                    <div ref={messagesEndRef} />
-                  </div>
+                  <>
+                    {hasOlder && (
+                      <div className="sticky top-3 z-10 mx-auto flex w-fit items-center gap-2 rounded-full border border-border/60 bg-card/90 px-3 py-1.5 text-[11px] font-bold text-muted-foreground shadow-sm backdrop-blur">
+                        {loadingOlder ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
+                        پیام‌های قدیمی‌تر با اسکرول به بالا بارگذاری می‌شوند
+                      </div>
+                    )}
+                    <div className="space-y-4">
+                      {messages.map((m) => (
+                        <MessageBubble
+                          key={m.id}
+                          message={m}
+                          isMine={m.sender_id === currentUserId}
+                        />
+                      ))}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  </>
                 )}
               </div>
 

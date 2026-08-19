@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { chatAPI } from '../services/api';
 
 export const useChatVisibilityRefresh = ({
-  currentUserId, activeId, setConversations, setMessages,
+  currentUserId, activeId, setConversations, refreshMessages,
 }) => {
   useEffect(() => {
     if (!currentUserId) return undefined;
@@ -18,14 +18,7 @@ export const useChatVisibilityRefresh = ({
           : (conversationResponse.data?.results || []);
         setConversations(conversations);
         if (activeId && conversations.some((item) => item.id === Number(activeId))) {
-          const messageResponse = await chatAPI.getMessages(activeId);
-          if (cancelled) return;
-          const messages = messageResponse.data?.results
-            ?? (Array.isArray(messageResponse.data) ? messageResponse.data : []);
-          setMessages(messages);
-          if (messages.some((message) => !message.is_read && message.sender_id !== currentUserId)) {
-            await chatAPI.markRead(activeId);
-          }
+          await refreshMessages(activeId);
         }
       } catch {
         // Visibility refresh is best-effort; dedicated loaders surface errors.
@@ -38,5 +31,5 @@ export const useChatVisibilityRefresh = ({
       cancelled = true;
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [activeId, currentUserId, setConversations, setMessages]);
+  }, [activeId, currentUserId, setConversations, refreshMessages]);
 };

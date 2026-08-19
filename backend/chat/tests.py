@@ -204,7 +204,7 @@ class ChatSecurityAndPerformanceTests(ChatAuthMixin, APITestCase):
         self.assertEqual(Conversation.objects.count(), private_count)
         self.assertEqual(SupportConversation.objects.count(), 1)
 
-    def test_legacy_support_conversation_is_hidden_without_deletion(self):
+def test_legacy_support_conversation_is_hidden_without_deletion(self):
         staff = User.objects.create_user(username='legacy_staff', password='x')
         UserProfileFactory(user=staff, role='fashion_stylist')
         support = User.objects.create_user(username='legacy_support', password='x')
@@ -217,4 +217,61 @@ class ChatSecurityAndPerformanceTests(ChatAuthMixin, APITestCase):
         self.assertNotIn(legacy_support.id, [row['id'] for row in rows])
         self.assertTrue(Conversation.objects.filter(pk=legacy.pk).exists())
         self.assertTrue(Conversation.objects.filter(pk=legacy_support.pk).exists())
+
+
+class ConversationListPerformanceTests(ChatAuthMixin, APITestCase):
+    def setUp(self):
+        self.alice = self._login('perf-alice')
+        self.convs = []
+        for i in range(3):
+            partner = User.objects.create_user(username=f'perf-partner-{i}', password='x')
+            UserProfileFactory(user=partner)
+            conv, _ = Conversation.get_or_create_pair(self.alice, partner, requester=partner)
+            conv.status = Conversation.STATUS_ACCEPTED
+            conv.save(update_fields=['status'])
+            Message.objects.create(conversation=conv, sender=partner, text='hi')
+            self.convs.append(conv)
+
+    def test_list_query_count_is_independent_of_message_volume(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        with CaptureQueriesContext(connection) as baseline:
+            self.assertEqual(self.client.get('/api/chat/conversations/').status_code, 200)
+        for i, conv in enumerate(self.convs):
+            Message.objects.bulk_create([
+                Message(conversation=conv, sender=self.alice if i % 2 else conv.user2, text=f'm{j}')
+                for j in range(20)
+            ])
+        with CaptureQueriesContext(connection) as grown:
+            self.assertEqual(self.client.get('/api/chat/conversations/').status_code, 200)
+        self.assertEqual(len(grown.captured_queries), len(baseline.captured_queries))
+
+    def test_last_message_uses_newest_message(self):
+        conv = self.convs[0]
+        Message.objects.create(conversation=conv, sender=self.alice, text='latest')
+        response = self.client.get('/api/chat/conversations/')
+        rows = response.data['results']
+        row = next(r for r in rows if r['id'] == conv.id)
+        self.assertEqual(row['last_message']['text'], 'latest')
+        self.assertEqual(row['last_message']['sender_id'], self.alice.id)
+
+    def test_deleted_for_messages_are_excluded_from_last_message(self):
+        conv = self.convs[0]
+        hidden = Message.objects.create(conversation=conv, sender=conv.user2, text='secret')
+        hidden.deleted_for.add(self.alice)
+        response = self.client.get('/api/chat/conversations/')
+        row = next(r for r in response.data['results'] if r['id'] == conv.id)
+        self.assertNotEqual(row['last_message']['text'], 'secret')
+
+    def test_unread_count_counts_only_others_messages(self):
+        conv = self.convs[0]
+        Message.objects.create(conversation=conv, sender=self.alice, text='mine')
+        response = self.client.get('/api/chat/conversations/')
+        row = next(r for r in response.data['results'] if r['id'] == conv.id)
+        self.assertEqual(row['unread_count'], 1)
+        response = self.client.post(f'/api/chat/conversations/{conv.id}/mark_read/', {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        response = self.client.get('/api/chat/conversations/')
+        row = next(r for r in response.data['results'] if r['id'] == conv.id)
+        self.assertEqual(row['unread_count'], 0)
 

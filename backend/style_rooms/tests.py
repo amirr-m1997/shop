@@ -937,3 +937,71 @@ class RoomMessageApiTests(StyleRoomAuthMixin, APITestCase):
         response = self.client.get(self.url)
         self.assertEqual({item['text']: item['is_read'] for item in response.data['results']}, {'second': False, 'first': True})
         self.assertEqual(Message.objects.get(id=first['id']).is_read, False)
+
+
+class StyleRoomReadReceiptTests(StyleRoomAuthMixin, APITestCase):
+    def setUp(self):
+        self.owner = self._login('read-receipt-owner')
+        self.room = self._create_room(self.owner)
+        self.member_b = self._new_member('read-receipt-b')
+        UserProfileFactory(user=self.member_b)
+        StyleRoomMember.objects.create(room=self.room, user=self.member_b)
+        self.member_c = self._new_member('read-receipt-c')
+        UserProfileFactory(user=self.member_c)
+        StyleRoomMember.objects.create(room=self.room, user=self.member_c)
+        self.url = f'/api/style-rooms/{self.room.id}/messages/'
+
+    def _send(self, text='hi'):
+        return self.client.post(self.url, {'text': text}, format='json').data
+
+    def _message_row(self, message_id):
+        response = self.client.get(self.url)
+        return next(row for row in response.data['results'] if row['id'] == message_id)
+
+    def test_sender_view_is_read_true_with_zero_read_count(self):
+        message = self._send()
+        row = self._message_row(message['id'])
+        self.assertTrue(row['is_read'])
+        self.assertEqual(row['read_count'], 0)
+        self.assertFalse(row['read_by_all'])
+
+    def test_read_count_counts_other_members_only(self):
+        message = self._send()
+        self._auth_as(self.member_b)
+        self.client.post(f'{self.url}read/', {'message_ids': [message['id']]}, format='json')
+        self._auth_as(self.owner)
+        row = self._message_row(message['id'])
+        self.assertTrue(row['is_read'])
+        self.assertEqual(row['read_count'], 1)
+        self.assertFalse(row['read_by_all'])
+
+    def test_read_by_all_when_every_other_member_read(self):
+        message = self._send()
+        for member in (self.member_b, self.member_c):
+            self._auth_as(member)
+            self.client.post(f'{self.url}read/', {'message_ids': [message['id']]}, format='json')
+        self._auth_as(self.owner)
+        row = self._message_row(message['id'])
+        self.assertTrue(row['is_read'])
+        self.assertEqual(row['read_count'], 2)
+        self.assertTrue(row['read_by_all'])
+
+    def test_viewer_unread_is_read_false_but_read_count_is_other_members(self):
+        message = self._send()
+        self._auth_as(self.member_c)
+        self.client.post(f'{self.url}read/', {'message_ids': [message['id']]}, format='json')
+        self._auth_as(self.member_b)
+        row = self._message_row(message['id'])
+        self.assertFalse(row['is_read'])
+        self.assertEqual(row['read_count'], 1)
+        self.assertFalse(row['read_by_all'])
+
+    def test_message_list_has_no_per_message_n_plus_one(self):
+        for _ in range(5):
+            self._send(text='m')
+        self._auth_as(self.member_b)
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        read_queries = [q['sql'] for q in ctx.captured_queries if '"chat_styleroommessageread"' in q['sql']]
+        self.assertEqual(len(read_queries), 2)

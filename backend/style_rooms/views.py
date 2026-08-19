@@ -395,6 +395,11 @@ class StyleRoomViewSet(viewsets.ModelViewSet):
                 queryset=StyleRoomMessageRead.objects.filter(user=user),
                 to_attr='_my_room_reads',
             ),
+            Prefetch(
+                'style_room_reads',
+                queryset=StyleRoomMessageRead.objects.all(),
+                to_attr='_all_room_reads',
+            ),
         # Return the newest page first; the client renders merged pages in
         # chronological order and loads older pages at the top of the chat.
         ).order_by('-created_at', '-id')
@@ -402,10 +407,11 @@ class StyleRoomViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get', 'post'], url_path='messages')
     def messages(self, request, pk=None):
         room = self.get_object()
+        member_count = room.members.count()
         if request.method == 'GET':
             page = self.paginate_queryset(self._message_queryset(room, request.user))
             data = StyleRoomMessageSerializer(
-                page, many=True, context={'request': request},
+                page, many=True, context={'request': request, 'member_count': member_count},
             ).data
             return self.get_paginated_response(data)
 
@@ -419,7 +425,9 @@ class StyleRoomViewSet(viewsets.ModelViewSet):
         )
         message = self._message_queryset(room, request.user).get(pk=message.pk)
         return Response(
-            StyleRoomMessageSerializer(message, context={'request': request}).data,
+            StyleRoomMessageSerializer(
+                message, context={'request': request, 'member_count': member_count},
+            ).data,
             status=status.HTTP_201_CREATED,
         )
 

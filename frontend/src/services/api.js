@@ -202,7 +202,7 @@ export const chatAPI = {
   clearConversation: (id) => api.post(`/chat/conversations/${id}/clear/`, {}, { authRequired: true }),
   blockConversation: (id) => api.post(`/chat/conversations/${id}/block/`, {}, { authRequired: true }),
   unblockConversation: (id) => api.post(`/chat/conversations/${id}/unblock/`, {}, { authRequired: true }),
-  getMessages: (conversationId) => api.get(`/chat/conversations/${conversationId}/messages/`, { authRequired: true }),
+  getMessages: (conversationId, params) => api.get(`/chat/conversations/${conversationId}/messages/`, { authRequired: true, params }),
   sendMessage: (conversationId, data) => api.post(`/chat/conversations/${conversationId}/send_message/`, data, { authRequired: true }),
   sendProduct: (conversationId, data) => api.post(`/chat/conversations/${conversationId}/send_product/`, data, { authRequired: true }),
   createReferral: (data) => api.post('/loyalty/referrals/', data, { authRequired: true }),
@@ -228,8 +228,9 @@ export const supportAPI = {
   reopen: (id) => api.post(`/support/conversations/${id}/reopen/`, {}, { authRequired: true }),
   markRead: (id) => api.post(`/support/conversations/${id}/read/`, {}, { authRequired: true }),
   unreadCount: () => api.get('/support/unread-count/', { authRequired: true }),
-  claim: (id) => api.post(`/support/conversations/${id}/claim/`, {}, { authRequired: true }),
+claim: (id) => api.post(`/support/conversations/${id}/claim/`, {}, { authRequired: true }),
   assign: (id, agentId) => api.post(`/support/conversations/${id}/assign/`, { agent_id: agentId }, { authRequired: true }),
+  setPriority: (id, data) => api.post(`/support/conversations/${id}/priority/`, data, { authRequired: true }),
 };
 
 // Style Rooms API (collaborative style rooms)

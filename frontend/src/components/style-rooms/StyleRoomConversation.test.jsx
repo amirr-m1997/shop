@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { mergeRoomMessages } from './StyleRoomConversation';
+import { mergeMessages } from '../../lib/messages';
 
 const message = (id, createdAt) => ({ id, created_at: createdAt });
 
@@ -15,7 +15,7 @@ describe('StyleRoomConversation pagination merging', () => {
     ];
 
     pages.forEach((page) => {
-      messages = mergeRoomMessages(messages, page);
+      messages = mergeMessages(messages, page);
     });
 
     expect(messages.map(({ id }) => id)).toEqual([1, 2, 3, 4, 5]);
@@ -23,7 +23,7 @@ describe('StyleRoomConversation pagination merging', () => {
   });
 
   it('replaces a duplicate message with the latest representation', () => {
-    const merged = mergeRoomMessages(
+    const merged = mergeMessages(
       [message(7, '2026-01-01T10:00:00Z')],
       [{ ...message(7, '2026-01-01T10:00:00Z'), is_read: true }],
     );

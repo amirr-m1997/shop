@@ -119,6 +119,17 @@ class ConversationSerializer(serializers.ModelSerializer):
         return PublicUserSerializer(other).data
 
     def get_last_message(self, obj):
+        if hasattr(obj, '_last_message_id'):
+            last_id = obj._last_message_id
+            if last_id is None:
+                return None
+            return {
+                'id': last_id,
+                'text': (obj._last_message_text or '')[:100],
+                'has_product': bool(obj._last_message_product_id),
+                'sender_id': obj._last_message_sender_id,
+                'created_at': obj._last_message_created_at,
+            }
         request = self.context.get('request')
         prefetched = getattr(obj, 'prefetched_messages', None)
         if prefetched is not None:
@@ -143,6 +154,8 @@ class ConversationSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request:
             return 0
+        if hasattr(obj, '_unread_count'):
+            return obj._unread_count or 0
         prefetched = getattr(obj, 'prefetched_messages', None)
         if prefetched is not None:
             return sum(

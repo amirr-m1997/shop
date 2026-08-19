@@ -44,14 +44,27 @@ class SupportConversationSerializer(serializers.ModelSerializer):
     customer = SupportUserSerializer(read_only=True)
     assigned_agent = SupportUserSerializer(read_only=True)
     unread_count = serializers.SerializerMethodField()
+    last_message = serializers.SerializerMethodField()
 
     class Meta:
         model = SupportConversation
         fields = [
-            'id', 'customer', 'department', 'status', 'assigned_agent',
-            'created_at', 'updated_at', 'closed_at', 'last_message_at', 'unread_count',
+            'id', 'customer', 'department', 'status', 'priority', 'assigned_agent',
+            'created_at', 'updated_at', 'closed_at', 'last_message_at',
+            'last_message', 'unread_count',
         ]
         read_only_fields = fields
+
+    def get_last_message(self, obj):
+        messages = getattr(obj, '_last_message', None)
+        message = messages[0] if messages else obj.messages.order_by('-created_at', '-id').first()
+        if not message:
+            return None
+        return {
+            'text': (message.text or '')[:200],
+            'sender_id': message.sender_id,
+            'created_at': message.created_at,
+        }
 
     def get_unread_count(self, obj):
         user = self.context['request'].user

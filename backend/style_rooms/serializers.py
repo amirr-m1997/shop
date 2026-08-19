@@ -11,14 +11,28 @@ class StyleRoomMessageSerializer(serializers.ModelSerializer):
     sender = PublicUserSerializer(read_only=True)
     product = ProductShareSerializer(read_only=True, allow_null=True)
     is_read = serializers.SerializerMethodField()
+    read_count = serializers.SerializerMethodField()
+    read_by_all = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
-        fields = ['id', 'sender', 'text', 'product', 'created_at', 'is_read']
+        fields = ['id', 'sender', 'text', 'product', 'created_at', 'is_read', 'read_count', 'read_by_all']
         read_only_fields = fields
 
     def get_is_read(self, obj):
         return bool(getattr(obj, '_my_room_reads', []))
+
+    def get_read_count(self, obj):
+        all_reads = getattr(obj, '_all_room_reads', None)
+        if all_reads is None:
+            return obj.style_room_reads.exclude(user_id=obj.sender_id).count()
+        return sum(1 for r in all_reads if r.user_id != obj.sender_id)
+
+    def get_read_by_all(self, obj):
+        member_count = self.context.get('member_count')
+        if member_count is None:
+            return False
+        return member_count > 1 and self.get_read_count(obj) >= member_count - 1
 
 
 class StyleRoomMessageCreateSerializer(serializers.Serializer):

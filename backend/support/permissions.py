@@ -3,6 +3,10 @@ from rest_framework.permissions import BasePermission
 
 SUPPORT_AGENT = 'support_agent'
 FASHION_STYLIST = 'fashion_stylist'
+ADMIN = 'admin'
+SUPER_ADMIN = 'super_admin'
+
+ELIGIBLE_ROLES = (SUPPORT_AGENT, FASHION_STYLIST, ADMIN, SUPER_ADMIN)
 
 
 def role_for(user):
@@ -10,8 +14,16 @@ def role_for(user):
     return profile.role if profile else None
 
 
+def is_support_eligible(user):
+    if not getattr(user, 'is_active', False):
+        return False
+    if getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False):
+        return True
+    return role_for(user) in ELIGIBLE_ROLES
+
+
 def departments_for(user):
-    if not getattr(user, 'is_active', False) or role_for(user) not in (SUPPORT_AGENT, FASHION_STYLIST):
+    if not is_support_eligible(user):
         return set()
     from .models import SupportDepartmentMembership
     return set(SupportDepartmentMembership.objects.filter(staff=user, active=True).values_list('department', flat=True))

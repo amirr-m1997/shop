@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
 import { chatAPI } from '../services/api';
@@ -7,6 +7,14 @@ import { useToast } from '../components/ui/use-toast';
 import ChatDashboard from '../components/chat/ChatDashboard';
 import { useChatVisibilityRefresh } from '../hooks/useChatVisibilityRefresh';
 import { useChatUserSearch } from '../hooks/useChatUserSearch';
+import { useChatRealtime } from '../hooks/useChatRealtime';
+import { mergeMessages } from '../lib/messages';
+
+const pageFromUrl = (url) => {
+  if (!url) return null;
+  try { return Number(new URL(url).searchParams.get('page')) || null; }
+  catch { return null; }
+};
 
 
 
@@ -39,6 +47,11 @@ export default function ChatPage() {
 
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
+  const messagesScrollRef = useRef(null);
+  const restoreScrollRef = useRef(null);
+  const paginationRef = useRef({ id: null, page: 1, hasOlder: false, token: 0 });
+  const [hasOlder, setHasOlder] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   const currentUserId = user?.id;
   const active = useMemo(
@@ -82,10 +95,22 @@ export default function ChatPage() {
   }, [currentUserId, conversationId]);
 
   const loadMessages = useCallback(async (id) => {
+    const token = ++paginationRef.current.token;
+    paginationRef.current.id = id;
     setConvLoading(true);
+    setMessages([]);
+    setHasOlder(false);
+    setLoadingOlder(false);
     try {
-      const res = await chatAPI.getMessages(id);
-      setMessages(res.data?.results ?? (Array.isArray(res.data) ? res.data : []));
+      const res = await chatAPI.getMessages(id, { params: { page: 'last' } });
+      if (paginationRef.current.token !== token || paginationRef.current.id !== id) return;
+      const data = res.data || {};
+      const results = Array.isArray(data) ? data : (data.results || []);
+      setMessages(results);
+      const previousPage = pageFromUrl(data.previous);
+      paginationRef.current.page = previousPage ? previousPage + 1 : 1;
+      paginationRef.current.hasOlder = Boolean(data.previous);
+      setHasOlder(Boolean(data.previous));
       await chatAPI.markRead(id);
       setConversations((prev) => prev.map((c) => (c.id === Number(id) ? { ...c, unread_count: 0 } : c)));
     } catch {
@@ -94,6 +119,35 @@ export default function ChatPage() {
       setConvLoading(false);
     }
   }, [toast]);
+
+  const loadOlderMessages = useCallback(async () => {
+    const state = paginationRef.current;
+    if (!state.id || !state.hasOlder || loadingOlder) return;
+    const viewport = messagesScrollRef.current;
+    const anchor = viewport ? { scrollHeight: viewport.scrollHeight, scrollTop: viewport.scrollTop } : null;
+    const token = state.token;
+    setLoadingOlder(true);
+    try {
+      const res = await chatAPI.getMessages(state.id, { params: { page: state.page - 1 } });
+      if (paginationRef.current.token !== token || paginationRef.current.id !== state.id) return;
+      const data = res.data || {};
+      const results = Array.isArray(data) ? data : (data.results || []);
+      setMessages((prev) => mergeMessages(prev, results));
+      const previousPage = pageFromUrl(data.previous);
+      state.page = previousPage ? previousPage + 1 : state.page - 1;
+      state.hasOlder = Boolean(data.previous);
+      setHasOlder(Boolean(data.previous));
+      if (anchor) restoreScrollRef.current = anchor;
+    } catch {
+      toast({ title: 'خطا', description: 'بارگذاری پیام‌های قدیمی‌تر ممکن نشد.', variant: 'destructive' });
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [loadingOlder, toast]);
+
+  const handleMessagesScroll = (event) => {
+    if (event.currentTarget.scrollTop <= 48) loadOlderMessages();
+  };
 
   useEffect(() => {
     if (activeId) loadMessages(activeId);
@@ -104,12 +158,29 @@ export default function ChatPage() {
     currentUserId,
     activeId,
     setConversations,
+    refreshMessages: loadMessages,
+  });
+
+  useChatRealtime({
+    currentUserId,
+    activeId,
     setMessages,
+    setConversations,
+    onNotification: (notification) => {
+      toast({ title: 'اعلان جدید', description: notification.text });
+    },
   });
 
 
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const anchor = restoreScrollRef.current;
+    const viewport = messagesScrollRef.current;
+    if (anchor && viewport) {
+      viewport.scrollTop = viewport.scrollHeight - anchor.scrollHeight + anchor.scrollTop;
+      restoreScrollRef.current = null;
+      return;
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages.length, convLoading]);
 
@@ -367,7 +438,7 @@ export default function ChatPage() {
     query, setQuery, searchResults, setSearchResults, searching, mobilePane, setMobilePane, showEmoji,
     setShowEmoji, sendProductOpen, setSendProductOpen, filter, setFilter, profileOpen,
     setProfileOpen, sharedOpen, setSharedOpen, sharedProducts, messagesEndRef, textareaRef,
-      currentUserId, active, loadMessages, selectConversation, handleStartRequest,
+      messagesScrollRef, handleMessagesScroll, hasOlder, loadingOlder, currentUserId, active, loadMessages, selectConversation, handleStartRequest,
     hideModeNavigation: true,
     handleAcceptRequest, handleDeclineRequest, handleReopenRequest, handleCancelRequest,
     menuOpen, setMenuOpen, confirmDialog, askConfirm, closeConfirm, handleClearChat,

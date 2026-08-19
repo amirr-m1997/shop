@@ -3,17 +3,10 @@ import { Check, CheckCheck, Gift, Loader2, MessageCircle, RefreshCw, Send, Smile
 import { useToast } from '../ui/use-toast';
 import { Avatar, EMOJIS, ProductMessageCard } from '../chat/ChatDomainComponents';
 import { useMarkStyleRoomMessagesRead, useSendStyleRoomMessage, useStyleRoomMessagesQuery } from '../../queries/styleRoomQueries';
+import { useStyleRoomRealtime } from '../../hooks/useStyleRoomRealtime';
 import { formatTime } from '../../lib/formatDate';
+import { mergeMessages } from '../../lib/messages';
 import StyleRoomProductPicker from './StyleRoomProductPicker';
-
-export const mergeRoomMessages = (current = [], incoming = []) => {
-  const messagesById = new Map(current.map((message) => [message.id, message]));
-  incoming.forEach((message) => messagesById.set(message.id, message));
-  return [...messagesById.values()].sort((first, second) => {
-    const createdAt = new Date(first.created_at).getTime() - new Date(second.created_at).getTime();
-    return createdAt || Number(first.id) - Number(second.id);
-  });
-};
 
 const RoomMessageBubble = ({ message, isMine }) => (
   <div className={`flex items-end gap-2.5 ${isMine ? 'flex-row-reverse' : ''}`}>
@@ -25,7 +18,11 @@ const RoomMessageBubble = ({ message, isMine }) => (
         {message.text && <p className={`${message.product ? 'mt-2.5' : ''} whitespace-pre-wrap break-words font-medium`}>{message.text}</p>}
         <div className="mt-1 flex items-center justify-end gap-1 text-[10px] font-semibold text-muted-foreground">
           <span dir="ltr">{formatTime(message.created_at)}</span>
-          {isMine && (message.is_read ? <CheckCheck className="h-3.5 w-3.5 text-sky-500" /> : <Check className="h-3.5 w-3.5 opacity-70" />)}
+          {isMine && (message.read_by_all
+            ? <CheckCheck className="h-3.5 w-3.5 text-sky-500" title="همه خوانده‌اند" />
+            : message.read_count > 0
+              ? <CheckCheck className="h-3.5 w-3.5 text-sky-500/70" title={`${message.read_count} نفر خوانده‌اند`} />
+              : <Check className="h-3.5 w-3.5 opacity-70" />)}
         </div>
       </div>
     </div>
@@ -49,6 +46,8 @@ const StyleRoomConversation = ({ roomId, currentUserId }) => {
   const sendMessage = useSendStyleRoomMessage(roomId);
   const markRead = useMarkStyleRoomMessagesRead(roomId);
 
+  useStyleRoomRealtime({ roomId, currentUserId, setMessages });
+
   useEffect(() => {
     setPage(1);
     setMessages([]);
@@ -58,7 +57,7 @@ const StyleRoomConversation = ({ roomId, currentUserId }) => {
 
   useEffect(() => {
     if (!query.data) return;
-    setMessages((previous) => mergeRoomMessages(page === 1 ? [] : previous, query.data.items));
+    setMessages((previous) => mergeMessages(page === 1 ? [] : previous, query.data.items));
   }, [query.data, page]);
 
   useLayoutEffect(() => {
@@ -107,7 +106,7 @@ const StyleRoomConversation = ({ roomId, currentUserId }) => {
     sendMessage.mutate(nextPayload, {
       onSuccess: (response) => {
         shouldScrollToBottomRef.current = true;
-        setMessages((previous) => mergeRoomMessages(previous, [response.data]));
+        setMessages((previous) => mergeMessages(previous, [response.data]));
         setText('');
         setPickerOpen(false);
       },

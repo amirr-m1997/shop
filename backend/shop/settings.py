@@ -59,12 +59,14 @@ FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',
     'rest_framework',
     'rest_framework.authtoken',
     'django.contrib.humanize',
@@ -98,6 +100,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'shop.middleware.SecurityHeadersMiddleware',
+    'shop.middleware.AdminLocalizationMiddleware',
 ]
 
 ROOT_URLCONF = 'shop.urls'
@@ -119,96 +122,50 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'shop.wsgi.application'
+ASGI_APPLICATION = 'shop.asgi.application'
 
-"""
-            {"title": "داشبورد", "separator": False, "items": [
-                {"title": "خانه", "icon": "dashboard", "link": "/admin/"},
-            ]},
-            {
-                "title": "فروش",
-                "separator": True,
-                "items": [
-                    {"title": "سفارش‌ها", "icon": "shopping_bag", "link": "/admin/orders/order/"},
-                    {"title": "آیتم‌های سفارش", "icon": "receipt_long", "link": "/admin/orders/orderitem/"},
-                    {"title": "پرداخت‌ها", "icon": "payments", "link": "/admin/payments/payment/"},
-                    {"title": "آدرس‌های ارسال", "icon": "local_shipping", "link": "/admin/orders/shippingaddress/"},
-                    {"title": "کدهای تخفیف", "icon": "local_offer", "link": "/admin/orders/coupon/"},
-                    {"title": "استفاده‌های کوپن", "icon": "confirmation_number", "link": "/admin/orders/couponusage/"},
-                    {"title": "هدیه‌های خوش‌آمدگویی", "icon": "redeem", "link": "/admin/orders/welcomeclaim/"},
-                    {"title": "سبدهای خرید", "icon": "shopping_cart", "link": "/admin/cart/cart/"},
-                    {"title": "آیتم‌های سبد", "icon": "shopping_cart_checkout", "link": "/admin/cart/cartitem/"},
-                ],
+# ─── Realtime (Django Channels) ───────────────────────────────
+# The channel layer is pure transport infrastructure. PostgreSQL stays the
+# source of truth for all domain data; Redis only holds ephemeral group
+# membership and presence keys with TTLs. When CHANNELS_REDIS_URL is empty we
+# fall back to an in-memory layer that only works for a single dev process —
+# production MUST set it.
+CHANNELS_REDIS_URL = os.getenv('CHANNELS_REDIS_URL', '')
+
+if CHANNELS_REDIS_URL:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [CHANNELS_REDIS_URL],
+                'capacity': 1000,
+                'expiry': 60,
+                'group_expiry': 86400,
             },
-            {
-                "title": "کاتالوگ محصولات",
-                "separator": True,
-                "items": [
-                    {"title": "محصولات", "icon": "inventory_2", "link": "/admin/products/product/"},
-                    {"title": "تصاویر محصولات", "icon": "image", "link": "/admin/products/productimage/"},
-                    {"title": "واریانت‌ها", "icon": "style", "link": "/admin/products/productvariant/"},
-                    {"title": "دسته‌بندی‌ها", "icon": "category", "link": "/admin/products/category/"},
-                    {"title": "برندها", "icon": "sell", "link": "/admin/products/brand/"},
-                    {"title": "سایزها", "icon": "straighten", "link": "/admin/products/size/"},
-                    {"title": "رنگ‌ها", "icon": "palette", "link": "/admin/products/color/"},
-                    {"title": "جنس پارچه", "icon": "texture", "link": "/admin/products/fabric/"},
-                    {"title": "راهنمای سایز", "icon": "apparel", "link": "/admin/products/sizeguide/"},
-                    {"title": "نظرات محصولات", "icon": "reviews", "link": "/admin/products/review/"},
-                    {"title": "علاقه‌مندی‌ها", "icon": "favorite", "link": "/admin/products/wishlist/"},
-                    {"title": "بنرها", "icon": "panorama", "link": "/admin/products/banner/"},
-                    {"title": "بخش‌های صفحه اصلی", "icon": "view_quilt", "link": "/admin/products/homepagesection/"},
-                    {"title": "استایل‌های روز", "icon": "checkroom", "link": "/admin/products/stylelook/"},
-                ],
-            },
-            {
-                "title": "کاربران و امنیت",
-                "separator": True,
-                "items": [
-                    {"title": "کاربران", "icon": "group", "link": "/admin/auth/user/"},
-                    {"title": "گروه‌ها", "icon": "groups", "link": "/admin/auth/group/"},
-                    {"title": "پروفایل‌ها", "icon": "badge", "link": "/admin/accounts/userprofile/"},
-                    {"title": "تاریخچه ورود", "icon": "history", "link": "/admin/accounts/loginhistory/"},
-                    {"title": "توکن‌ها", "icon": "key", "link": "/admin/authtoken/tokenproxy/"},
-                ],
-            },
-            {
-                "title": "محتوا",
-                "separator": True,
-                "items": [
-                    {"title": "مقالات بلاگ", "icon": "article", "link": "/admin/blog/blogpost/"},
-                    {"title": "دسته‌بندی‌های مجله", "icon": "topic", "link": "/admin/blog/blogcategory/"},
-                    {"title": "سؤالات متداول", "icon": "quiz", "link": "/admin/pages/faq/"},
-                    {"title": "نظرات مشتریان", "icon": "star_rate", "link": "/admin/pages/testimonial/"},
-                    {"title": "رضایت مشتریان", "icon": "sentiment_satisfied", "link": "/admin/pages/customersatisfaction/"},
-                    {"title": "ویژگی‌های سایت", "icon": "featured_play_list", "link": "/admin/pages/sitefeature/"},
-                    {"title": "پیام‌های تماس", "icon": "mail", "link": "/admin/pages/contactmessage/"},
-                    {"title": "اطلاعات تماس", "icon": "contact_phone", "link": "/admin/pages/contactinfo/"},
-                    {"title": "تنظیمات سایت", "icon": "settings", "link": "/admin/pages/sitesettings/"},
-                ],
-            },
-            {"title": "گفتگو و ارتباطات", "separator": True, "items": [
-                {"title": "گفتگوها", "icon": "forum", "link": "/admin/chat/conversation/"},
-                {"title": "پیام‌ها", "icon": "chat", "link": "/admin/chat/message/"},
-                {"title": "اعلان‌های گفتگو", "icon": "notifications", "link": "/admin/chat/notification/"},
-                {"title": "کاربران مسدود", "icon": "block", "link": "/admin/chat/block/"},
-            ]},
-            {"title": "مدیریت داخلی", "separator": True, "items": [
-                {"title": "نوتیفیکیشن‌های مدیر", "icon": "notifications_active", "link": "/admin/dashboard/notification/"},
-                {"title": "لاگ فعالیت", "icon": "manage_history", "link": "/admin/dashboard/activitylog/"},
-                {"title": "وظایف", "icon": "task_alt", "link": "/admin/dashboard/todoitem/"},
-                {"title": "یادداشت‌های مدیر", "icon": "sticky_note_2", "link": "/admin/dashboard/adminnote/"},
-                {"title": "نقش‌های مدیر", "icon": "admin_panel_settings", "link": "/admin/dashboard/adminrole/"},
-                {"title": "مجوزهای مدیر", "icon": "shield", "link": "/admin/dashboard/adminpermission/"},
-                {"title": "مجوزهای نقش", "icon": "policy", "link": "/admin/dashboard/adminrolepermission/"},
-            ]},
-            {"title": "صف وظایف", "separator": True, "items": [
-                {"title": "وظایف زمان‌بندی‌شده", "icon": "schedule", "link": "/admin/django_q/schedule/"},
-                {"title": "وظایف در صف", "icon": "queue", "link": "/admin/django_q/ormq/"},
-                {"title": "وظایف موفق", "icon": "check_circle", "link": "/admin/django_q/success/"},
-                {"title": "وظایف ناموفق", "icon": "error", "link": "/admin/django_q/failure/"},
-            ]},
-        ],
-    },
-"""
+        },
+    }
+else:
+    import logging as _realtime_logging
+    _realtime_logging.getLogger('django.channels').warning(
+        'CHANNELS_REDIS_URL is not set — using InMemoryChannelLayer. '
+        'Realtime will NOT work across multiple processes; production must configure Redis.'
+    )
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
+
+REALTIME = {
+    'ENABLED': os.getenv('REALTIME_ENABLED', 'True') == 'True',
+    'MAX_CONNECTIONS_PER_USER': int(os.getenv('WS_MAX_CONNECTIONS_PER_USER', '5')),
+    'MAX_FRAME_SIZE': int(os.getenv('WS_MAX_FRAME_SIZE', '16384')),
+    'HEARTBEAT_INTERVAL': int(os.getenv('WS_HEARTBEAT_INTERVAL', '30')),
+    'INACTIVITY_TIMEOUT': int(os.getenv('WS_INACTIVITY_TIMEOUT', '60')),
+    'MESSAGE_RATE': int(os.getenv('WS_MAX_MESSAGE_RATE', '60')),
+    'PRESENCE_TTL': int(os.getenv('WS_PRESENCE_TTL', '90')),
+}
+
 
 
 # Database

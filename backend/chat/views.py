@@ -7,7 +7,8 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
-from django.db.models import Q, Max, Prefetch
+from django.db.models import Q, Count, IntegerField, OuterRef, Subquery
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from .models import Conversation, Message, Notification, Block
@@ -85,11 +86,30 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        messages_qs = Message.objects.exclude(deleted_for=user).order_by('-created_at', '-id')
+        last_message = Message.objects.filter(conversation=OuterRef('pk')).exclude(
+            deleted_for=user
+        ).order_by('-created_at', '-id')
         return private_conversations_for(user).select_related(
             'user1', 'user2', 'user1__profile', 'user2__profile', 'requested_by'
-        ).prefetch_related(
-            Prefetch('messages', queryset=messages_qs, to_attr='prefetched_messages')
+        ).annotate(
+            _last_message_id=Subquery(last_message.values('id')[:1]),
+            _last_message_text=Subquery(last_message.values('text')[:1]),
+            _last_message_product_id=Subquery(last_message.values('product_id')[:1]),
+            _last_message_sender_id=Subquery(last_message.values('sender_id')[:1]),
+            _last_message_created_at=Subquery(last_message.values('created_at')[:1]),
+            _unread_count=Coalesce(
+                Subquery(
+                    Message.objects.filter(conversation=OuterRef('pk'))
+                    .exclude(deleted_for=user)
+                    .filter(is_read=False)
+                    .exclude(sender=user)
+                    .values('conversation')
+                    .annotate(c=Count('*'))
+                    .values('c'),
+                ),
+                0,
+                output_field=IntegerField(),
+            ),
         )
 
     @action(detail=False, methods=['post'])
@@ -363,68 +383,17 @@ class ConversationViewSet(viewsets.ModelViewSet):
         return qs.first()
 
     def _send(self, request, conversation, *, require_active_product):
-        if Block.is_blocked(request.user, conversation.other_user(request.user)):
-            return Response(
-                {'error': 'شما امکان ارسال پیام در این گفتگو را ندارید (این کاربر بلاک شده است).'},
-                status=status.HTTP_403_FORBIDDEN,
+        from .services import SendMessageError, send_private_message
+        try:
+            message = send_private_message(
+                request.user,
+                conversation,
+                text=request.data.get('text', ''),
+                product_id=request.data.get('product_id'),
+                require_active_product=require_active_product,
             )
-        ser = SendMessageSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-
-        text = (ser.validated_data.get('text') or '').strip()
-        product_id = ser.validated_data.get('product_id')
-
-        if not text and not product_id:
-            return Response(
-                {'error': 'متن پیام یا محصول الزامی است.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if len(text) > MAX_MESSAGE_LENGTH:
-            # Serializer already enforces this, double-check for safety.
-            raise ValidationError({'text': f'طول پیام نمی‌تواند بیش از {MAX_MESSAGE_LENGTH} کاراکتر باشد.'})
-
-        product = None
-        if product_id:
-            product = self._resolve_product(product_id, require_active=require_active_product)
-            if not product:
-                return Response(
-                    {'error': 'محصول مورد نظر یافت نشد یا غیرفعال است.'},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-        message = Message.objects.create(
-            conversation=conversation,
-            sender=request.user,
-            text=text,
-            product=product,
-        )
-        if product:
-            try:
-                from personalization.services import record_product_share
-                record_product_share(
-                    user=request.user,
-                    product=product,
-                    source='private_chat',
-                    idempotency_key=f'product-share:message:{message.pk}',
-                    metadata={'message_id': message.pk, 'conversation_id': conversation.pk},
-                )
-            except Exception:
-                logger.exception('[personalization_product_share_error] message_id=%s', message.pk)
-        conversation.updated_at = timezone.now()
-        conversation.save(update_fields=['updated_at'])
-
-        other = conversation.other_user(request.user)
-        notif_text = 'یک پیام برای شما ارسال کرده'
-        if product:
-            notif_text = f'یک محصول برای شما ارسال کرده: {product.name}'
-        Notification.objects.create(
-            recipient=other,
-            actor=request.user,
-            conversation=conversation,
-            product=product,
-            text=notif_text,
-        )
-
+        except SendMessageError as exc:
+            return Response({'error': exc.message}, status=exc.status)
         return Response(
             MessageSerializer(message, context={'request': request}).data,
             status=status.HTTP_201_CREATED,
@@ -454,9 +423,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def mark_read(self, request, pk=None):
         conversation = self.get_object()
-        conversation.messages.filter(is_read=False).exclude(sender=request.user).update(is_read=True)
-        Notification.objects.filter(conversation=conversation, recipient=request.user, is_read=False).update(is_read=True)
-        return Response({'status': 'ok'})
+        from .services import mark_conversation_read
+        return Response(mark_conversation_read(request.user, conversation))
 
 
 class MessageViewSet(viewsets.ModelViewSet):
@@ -494,18 +462,19 @@ class MessageViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def react(self, request, pk=None):
-        message = self.get_object()
-        reaction = request.data.get('reaction', '')
-        message.reaction = reaction if isinstance(reaction, str) and len(reaction) <= 20 else ''
-        message.save(update_fields=['reaction'])
-        return Response({'status': 'ok', 'reaction': message.reaction})
+        from .services import SendMessageError, react_message
+        try:
+            return Response(react_message(request.user, self.get_object(), request.data.get('reaction', '')))
+        except SendMessageError as exc:
+            return Response({'error': exc.message}, status=exc.status)
 
     @action(detail=True, methods=['post'])
     def favorite(self, request, pk=None):
-        message = self.get_object()
-        message.is_favorite = not message.is_favorite
-        message.save(update_fields=['is_favorite'])
-        return Response({'status': 'ok', 'is_favorite': message.is_favorite})
+        from .services import SendMessageError, favorite_message
+        try:
+            return Response(favorite_message(request.user, self.get_object()))
+        except SendMessageError as exc:
+            return Response({'error': exc.message}, status=exc.status)
 
 
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
