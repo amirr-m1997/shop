@@ -21,6 +21,8 @@ from .image_views import optimized_image
 
 admin.autodiscover()
 
+from shop import admin_site  # noqa: F401
+
 urlpatterns = [
     path('api/images/optimized/', optimized_image, name='optimized-image'),
     path('admin/', admin.site.urls),

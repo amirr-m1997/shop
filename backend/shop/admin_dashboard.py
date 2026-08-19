@@ -7,7 +7,8 @@ from django.utils import timezone
 from shop.jalali import format_jalali
 
 
-def dashboard_callback(request, context):
+def dashboard_context(request):
+    context = {}
     from django.contrib.auth.models import User
     from orders.models import Order, OrderItem
     from products.models import Product

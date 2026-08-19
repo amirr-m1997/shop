@@ -1,0 +1,113 @@
+{% load humanize %}
+{% load jalali_tags %}
+<style>
+#content-dashboard .dash { margin-bottom: 20px; }
+#content-dashboard .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+#content-dashboard .dash-card { background: var(--content-bg, #fff); border: 1px solid var(--border-color, #eaeaea); border-radius: 6px; padding: 14px 16px; }
+#content-dashboard .dash-card h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--body-quiet-color, #676767); }
+#content-dashboard .dash-card .dash-value { font-size: 22px; font-weight: 700; color: var(--body-fg, #333); }
+#content-dashboard .dash-card .dash-meta { margin-top: 4px; font-size: 12px; color: var(--body-quiet-color, #676767); }
+#content-dashboard .dash-card .dash-change { margin-top: 6px; font-size: 12px; }
+#content-dashboard .dash-card .dash-change.up { color: #417690; }
+#content-dashboard .dash-card .dash-change.down { color: #ba2121; }
+#content-dashboard .dash-row { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 16px; }
+@media (max-width: 1000px) { #content-dashboard .dash-row { grid-template-columns: 1fr; } }
+#content-dashboard .dash-panel { background: var(--content-bg, #fff); border: 1px solid var(--border-color, #eaeaea); border-radius: 6px; padding: 14px 16px; min-width: 0; }
+#content-dashboard .dash-panel h2 { margin: 0 0 12px; font-size: 14px; color: var(--body-fg, #333); }
+#content-dashboard .dash-panel h2 .dash-note { font-weight: 400; font-size: 12px; color: var(--body-quiet-color, #676767); }
+#content-dashboard .dash-chart svg { width: 100%; height: auto; }
+#content-dashboard .dash-chart .dash-area { fill: rgba(65, 118, 144, .15); }
+#content-dashboard .dash-chart .dash-line { fill: none; stroke: #417690; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+#content-dashboard .dash-list { list-style: none; margin: 0; padding: 0; }
+#content-dashboard .dash-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--hairline-color, #e8e8e8); }
+#content-dashboard .dash-list li:last-child { border-bottom: none; }
+#content-dashboard .dash-muted { color: var(--body-quiet-color, #676767); font-size: 12px; }
+#content-dashboard .dash-table { width: 100%; border-collapse: collapse; }
+#content-dashboard .dash-table th, #content-dashboard .dash-table td { padding: 7px 8px; font-size: 13px; text-align: right; border-bottom: 1px solid var(--hairline-color, #e8e8e8); }
+#content-dashboard .dash-table th { font-weight: 600; color: var(--body-quiet-color, #676767); }
+#content-dashboard .dash-footer { font-size: 12px; color: var(--body-quiet-color, #676767); }
+</style>
+
+<div class="dash">
+  <div class="dash-grid">
+    {% for card in kpi_cards %}
+    <div class="dash-card">
+      <h3>{{ card.title }}</h3>
+      <div class="dash-value">{{ card.value }}</div>
+      <div class="dash-meta">{{ card.meta }}</div>
+      {% if card.change is not None %}
+      <div class="dash-change {% if card.change >= 0 %}up{% else %}down{% endif %}">
+        {% if card.change >= 0 %}&#9650;{% else %}&#9660;{% endif %}
+        {{ card.change|floatformat:1 }}&#1640; نسبت به دیروز
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="dash-row">
+    <div class="dash-panel dash-chart">
+      <h2>فروش ۳۰ روز اخیر
+        <span class="dash-note">بیشترین روزانه: {{ chart_max }} | هفت روز اخیر: {{ revenue_week }}</span>
+      </h2>
+      <svg viewBox="0 0 760 260" role="img" aria-label="نمودار فروش ۳۰ روز اخیر">
+        <polygon class="dash-area" points="{{ chart_area_points }}"></polygon>
+        <polyline class="dash-line" points="{{ chart_points }}"></polyline>
+      </svg>
+    </div>
+
+    <div class="dash-panel">
+      <h2>محصولات کم‌موجود</h2>
+      <ul class="dash-list">
+        {% for product in low_stock_products %}
+        <li>
+          <a href="{% url 'admin:products_product_change' product.pk %}">{{ product.name }}</a>
+          <span class="dash-muted">موجودی: {{ product.stock }}</span>
+        </li>
+        {% empty %}
+        <li class="dash-muted">—</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="dash-row">
+    <div class="dash-panel">
+      <h2>آخرین سفارش‌ها</h2>
+      <table class="dash-table">
+        <thead>
+          <tr><th>شناسه</th><th>کاربر</th><th>مبلغ</th><th>پرداخت</th><th>زمان</th></tr>
+        </thead>
+        <tbody>
+          {% for order in recent_orders %}
+          <tr>
+            <td><a href="{% url 'admin:orders_order_change' order.pk %}">#{{ order.pk }}</a></td>
+            <td>{{ order.user }}</td>
+            <td>{{ order.total|intcomma }} تومان</td>
+            <td>{{ order.get_payment_status_display }}</td>
+            <td>{{ order.created_at|shamsi_date:'datetime' }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="dash-muted">—</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="dash-panel">
+      <h2>پرفروش‌ترین‌ها</h2>
+      <ul class="dash-list">
+        {% for item in best_selling_products %}
+        <li>
+          <a href="{% url 'admin:products_product_change' item.product_id %}">{{ item.product__name }}</a>
+          <span class="dash-muted">{{ item.units_sold }} عدد — {{ item.revenue|floatformat:0|intcomma }} تومان</span>
+        </li>
+        {% empty %}
+        <li class="dash-muted">—</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <p class="dash-footer">امروز: {{ today_jalali }}</p>
+</div>
