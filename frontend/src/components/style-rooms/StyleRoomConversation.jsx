@@ -14,11 +14,30 @@ import StyleRoomProductPicker from './StyleRoomProductPicker';
 
 const RoomMessageBubble = ({ message, isMine, onDelete, onForward }) => {
   const [showMenu, setShowMenu] = useState(false);
+  const [showReactions, setShowReactions] = useState(false);
   const menuAnchorRef = useRef(null);
+  const { toast } = useToast();
   const { handlers: longPressHandlers } = useLongPress({
     onLongPress: () => setShowMenu(true),
   });
   const isDeleted = message.deleted_for_everyone;
+
+  const react = async (emoji) => {
+    try {
+      await styleRoomsAPI.reactMessage(message.id, message.reaction === emoji ? '' : emoji);
+      setShowReactions(false);
+    } catch {
+      toast({ title: 'خطا', description: 'ارسال واکنش ممکن نشد.', variant: 'destructive' });
+    }
+  };
+
+  const toggleFavorite = async () => {
+    try {
+      await styleRoomsAPI.favoriteMessage(message.id);
+    } catch {
+      toast({ title: 'خطا', description: 'تغییر علاقه‌مندی ممکن نشد.', variant: 'destructive' });
+    }
+  };
 
   return (
     <div className={`flex items-end gap-2.5 ${isMine ? 'flex-row-reverse' : ''}`}>
@@ -44,7 +63,17 @@ const RoomMessageBubble = ({ message, isMine, onDelete, onForward }) => {
               {message.text && <p className={`${message.product ? 'mt-2.5' : ''} whitespace-pre-wrap break-words font-medium`}>{message.text}</p>}
             </>
           )}
+          {message.reaction && (
+            <button
+              type="button"
+              onClick={() => setShowReactions(true)}
+              className="mt-1.5 flex items-center gap-1 rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-xs backdrop-blur transition hover:scale-110"
+            >
+              {message.reaction}
+            </button>
+          )}
           <div className="mt-1 flex items-center justify-end gap-1 text-[10px] font-semibold text-muted-foreground">
+            {message.is_favorite && <span className="text-amber-500" title="علاقه‌مندی">★</span>}
             <span dir="ltr">{formatTime(message.created_at)}</span>
             {isMine && (message.read_by_all
               ? <CheckCheck className="h-3.5 w-3.5 text-sky-500" title="همه خوانده‌اند" />
@@ -58,7 +87,20 @@ const RoomMessageBubble = ({ message, isMine, onDelete, onForward }) => {
           <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); onDelete(message, 'me'); }}>حذف برای من</button>
           {isMine && <button type="button" className="block w-full px-3 py-2 text-start text-rose-600 hover:bg-rose-500/10" onClick={() => { setShowMenu(false); onDelete(message, 'everyone'); }}>حذف برای همه</button>}
           {onForward && <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); onForward(message); }}>هدایت</button>}
+          <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); toggleFavorite(); }}>
+            {message.is_favorite ? '⭐ حذف از علاقه‌مندی‌ها' : '☆ علاقه‌مندی'}
+          </button>
           </ContextMenu>
+        )}
+        {showReactions && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowReactions(false)} />
+            <div className={`absolute z-50 flex gap-1 rounded-full border border-border/60 bg-popover p-1.5 shadow-2xl ${isMine ? 'left-0' : 'right-0'} -top-12`}>
+              {EMOJIS.map((e) => (
+                <button key={e} type="button" className="text-lg transition hover:scale-125" onClick={() => react(e)}>{e}</button>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

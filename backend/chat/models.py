@@ -234,6 +234,58 @@ class MessageReceipt(models.Model):
         return f'receipt {self.message_id} → {self.user_id}'
 
 
+class MessageReaction(models.Model):
+    """Per-user reaction to a message. Each user has at most one reaction per message."""
+
+    message = models.ForeignKey(
+        Message, on_delete=models.CASCADE, related_name='reactions', verbose_name='پیام',
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='chat_reactions', verbose_name='کاربر',
+    )
+    emoji = models.CharField(max_length=20, verbose_name='ایموجی')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ ایجاد')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='آخرین تغییر')
+
+    class Meta:
+        verbose_name = 'واکنش پیام'
+        verbose_name_plural = 'واکنش‌های پیام'
+        constraints = [
+            models.UniqueConstraint(fields=['message', 'user'], name='chat_reaction_message_user_unique'),
+        ]
+        indexes = [
+            models.Index(fields=['message', 'created_at'], name='chat_reaction_msg_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.user.username} -> {self.message_id}: {self.emoji}'
+
+
+class MessageFavorite(models.Model):
+    """Per-user bookmark/favorite for a message."""
+
+    message = models.ForeignKey(
+        Message, on_delete=models.CASCADE, related_name='favorites', verbose_name='پیام',
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name='chat_favorites', verbose_name='کاربر',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='تاریخ')
+
+    class Meta:
+        verbose_name = 'علاقه‌مندی پیام'
+        verbose_name_plural = 'علاقه‌مندی‌های پیام'
+        constraints = [
+            models.UniqueConstraint(fields=['message', 'user'], name='chat_favorite_message_user_unique'),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'created_at'], name='chat_favorite_user_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.user.username} ★ {self.message_id}'
+
+
 class Notification(models.Model):
     """اعلان‌های داخل برنامه (مثل ارسال محصول برای کاربر)."""
     recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_notifications', verbose_name='گیرنده')

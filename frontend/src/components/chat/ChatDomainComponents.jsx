@@ -226,6 +226,14 @@ const MessageBubble = ({ message, isMine, onReply, onForward, onDelete, onReport
     }
   };
 
+  const toggleFavorite = async () => {
+    try {
+      await chatAPI.favorite(message.id);
+    } catch {
+      toast({ title: 'خطا', description: 'تغییر علاقه‌مندی ممکن نشد.', variant: 'destructive' });
+    }
+  };
+
   const isProduct = Boolean(message.product) && !message.deleted_for_everyone;
   const timeStr = formatTime(message.created_at);
 
@@ -297,8 +305,18 @@ const MessageBubble = ({ message, isMine, onReply, onForward, onDelete, onReport
                 {message.reaction}
               </button>
             )}
+            {message.reactions && message.reactions.length > 0 && !message.reaction && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {message.reactions.slice(0, 3).map((r) => (
+                  <span key={r.emoji} className="flex items-center gap-1 rounded-full border border-border/60 bg-background/80 px-2 py-0.5 text-xs">
+                    {r.emoji} <span className="text-[10px] tabular-nums">{r.count}</span>
+                  </span>
+                ))}
+              </div>
+            )}
 
             <div className={`mt-1 flex items-center justify-end gap-1 text-[10px] font-semibold ${isMine ? 'text-emerald-700/80 dark:text-sky-200/70' : 'text-muted-foreground'}`}>
+              {message.is_favorite && <span className="text-amber-500" title="علاقه‌مندی">★</span>}
               <span dir="ltr">{timeStr}</span>
               {isMine && tickForStatus(message.status, message.is_read)}
               {isMine && message.status === 'failed' && (
@@ -313,6 +331,9 @@ const MessageBubble = ({ message, isMine, onReply, onForward, onDelete, onReport
             <ContextMenu anchorRef={menuAnchorRef} open={showMenu} onClose={() => setShowMenu(false)} isMine={isMine}>
             <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); onReply?.(message); }}>پاسخ</button>
             <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); onForward?.(message); }}>هدایت</button>
+            <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); toggleFavorite(); }}>
+              {message.is_favorite ? '⭐ حذف از علاقه‌مندی‌ها' : '☆ علاقه‌مندی'}
+            </button>
             <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); onDelete?.(message, 'me'); }}>حذف برای من</button>
             {isMine && <button type="button" className="block w-full px-3 py-2 text-start text-rose-600 hover:bg-rose-500/10" onClick={() => { setShowMenu(false); onDelete?.(message, 'everyone'); }}>حذف برای همه</button>}
             {!isMine && <button type="button" className="block w-full px-3 py-2 text-start text-rose-600 hover:bg-rose-500/10" onClick={() => { setShowMenu(false); onReport?.(message); }}>گزارش</button>}

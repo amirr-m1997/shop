@@ -64,6 +64,14 @@ export const useChatRealtime = ({
         case 'support.unread':
           onSupportUnread?.(message);
           break;
+        case 'message.deleted': {
+          // delete-for-me is now only sent to the deleter's user channel (all their devices)
+          const deletedId = Number(message.message_id);
+          if (!message.for_everyone && message.user_id === currentUserId) {
+            setMessages?.((previous) => previous.filter((item) => Number(item.id) !== deletedId));
+          }
+          break;
+        }
         case 'support.updated':
           onSupportUpdated?.(message);
           break;
@@ -78,7 +86,7 @@ export const useChatRealtime = ({
       socket.removeListener(listener);
       if (socket.listenerCount === 0) releaseRealtimeSocket(path);
     };
-  }, [currentUserId, setConversations, onNotification, onSupportUnread, onSupportUpdated, onSocketStatus]);
+  }, [currentUserId, setConversations, onNotification, onSupportUnread, onSupportUpdated, onSocketStatus, setMessages]);
 
   useEffect(() => {
     if (!currentUserId || !activeId) return undefined;
@@ -112,17 +120,31 @@ export const useChatRealtime = ({
           }));
           break;
         }
-        case 'message.updated':
-          setMessages?.((previous) => previous.map((item) => (
-            item.id === message.message_id
-              ? {
-                  ...item,
-                  reaction: message.reaction ?? item.reaction,
-                  is_favorite: message.is_favorite ?? item.is_favorite,
-                }
-              : item
-          )));
+        case 'message.updated': {
+          const isOwnFavorite = message.user_id == null || message.user_id === currentUserId;
+          setMessages?.((previous) => previous.map((item) => {
+            if (item.id !== message.message_id) return item;
+            const next = { ...item };
+            if (message.reaction !== undefined) {
+              // Per-user: only update own reaction if this event is for current user
+              if (message.user_id == null || message.user_id === currentUserId) {
+                next.reaction = message.reaction;
+                next.my_reaction = message.reaction;
+              }
+            }
+            if (message.reactions !== undefined) {
+              next.reactions = message.reactions;
+            }
+            if (message.is_favorite !== undefined && isOwnFavorite) {
+              next.is_favorite = message.is_favorite;
+            }
+            if (message.favorites_count !== undefined) {
+              next.favorites_count = message.favorites_count;
+            }
+            return next;
+          }));
           break;
+        }
         case 'message.deleted': {
           const deletedId = Number(message.message_id);
           if (message.for_everyone) {

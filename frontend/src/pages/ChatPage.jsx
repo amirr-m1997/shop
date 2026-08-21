@@ -61,6 +61,9 @@ export default function ChatPage() {
   const [hasOlder, setHasOlder] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
 
+  const pendingKeysRef = useRef(new Map()); // tempId -> key
+  const keyToTempRef = useRef(new Map()); // key -> tempId
+
   const currentUserId = user?.id;
   const active = useMemo(
     () => conversations.find((c) => c.id === Number(activeId)) || null,
@@ -620,7 +623,7 @@ export default function ChatPage() {
     });
   };
 
-  const handleSend = async (e, overrideText, overrideReply) => {
+  const handleSend = async (e, overrideText, overrideReply, existingKey) => {
     e?.preventDefault();
     const payload = (overrideText ?? text).trim();
     if (!activeId || !payload || sending) return;
@@ -637,11 +640,12 @@ export default function ChatPage() {
     }
     setSending(true);
     const replySnapshot = overrideReply ?? replyTo;
-    const idempotencyKey = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    const idempotencyKey = existingKey || ((typeof crypto !== 'undefined' && crypto.randomUUID)
       ? crypto.randomUUID()
-      : `local-${Date.now()}`;
+      : `local-${Date.now()}`);
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const optimistic = {
-      id: `temp-${Date.now()}`,
+      id: tempId,
       sender_id: currentUserId,
       sender_username: user?.username,
       sender_name: user?.username,
@@ -650,6 +654,8 @@ export default function ChatPage() {
       is_read: false,
       reaction: '',
       is_favorite: false,
+      status: 'sent',
+      idempotency_key: idempotencyKey,
       reply_to: replySnapshot
         ? {
             id: replySnapshot.id,
@@ -660,6 +666,8 @@ export default function ChatPage() {
         : null,
       created_at: new Date().toISOString(),
     };
+    pendingKeysRef.current.set(tempId, idempotencyKey);
+    keyToTempRef.current.set(idempotencyKey, tempId);
     setMessages((prev) => [...prev, optimistic]);
     setText('');
     setReplyTo(null);
@@ -673,9 +681,18 @@ export default function ChatPage() {
         reply_to_id: replySnapshot?.id,
         idempotency_key: idempotencyKey,
       });
-      setMessages((prev) => replaceOptimisticMessage(prev, optimistic.id, { ...res.data, status: 'sent' }));
+      const serverMsg = { ...res.data, status: 'sent' };
+      // If WS already replaced this optimistic, the temp is gone — merge will dedupe by id.
+      setMessages((prev) => {
+        const hasTemp = prev.some((m) => String(m.id) === String(tempId));
+        if (hasTemp) return replaceOptimisticMessage(prev, tempId, serverMsg);
+        return mergeMessages(prev, [serverMsg]);
+      });
+      pendingKeysRef.current.delete(tempId);
+      keyToTempRef.current.delete(idempotencyKey);
     } catch {
       setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? { ...m, status: 'failed' } : m)));
+      // Keep pendingKeys for retry with same key
       toast({ title: 'خطا', description: 'ارسال پیام ممکن نشد.', variant: 'destructive' });
     } finally {
       setSending(false);
@@ -689,8 +706,19 @@ export default function ChatPage() {
 
   const handleRetryMessage = (message) => {
     if (!message?.text || sending) return;
-    setMessages((previous) => previous.filter((item) => item.id !== message.id));
-    handleSend(null, message.text, message.reply_to || null);
+    const reuseKey = message.idempotency_key || pendingKeysRef.current.get(String(message.id)) || keyToTempRef.current.get(String(message.id));
+    // Also check reverse map if message was already replaced but we kept key
+    const keyForRetry = reuseKey || pendingKeysRef.current.get(String(message.id)) || message.idempotency_key;
+    setMessages((previous) => previous.filter((item) => String(item.id) !== String(message.id)));
+    // Clean old temp mapping if it exists
+    if (reuseKey) {
+      const oldTemp = keyToTempRef.current.get(reuseKey);
+      if (oldTemp) {
+        pendingKeysRef.current.delete(oldTemp);
+        // keyToTemp will be overwritten by new temp
+      }
+    }
+    handleSend(null, message.text, message.reply_to || null, keyForRetry || message.idempotency_key);
   };
 
   const filteredConversations = useMemo(() => {

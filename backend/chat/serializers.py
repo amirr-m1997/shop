@@ -91,19 +91,31 @@ class MessageSerializer(serializers.ModelSerializer):
     reply_to = serializers.SerializerMethodField()
     is_forwarded = serializers.SerializerMethodField()
     deleted_for_everyone = serializers.SerializerMethodField()
+    idempotency_key = serializers.CharField(read_only=True)
+    reaction = serializers.SerializerMethodField()
+    is_favorite = serializers.SerializerMethodField()
+    reactions = serializers.SerializerMethodField()
+    my_reaction = serializers.SerializerMethodField()
+    favorites_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
         fields = ['id', 'conversation', 'sender_id', 'sender_username', 'sender_name',
                   'text', 'product', 'product_id', 'is_read', 'status', 'reaction', 'is_favorite',
-                  'reply_to', 'is_forwarded', 'deleted_for_everyone', 'created_at']
+                  'reactions', 'my_reaction', 'favorites_count',
+                  'reply_to', 'is_forwarded', 'deleted_for_everyone', 'created_at', 'idempotency_key']
         read_only_fields = ['conversation', 'sender_id', 'sender_username', 'sender_name',
                             'is_read', 'status', 'reaction', 'is_favorite',
-                            'reply_to', 'is_forwarded', 'deleted_for_everyone', 'created_at']
+                            'reactions', 'my_reaction', 'favorites_count',
+                            'reply_to', 'is_forwarded', 'deleted_for_everyone', 'created_at', 'idempotency_key']
 
     def get_status(self, obj):
-        request = self.context.get('request')
-        if not request or obj.sender_id != getattr(request.user, 'id', None):
+        # Support both HTTP request context and explicit viewer (for WebSocket)
+        viewer = self.context.get('viewer')
+        if viewer is None:
+            request = self.context.get('request')
+            viewer = getattr(request, 'user', None) if request else None
+        if not viewer or obj.sender_id != getattr(viewer, 'id', None):
             return None
         receipts = list(getattr(obj, 'receipts', []).all()) if hasattr(obj, 'receipts') else []
         if any(receipt.seen_at for receipt in receipts):
@@ -113,6 +125,80 @@ class MessageSerializer(serializers.ModelSerializer):
         if obj.is_read:
             return 'seen'
         return 'sent'
+
+    def _get_viewer(self):
+        viewer = self.context.get('viewer')
+        if viewer is None:
+            request = self.context.get('request')
+            viewer = getattr(request, 'user', None) if request else None
+        return viewer
+
+    def get_reaction(self, obj):
+        # Per-user: return viewer's own reaction (backward compat)
+        return self.get_my_reaction(obj)
+
+    def get_my_reaction(self, obj):
+        viewer = self._get_viewer()
+        if not viewer or not getattr(viewer, 'is_authenticated', False):
+            return ''
+        # Use prefetched reactions if available
+        reactions = getattr(obj, '_prefetched_reactions', None)
+        if reactions is not None:
+            for r in reactions:
+                if r.user_id == viewer.id:
+                    return r.emoji
+            return ''
+        # Fallback: check new table, then legacy field for sender
+        from .models import MessageReaction
+        rec = MessageReaction.objects.filter(message=obj, user=viewer).first()
+        if rec:
+            return rec.emoji
+        # Fallback to legacy field only if viewer is sender (old data)
+        if obj.sender_id == viewer.id and obj.reaction:
+            return obj.reaction
+        return ''
+
+    def get_is_favorite(self, obj):
+        viewer = self._get_viewer()
+        if not viewer or not getattr(viewer, 'is_authenticated', False):
+            return False
+        favs = getattr(obj, '_prefetched_favorites', None)
+        if favs is not None:
+            return any(f.user_id == viewer.id for f in favs)
+        from .models import MessageFavorite
+        if MessageFavorite.objects.filter(message=obj, user=viewer).exists():
+            return True
+        # Fallback to legacy global field only for sender
+        if obj.sender_id == viewer.id:
+            return bool(obj.is_favorite)
+        return False
+
+    def get_reactions(self, obj):
+        # Aggregated grouped reactions: [{emoji, count, user_ids}]
+        # Use prefetched if available to avoid N+1
+        reactions = getattr(obj, '_prefetched_reactions_all', None)
+        if reactions is None:
+            reactions = list(obj.reactions.all())
+        from collections import Counter
+        counter = Counter(r.emoji for r in reactions if r.emoji)
+        # Include legacy reaction if no new reactions but old field has value
+        if not counter and obj.reaction:
+            # Attribute legacy reaction to sender as single count
+            return [{'emoji': obj.reaction, 'count': 1, 'user_ids': [obj.sender_id]}]
+        grouped = []
+        # Need user_ids per emoji
+        emoji_to_users = {}
+        for r in reactions:
+            emoji_to_users.setdefault(r.emoji, []).append(r.user_id)
+        for emoji, count in counter.most_common():
+            grouped.append({'emoji': emoji, 'count': count, 'user_ids': emoji_to_users.get(emoji, [])})
+        return grouped
+
+    def get_favorites_count(self, obj):
+        favs = getattr(obj, '_prefetched_favorites_all', None)
+        if favs is not None:
+            return len(favs)
+        return obj.favorites.count() if hasattr(obj, 'favorites') else (1 if obj.is_favorite else 0)
 
     def get_reply_to(self, obj):
         reply = obj.reply_to
@@ -149,6 +235,8 @@ class MessageSerializer(serializers.ModelSerializer):
             data['text'] = ''
             data['product'] = None
             data['deleted_for_everyone'] = True
+        if not data.get('idempotency_key'):
+            data.pop('idempotency_key', None)
         return data
 
     def get_sender_name(self, obj):

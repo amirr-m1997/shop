@@ -30,6 +30,8 @@ export const useMessageViewportReceipts = ({
   const timers = useRef(new Map());
   const seenQueue = useRef(new Set());
   const seenQueueConversationId = useRef(null);
+  const observedNodes = useRef(new WeakSet());
+  const observerRef = useRef(null);
 
   useEffect(() => {
     seenSent.current = new Set();
@@ -38,6 +40,7 @@ export const useMessageViewportReceipts = ({
     seenQueueConversationId.current = null;
     timers.current.forEach((timer) => clearTimeout(timer));
     timers.current.clear();
+    observedNodes.current = new WeakSet();
   }, [conversationId]);
 
   useEffect(() => {
@@ -101,8 +104,19 @@ export const useMessageViewportReceipts = ({
       });
     }, { root, threshold: 0.6 });
 
-    const nodes = (root || document).querySelectorAll('[data-message-receipt="1"]');
-    nodes.forEach((node) => observer.observe(node));
+    observerRef.current = observer;
+
+    const observeNew = () => {
+      const nodes = (root || document).querySelectorAll('[data-message-receipt="1"]');
+      nodes.forEach((node) => {
+        if (!observedNodes.current.has(node)) {
+          observedNodes.current.add(node);
+          observer.observe(node);
+        }
+      });
+    };
+
+    observeNew();
 
     const activeTimers = timers.current;
     const cancelOnHide = () => {
@@ -113,9 +127,24 @@ export const useMessageViewportReceipts = ({
     document.addEventListener('visibilitychange', cancelOnHide);
     return () => {
       observer.disconnect();
+      observerRef.current = null;
       document.removeEventListener('visibilitychange', cancelOnHide);
       activeTimers.forEach((timer) => clearTimeout(timer));
       activeTimers.clear();
     };
-  }, [conversationId, currentUserId, enabled, messages, rootRef]);
+  }, [conversationId, currentUserId, enabled, rootRef]);
+
+  // Lightweight scan for new nodes after every messages change.
+  // Does NOT recreate the observer — only discovers unobserved DOM nodes.
+  useEffect(() => {
+    if (!observerRef.current || !enabled || !conversationId || !currentUserId) return;
+    const root = rootRef?.current || null;
+    const nodes = (root || document).querySelectorAll('[data-message-receipt="1"]');
+    nodes.forEach((node) => {
+      if (!observedNodes.current.has(node)) {
+        observedNodes.current.add(node);
+        observerRef.current.observe(node);
+      }
+    });
+  }, [messages, conversationId, currentUserId, enabled, rootRef]);
 };

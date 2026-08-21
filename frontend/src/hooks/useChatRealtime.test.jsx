@@ -201,12 +201,65 @@ describe('useChatRealtime', () => {
     render(<Harness userId={9} activeId={7} />);
     const [, privateSocket] = mocks.getRealtimeSocket.mock.results.map((r) => r.value);
     act(() =>
-      privateSocket.dispatch({ type: 'message.updated', message_id: 11, reaction: '❤️', is_favorite: true }),
+      privateSocket.dispatch({ type: 'message.updated', message_id: 11, reaction: '❤️', is_favorite: true, user_id: 9 }),
     );
     const updater = callbacks.setMessages.mock.calls[0][0];
-    expect(
-      applyUpdater(updater, [{ id: 11, reaction: null, is_favorite: false }]),
-    ).toEqual([{ id: 11, reaction: '❤️', is_favorite: true }]);
+    const result = applyUpdater(updater, [{ id: 11, reaction: null, is_favorite: false }]);
+    expect(result[0].reaction).toBe('❤️');
+    expect(result[0].my_reaction).toBe('❤️');
+    expect(result[0].is_favorite).toBe(true);
+  });
+
+  it('ignores reaction update from another user', () => {
+    render(<Harness userId={9} activeId={7} />);
+    const [, privateSocket] = mocks.getRealtimeSocket.mock.results.map((r) => r.value);
+    act(() =>
+      privateSocket.dispatch({ type: 'message.updated', message_id: 11, reaction: '👍', user_id: 3 }),
+    );
+    const updater = callbacks.setMessages.mock.calls[0][0];
+    const result = applyUpdater(updater, [{ id: 11, reaction: '❤️', my_reaction: '❤️', text: 'hi' }]);
+    expect(result[0].reaction).toBe('❤️');
+    expect(result[0].my_reaction).toBe('❤️');
+    expect(result[0].text).toBe('hi');
+  });
+
+  it('ignores favorite update from another user', () => {
+    render(<Harness userId={9} activeId={7} />);
+    const [, privateSocket] = mocks.getRealtimeSocket.mock.results.map((r) => r.value);
+    act(() =>
+      privateSocket.dispatch({ type: 'message.updated', message_id: 11, is_favorite: true, user_id: 3 }),
+    );
+    const updater = callbacks.setMessages.mock.calls[0][0];
+    const result = applyUpdater(updater, [{ id: 11, is_favorite: false, text: 'hi' }]);
+    expect(result[0].is_favorite).toBe(false);
+    expect(result[0].text).toBe('hi');
+  });
+
+  it('propagates aggregated reactions array without touching my_reaction', () => {
+    render(<Harness userId={9} activeId={7} />);
+    const [, privateSocket] = mocks.getRealtimeSocket.mock.results.map((r) => r.value);
+    const reactions = [{ emoji: '👍', count: 2, user_ids: [3, 5] }, { emoji: '❤️', count: 1, user_ids: [9] }];
+    act(() =>
+      privateSocket.dispatch({ type: 'message.updated', message_id: 11, reactions, user_id: 3 }),
+    );
+    const updater = callbacks.setMessages.mock.calls[0][0];
+    const result = applyUpdater(updater, [{ id: 11, reactions: [], my_reaction: '❤️', text: 'hi' }]);
+    expect(result[0].reactions).toEqual(reactions);
+    expect(result[0].my_reaction).toBe('❤️');
+    expect(result[0].text).toBe('hi');
+  });
+
+  it('propagates favorites_count without corrupting other fields', () => {
+    render(<Harness userId={9} activeId={7} />);
+    const [, privateSocket] = mocks.getRealtimeSocket.mock.results.map((r) => r.value);
+    act(() =>
+      privateSocket.dispatch({ type: 'message.updated', message_id: 11, favorites_count: 3, user_id: 5 }),
+    );
+    const updater = callbacks.setMessages.mock.calls[0][0];
+    const result = applyUpdater(updater, [{ id: 11, favorites_count: 0, text: 'hello', sender_id: 3 }]);
+    expect(result[0].favorites_count).toBe(3);
+    expect(result[0].text).toBe('hello');
+    expect(result[0].sender_id).toBe(3);
   });
 
   it('forwards typing and presence events from the private socket', () => {

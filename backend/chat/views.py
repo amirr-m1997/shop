@@ -262,7 +262,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
         conversation = self.get_object()
         qs = conversation.messages.exclude(deleted_for=request.user).select_related(
             'sender', 'sender__profile', 'product', 'reply_to', 'reply_to__sender', 'forwarded_from'
-        ).prefetch_related('receipts', 'reply_to__deleted_for')
+        ).prefetch_related('receipts', 'reply_to__deleted_for', 'reactions', 'favorites')
         return MessageCursorPagination().paginate(
             request, qs, MessageSerializer, context={'request': request},
         )

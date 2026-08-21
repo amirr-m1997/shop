@@ -28,8 +28,8 @@ class MessageCursorPagination:
             except (TypeError, ValueError):
                 return Response({'error': 'before باید شناسه عددی پیام باشد.'}, status=400)
             anchor = queryset.model.objects.filter(pk=before_id).only('id', 'created_at').first()
-            if anchor is None:
-                return Response({'error': 'پیام مبنا یافت نشد.'}, status=404)
+            if anchor is None or not queryset.filter(pk=anchor.pk).exists():
+                return Response({'error': 'پیام مبنا یافت نشد یا قابل مشاهده نیست.'}, status=404)
             newest_first = newest_first.filter(
                 Q(created_at__lt=anchor.created_at)
                 | Q(created_at=anchor.created_at, id__lt=anchor.id)

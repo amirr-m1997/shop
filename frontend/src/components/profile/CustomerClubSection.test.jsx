@@ -38,7 +38,7 @@ describe('CustomerClubSection', () => {
     loadSuccess([{ id: 1, rule_name: 'Old reward', points_cost: 50, status: 'consumed', redeemed_at: '2026-01-01T10:00:00Z' }]);
     render(<CustomerClubSection />);
     expect(await screen.findByText('امتیاز قابل استفاده')).toBeTruthy();
-    expect(screen.getByText('120')).toBeTruthy();
+    expect(screen.getByText(Number(120).toLocaleString('fa-IR'))).toBeTruthy();
     expect(screen.getByText('10% تخفیف')).toBeTruthy();
     expect(screen.getByText('Old reward')).toBeTruthy();
   });

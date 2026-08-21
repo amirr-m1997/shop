@@ -172,7 +172,10 @@ def _broadcast_message(conversation, user, message):
     """Push a just-committed message to the conversation group and the
     personal groups of both members."""
     from .serializers import MessageSerializer
-    dto = MessageSerializer(message).data
+    # Ensure status is computed for the sender (not None) and
+    # idempotency_key is included for optimistic reconciliation.
+    message = Message.objects.select_related('sender').prefetch_related('receipts').get(pk=message.pk)
+    dto = MessageSerializer(message, context={'viewer': user}).data
 
     broadcast_after_commit(
         f'chat.private.{conversation.pk}',
@@ -441,34 +444,75 @@ def react_message(user, message, reaction):
     if not _can_access_message(user, message):
         raise SendMessageError('شما به این پیام دسترسی ندارید.', 403)
     reaction = reaction if isinstance(reaction, str) and len(reaction) <= 20 else ''
-    message.reaction = reaction
-    message.save(update_fields=['reaction'])
+    # Per-user reaction: one row per (message, user)
+    from .models import MessageReaction
+
+    if not reaction:
+        # Remove own reaction
+        MessageReaction.objects.filter(message=message, user=user).delete()
+        # Keep legacy field in sync for fallback reads (clear if no one else has it)
+        # Don't clear global field if others still have reactions — keep last value
+    else:
+        MessageReaction.objects.update_or_create(
+            message=message, user=user, defaults={'emoji': reaction}
+        )
+        # Keep legacy field updated for backward compat (last writer wins, but new code reads per-user)
+        message.reaction = reaction
+        message.save(update_fields=['reaction'])
+
+    # Build aggregated reactions for broadcast (grouped by emoji)
+    reactions = list(
+        MessageReaction.objects.filter(message=message)
+        .values('emoji')
+        .annotate(count=models.Count('id'))
+        .values('emoji', 'count')
+    )
+    # Include user_ids for each emoji if needed by frontend
+    # For now send simple grouped list and the actor's own reaction
     broadcast_after_commit(
         f'chat.private.{message.conversation_id}',
         {
             'type': 'message.updated',
             'message_id': message.pk,
-            'reaction': message.reaction,
+            'reaction': reaction,  # actor's own (for backward compat)
+            'reactions': reactions,
+            'user_id': user.pk,
         },
     )
-    return {'status': 'ok', 'reaction': message.reaction}
+    return {'status': 'ok', 'reaction': reaction, 'reactions': reactions}
 
 
 @transaction.atomic
 def favorite_message(user, message):
     if not _can_access_message(user, message):
         raise SendMessageError('شما به این پیام دسترسی ندارید.', 403)
-    message.is_favorite = not message.is_favorite
-    message.save(update_fields=['is_favorite'])
+    from .models import MessageFavorite
+
+    fav, created = MessageFavorite.objects.get_or_create(message=message, user=user)
+    if not created:
+        # Already favorited -> unfavorite (toggle)
+        fav.delete()
+        is_favorite = False
+    else:
+        is_favorite = True
+
+    # Keep legacy global field in sync (true if anyone has favorited)
+    has_any = MessageFavorite.objects.filter(message=message).exists()
+    if message.is_favorite != has_any:
+        message.is_favorite = has_any
+        message.save(update_fields=['is_favorite'])
+
     broadcast_after_commit(
         f'chat.private.{message.conversation_id}',
         {
             'type': 'message.updated',
             'message_id': message.pk,
-            'is_favorite': message.is_favorite,
+            'is_favorite': is_favorite,
+            'user_id': user.pk,
+            'favorites_count': MessageFavorite.objects.filter(message=message).count(),
         },
     )
-    return {'status': 'ok', 'is_favorite': message.is_favorite}
+    return {'status': 'ok', 'is_favorite': is_favorite}
 
 
 @transaction.atomic
@@ -481,8 +525,10 @@ def delete_message(user, message, mode='me'):
     conversation = message.conversation
     if mode == 'me':
         message.deleted_for.add(user)
+        # Only the deleter should receive this event (but on all their devices/tabs).
+        # Broadcast to the per-user channel, not the private conversation group.
         broadcast_after_commit(
-            f'chat.private.{conversation.pk}',
+            f'chat.user.{user.pk}',
             {
                 'type': 'message.deleted',
                 'message_id': message.pk,

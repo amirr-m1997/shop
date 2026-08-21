@@ -256,29 +256,70 @@ def mark_room_messages_read(room, user, message_ids=None):
 def react_room_message(user, message, reaction):
     room = message.style_room
     if not room or not room.is_member(user):
-        raise PermissionDenied('شما به این پیام دسترسی ندارید.')
+        raise PermissionDenied('شما به این اتاق دسترسی ندارید.')
     reaction = reaction if isinstance(reaction, str) and len(reaction) <= 20 else ''
-    message.reaction = reaction
-    message.save(update_fields=['reaction'])
+
+    from chat.models import MessageReaction
+
+    if not reaction:
+        MessageReaction.objects.filter(message=message, user=user).delete()
+    else:
+        MessageReaction.objects.update_or_create(
+            message=message, user=user, defaults={'emoji': reaction}
+        )
+        message.reaction = reaction
+        message.save(update_fields=['reaction'])
+
+    reactions = list(
+        MessageReaction.objects.filter(message=message)
+        .values('emoji')
+        .annotate(count=models.Count('id'))
+        .values('emoji', 'count')
+    )
     broadcast_after_commit(
         f'room.{room.pk}',
-        {'type': 'message.updated', 'message_id': message.pk, 'reaction': reaction},
+        {
+            'type': 'message.updated',
+            'message_id': message.pk,
+            'reaction': reaction,
+            'reactions': reactions,
+            'user_id': user.pk,
+        },
     )
-    return {'status': 'ok', 'reaction': reaction}
+    return {'status': 'ok', 'reaction': reaction, 'reactions': reactions}
 
 
 @transaction.atomic
 def favorite_room_message(user, message):
     room = message.style_room
     if not room or not room.is_member(user):
-        raise PermissionDenied('شما به این پیام دسترسی ندارید.')
-    message.is_favorite = not message.is_favorite
-    message.save(update_fields=['is_favorite'])
+        raise PermissionDenied('شما به این اتاق دسترسی ندارید.')
+
+    from chat.models import MessageFavorite
+
+    fav, created = MessageFavorite.objects.get_or_create(message=message, user=user)
+    if not created:
+        fav.delete()
+        is_favorite = False
+    else:
+        is_favorite = True
+
+    has_any = MessageFavorite.objects.filter(message=message).exists()
+    if message.is_favorite != has_any:
+        message.is_favorite = has_any
+        message.save(update_fields=['is_favorite'])
+
     broadcast_after_commit(
         f'room.{room.pk}',
-        {'type': 'message.updated', 'message_id': message.pk, 'is_favorite': message.is_favorite},
+        {
+            'type': 'message.updated',
+            'message_id': message.pk,
+            'is_favorite': is_favorite,
+            'user_id': user.pk,
+            'favorites_count': MessageFavorite.objects.filter(message=message).count(),
+        },
     )
-    return {'status': 'ok', 'is_favorite': message.is_favorite}
+    return {'status': 'ok', 'is_favorite': is_favorite}
 
 
 DELETE_FOR_EVERYONE_SECONDS = 15 * 60
