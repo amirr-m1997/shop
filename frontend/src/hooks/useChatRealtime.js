@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { chatPrivateSocketPath, chatUserSocketPath } from '../lib/realtimePaths';
 import { mergeMessages } from '../lib/messages';
+import { chatAPI } from '../services/api';
 import { getRealtimeSocket, releaseRealtimeSocket } from '../services/realtime';
 
 /**
@@ -19,11 +20,13 @@ export const useChatRealtime = ({
   onSupportUpdated,
   onTyping,
   onPresence,
+  onSocketStatus,
 }) => {
   useEffect(() => {
     if (!currentUserId) return undefined;
     const path = chatUserSocketPath(currentUserId);
     const socket = getRealtimeSocket(path);
+    const offStatus = onSocketStatus ? socket.onStatus(onSocketStatus) : null;
     const listener = (message) => {
       switch (message.type) {
         case 'conversation.updated':
@@ -34,6 +37,26 @@ export const useChatRealtime = ({
               ? { ...conversation, ...message.conversation }
               : conversation
           )));
+          break;
+        case 'conversation.changed':
+          chatAPI.getConversation(message.conversation_id)
+            .then((response) => {
+              const fresh = response.data;
+              if (!fresh?.id) return;
+              setConversations?.((previous) => {
+                const withoutFresh = previous.filter((item) => item.id !== fresh.id);
+                return [fresh, ...withoutFresh].sort((first, second) => (
+                  new Date(second.updated_at || 0) - new Date(first.updated_at || 0)
+                ));
+              });
+            })
+            // A cancelled conversation can disappear between the event and fetch.
+            .catch(() => {});
+          break;
+        case 'conversation.removed':
+          setConversations?.((previous) => previous.filter(
+            (conversation) => conversation.id !== Number(message.conversation_id)
+          ));
           break;
         case 'notification':
           onNotification?.(message.notification);
@@ -51,10 +74,11 @@ export const useChatRealtime = ({
     socket.addListener(listener);
     socket.connect();
     return () => {
+      offStatus?.();
       socket.removeListener(listener);
       if (socket.listenerCount === 0) releaseRealtimeSocket(path);
     };
-  }, [currentUserId, setConversations, onNotification, onSupportUnread, onSupportUpdated]);
+  }, [currentUserId, setConversations, onNotification, onSupportUnread, onSupportUpdated, onSocketStatus]);
 
   useEffect(() => {
     if (!currentUserId || !activeId) return undefined;

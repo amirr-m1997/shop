@@ -57,6 +57,19 @@ export const useStyleRoomRealtime = ({ roomId, currentUserId, setMessages, onTyp
               : item
           )));
           break;
+        case 'message.deleted': {
+          const deletedId = Number(message.message_id);
+          if (message.for_everyone) {
+            setMessages?.((previous) => previous.map((item) => (
+              Number(item.id) === deletedId
+                ? { ...item, deleted_for_everyone: true, text: '', product: null }
+                : item
+            )));
+          } else if (message.user_id === currentUserId) {
+            setMessages?.((previous) => previous.filter((item) => Number(item.id) !== deletedId));
+          }
+          break;
+        }
         case 'typing':
           onTyping?.(message);
           break;

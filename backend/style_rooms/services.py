@@ -8,7 +8,7 @@ future features (AI stylist, loyalty) without direct database access.
 import hashlib
 import secrets
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
@@ -186,14 +186,32 @@ def add_item(room, product, added_by):
 
 
 @transaction.atomic
-def create_room_message(room, sender, *, text='', product=None):
-    message = Message.objects.create(
-        conversation=None,
-        style_room=room,
-        sender=sender,
-        text=text,
-        product=product,
-    )
+def create_room_message(room, sender, *, text='', product=None, idempotency_key=''):
+    key = (idempotency_key or '').strip()[:64]
+    if key:
+        existing = Message.objects.filter(
+            style_room=room, sender=sender, idempotency_key=key,
+        ).first()
+        if existing:
+            return existing
+
+    try:
+        message = Message.objects.create(
+            conversation=None,
+            style_room=room,
+            sender=sender,
+            text=text,
+            product=product,
+            idempotency_key=key,
+        )
+    except IntegrityError:
+        if key:
+            existing = Message.objects.filter(
+                style_room=room, sender=sender, idempotency_key=key,
+            ).first()
+            if existing:
+                return existing
+        raise
     StyleRoomMessageRead.objects.create(message=message, user=sender)
     if product:
         try:
@@ -225,28 +243,13 @@ def create_room_message(room, sender, *, text='', product=None):
 
 @transaction.atomic
 def mark_room_messages_read(room, user, message_ids=None):
-    if not message_ids:
-        from rest_framework.exceptions import ValidationError
-        raise ValidationError({'message_ids': 'شناسه پیام‌های دیده‌شده الزامی است.'})
-    queryset = room.messages.filter(style_room=room, id__in=message_ids)
-    messages = list(queryset.only('id'))
-    reads = [
-        StyleRoomMessageRead(message=message, user=user)
-        for message in messages
-    ]
-    StyleRoomMessageRead.objects.bulk_create(
-        reads, ignore_conflicts=True,
-    )
-    broadcast_after_commit(
-        f'room.{room.pk}',
-        {
-            'type': 'read',
-            'message_ids': [message.id for message in messages],
-            'user_id': user.id,
-            'member_count': room.members.count(),
-        },
-    )
-    return len(messages)
+    from chat.read_state import ReadStateError, mark_room_read
+    from rest_framework.exceptions import ValidationError
+    try:
+        result = mark_room_read(room, user, message_ids)
+    except ReadStateError as exc:
+        raise ValidationError({'message_ids': exc.message})
+    return len(result.get('marked_ids') or [])
 
 
 @transaction.atomic
@@ -276,3 +279,64 @@ def favorite_room_message(user, message):
         {'type': 'message.updated', 'message_id': message.pk, 'is_favorite': message.is_favorite},
     )
     return {'status': 'ok', 'is_favorite': message.is_favorite}
+
+
+DELETE_FOR_EVERYONE_SECONDS = 15 * 60
+MAX_FORWARD_TARGETS = 5
+
+
+def forward_to_room(user, room, source_message):
+    """Forward a message (from private chat or another room) to a Style Room."""
+    if not room.is_member(user):
+        raise PermissionDenied('شما عضو این اتاق نیستید.')
+    text = source_message.text or ''
+    product = source_message.product
+    return create_room_message(
+        room, user,
+        text=text,
+        product=product,
+    )
+
+
+@transaction.atomic
+def delete_room_message(user, message, mode='me'):
+    room = message.style_room
+    if not room or not room.is_member(user):
+        raise PermissionDenied('شما به این پیام دسترسی ندارید.')
+    if mode not in ('me', 'everyone'):
+        raise PermissionDenied('حالت حذف نامعتبر است.')
+
+    if mode == 'me':
+        message.deleted_for.add(user)
+        broadcast_after_commit(
+            f'room.{room.pk}',
+            {
+                'type': 'message.deleted',
+                'message_id': message.pk,
+                'for_everyone': False,
+                'user_id': user.pk,
+            },
+        )
+        return {'status': 'ok', 'mode': 'me', 'message_id': message.pk}
+
+    if message.sender_id != user.id and not room.is_owner(user):
+        raise PermissionDenied('فقط فرستنده یا مالک اتاق می‌تواند پیام را برای همه حذف کند.')
+    if message.deleted_at:
+        return {'status': 'ok', 'mode': 'everyone', 'message_id': message.pk}
+    age = timezone.now() - message.created_at
+    if age.total_seconds() > DELETE_FOR_EVERYONE_SECONDS:
+        raise PermissionDenied('مهلت حذف برای همه به پایان رسیده است.')
+
+    message.deleted_at = timezone.now()
+    message.deleted_by = user
+    message.save(update_fields=['deleted_at', 'deleted_by'])
+    broadcast_after_commit(
+        f'room.{room.pk}',
+        {
+            'type': 'message.deleted',
+            'message_id': message.pk,
+            'for_everyone': True,
+            'user_id': user.pk,
+        },
+    )
+    return {'status': 'ok', 'mode': 'everyone', 'message_id': message.pk}

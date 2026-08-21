@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth import get_user_model
-from .models import Conversation, Message, Notification
+from .models import Block, Conversation, Message, Notification
 from products.serializers import ProductListSerializer
 
 
@@ -26,8 +26,9 @@ class PublicUserSerializer(serializers.ModelSerializer):
     def get_last_seen_at(self, obj):
         request = self.context.get('request')
         viewer = getattr(request, 'user', None) if request else None
-        viewer_profile = getattr(viewer, 'profile', None) if viewer and getattr(viewer, 'is_authenticated', False) else None
-        if viewer_profile and getattr(viewer_profile, 'hide_last_seen', False):
+        # Presence is only exposed inside an accepted, unblocked conversation.
+        # Search and generic public-user payloads must not reveal activity data.
+        if not self.context.get('allow_presence', False):
             return None
         profile = getattr(obj, 'profile', None)
         if not profile or getattr(profile, 'hide_last_seen', False):
@@ -121,7 +122,12 @@ class MessageSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         viewer = getattr(request, 'user', None) if request else None
         if not hidden and viewer and getattr(viewer, 'is_authenticated', False):
-            hidden = reply.deleted_for.filter(pk=viewer.pk).exists()
+            prefetched = getattr(reply, '_prefetched_objects_cache', {})
+            deleted_for = prefetched.get('deleted_for')
+            hidden = (
+                any(user.pk == viewer.pk for user in deleted_for)
+                if deleted_for is not None else reply.deleted_for.filter(pk=viewer.pk).exists()
+            )
         if hidden:
             return {'id': reply.id, 'text': '', 'sender_name': '', 'deleted': True}
         return {
@@ -179,7 +185,10 @@ class ConversationSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         user = request.user if request else None
         other = obj.other_user(user) if user else obj.user2
-        return PublicUserSerializer(other, context=self.context).data
+        user = request.user if request else None
+        blocked = bool(user and Block.is_blocked(user, other))
+        context = {**self.context, 'allow_presence': obj.status == Conversation.STATUS_ACCEPTED and not blocked}
+        return PublicUserSerializer(other, context=context).data
 
     def get_last_message(self, obj):
         if hasattr(obj, '_last_message_id'):
@@ -237,12 +246,16 @@ class ConversationSerializer(serializers.ModelSerializer):
 
     def get_is_blocked(self, obj):
         request = self.context.get('request')
+        if hasattr(obj, '_is_blocked'):
+            return bool(obj._is_blocked)
         if not request:
             return False
         return obj.is_blocked(request.user)
 
     def get_blocked_by_me(self, obj):
         request = self.context.get('request')
+        if hasattr(obj, '_blocked_by_me'):
+            return bool(obj._blocked_by_me)
         if not request:
             return False
         return obj.i_blocked(request.user)

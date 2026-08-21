@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, Heart, ShoppingCart, Search, MessageCircle, X } from 'lucide-react';
+import { Menu, Heart, ShoppingCart, Search, MessageCircle, X, Moon, Sun } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { Badge } from '../ui/Badge';
+import { useTheme } from '../../contexts/ThemeContext';
 import { cn } from '../../lib/utils';
 import { MOBILE_CHIPS } from './navConfig';
 
@@ -26,6 +27,7 @@ const MobileHeader = ({
   isAuthenticated = false,
 }) => {
   const [searchOpen, setSearchOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   const chips = [
     ...MOBILE_CHIPS,
@@ -69,6 +71,15 @@ const MobileHeader = ({
         </Link>
 
         <div className="flex shrink-0 items-center gap-0.5">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-foreground transition-colors active:bg-muted/70"
+            aria-label="تغییر تم"
+          >
+            {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+          </button>
+
           {!isChat && (
             <button
               type="button"

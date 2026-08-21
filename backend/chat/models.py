@@ -171,6 +171,11 @@ class Message(models.Model):
                 condition=models.Q(idempotency_key__gt=''),
                 name='chat_msg_conv_sender_idem_uniq',
             ),
+            models.UniqueConstraint(
+                fields=['style_room', 'sender', 'idempotency_key'],
+                condition=models.Q(idempotency_key__gt=''),
+                name='chat_msg_room_sender_idem_uniq',
+            ),
         ]
 
     def __str__(self):

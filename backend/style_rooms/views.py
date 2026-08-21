@@ -38,6 +38,8 @@ from .services import (
     add_member,
     blocks_interaction,
     create_room,
+    delete_room_message,
+    forward_to_room,
     issue_invite_token,
     join_room,
     create_room_message,
@@ -380,7 +382,7 @@ class StyleRoomViewSet(viewsets.ModelViewSet):
         )
 
     def _message_queryset(self, room, user):
-        return room.messages.filter(style_room=room).select_related(
+        return room.messages.filter(style_room=room).exclude(deleted_for=user).select_related(
             'sender', 'sender__profile', 'product', 'product__brand', 'product__category',
         ).prefetch_related(
             Prefetch(
@@ -422,6 +424,7 @@ class StyleRoomViewSet(viewsets.ModelViewSet):
             request.user,
             text=serializer.validated_data.get('text', ''),
             product=serializer.validated_data.get('product'),
+            idempotency_key=serializer.validated_data.get('idempotency_key', ''),
         )
         message = self._message_queryset(room, request.user).get(pk=message.pk)
         return Response(
@@ -447,6 +450,53 @@ class StyleRoomViewSet(viewsets.ModelViewSet):
                 raise NotFound('یک یا چند پیام در این اتاق پیدا نشد.')
         count = mark_room_messages_read(room, request.user, message_ids)
         return Response({'marked_read': count})
+
+    @action(detail=True, methods=['post'], url_path=r'messages/(?P<message_id>[0-9]+)/delete')
+    def delete_message(self, request, pk=None, message_id=None):
+        room = self.get_object()
+        message = room.messages.filter(pk=message_id).first()
+        if not message:
+            raise NotFound('پیام یافت نشد.')
+        mode = request.data.get('mode', 'me')
+        try:
+            result = delete_room_message(request.user, message, mode=mode)
+        except PermissionDenied as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_403_FORBIDDEN)
+        return Response(result)
+
+    @action(detail=True, methods=['post'], url_path=r'messages/(?P<message_id>[0-9]+)/forward')
+    def forward_message(self, request, pk=None, message_id=None):
+        room = self.get_object()
+        message = room.messages.filter(pk=message_id).first()
+        if not message:
+            raise NotFound('پیام یافت نشد.')
+        if message.deleted_at or message.deleted_for.filter(pk=request.user.pk).exists():
+            raise NotFound('پیام یافت نشد.')
+        data = request.data if isinstance(request.data, dict) else {}
+        conversation_ids = data.get('conversation_ids') or []
+        room_ids = data.get('room_ids') or []
+        if not conversation_ids and not room_ids:
+            room_ids = [room.pk]
+        from chat.services import SendMessageError, forward_message
+        try:
+            created = forward_message(
+                request.user,
+                message,
+                conversation_ids=conversation_ids,
+                room_ids=room_ids,
+            )
+        except SendMessageError as exc:
+            return Response({'error': exc.message}, status=exc.status)
+        except PermissionDenied as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_403_FORBIDDEN)
+        member_count = room.members.count()
+        first = created[0]
+        return Response(
+            StyleRoomMessageSerializer(
+                first, context={'request': request, 'member_count': member_count},
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     @action(detail=True, methods=['delete'], url_path=r'items/(?P<item_id>[0-9]+)')
     def remove_item(self, request, pk=None, item_id=None):

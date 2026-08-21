@@ -25,6 +25,8 @@ export default function ChatPage() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [convLoading, setConvLoading] = useState(false);
+  const [conversationNext, setConversationNext] = useState(null);
+  const [loadingMoreConversations, setLoadingMoreConversations] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const { query, setQuery, searchResults, setSearchResults, searching } = useChatUserSearch();
@@ -35,21 +37,25 @@ export default function ChatPage() {
   const [profileOpen, setProfileOpen] = useState(true);
   const [sharedOpen, setSharedOpen] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
+  const [sharedProducts, setSharedProducts] = useState([]);
+  const [sharedProductsCount, setSharedProductsCount] = useState(0);
+  const [sharedProductsNextOffset, setSharedProductsNextOffset] = useState(null);
+  const [sharedProductsLoading, setSharedProductsLoading] = useState(false);
   const [peerPresence, setPeerPresence] = useState('offline');
   const [replyTo, setReplyTo] = useState(null);
+  const [realtimeConnected, setRealtimeConnected] = useState(true);
   const [threadQuery, setThreadQuery] = useState('');
   const [threadHits, setThreadHits] = useState([]);
   const [forwardingMessage, setForwardingMessage] = useState(null);
   const typingTimerRef = useRef(null);
+  const typingDebounceRef = useRef(null);
+  const peerTypingTimerRef = useRef(null);
 
-  const sharedProducts = useMemo(
-    () => messages.filter((m) => m.product).map((m) => m.product).reverse(),
-    [messages]
-  );
 
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const messagesScrollRef = useRef(null);
+  const shouldStickToBottomRef = useRef(true);
   const restoreScrollRef = useRef(null);
   const paginationRef = useRef({ id: null, oldestId: null, hasOlder: false, token: 0 });
   const [hasOlder, setHasOlder] = useState(false);
@@ -60,6 +66,46 @@ export default function ChatPage() {
     () => conversations.find((c) => c.id === Number(activeId)) || null,
     [conversations, activeId]
   );
+  useEffect(() => {
+    if (!activeId) {
+      setSharedProducts([]);
+      setSharedProductsCount(0);
+      setSharedProductsNextOffset(null);
+      return;
+    }
+    let cancelled = false;
+    if (typeof chatAPI.getSharedProducts !== 'function') return () => { cancelled = true; };
+    setSharedProductsLoading(true);
+    chatAPI.getSharedProducts(activeId, { limit: 24 }).then((response) => {
+      if (cancelled) return;
+      setSharedProducts(response.data?.results || []);
+      setSharedProductsCount(response.data?.count || 0);
+      setSharedProductsNextOffset(response.data?.next_offset ?? null);
+    }).catch(() => {
+      if (!cancelled) { setSharedProducts([]); setSharedProductsCount(0); setSharedProductsNextOffset(null); }
+    }).finally(() => {
+      if (!cancelled) setSharedProductsLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [activeId]);
+
+  const loadMoreSharedProducts = useCallback(async () => {
+    if (!activeId || sharedProductsNextOffset == null || sharedProductsLoading || typeof chatAPI.getSharedProducts !== 'function') return;
+    setSharedProductsLoading(true);
+    try {
+      const response = await chatAPI.getSharedProducts(activeId, { limit: 24, offset: sharedProductsNextOffset });
+      const incoming = response.data?.results || [];
+      setSharedProducts((current) => {
+        const seen = new Set(current.map((product) => product.id));
+        return [...current, ...incoming.filter((product) => !seen.has(product.id))];
+      });
+      setSharedProductsNextOffset(response.data?.next_offset ?? null);
+    } catch {
+      // Keep the already loaded page available when a subsequent page fails.
+    } finally {
+      setSharedProductsLoading(false);
+    }
+  }, [activeId, sharedProductsNextOffset, sharedProductsLoading]);
 
   /* Load conversations */
   useEffect(() => {
@@ -74,6 +120,7 @@ export default function ChatPage() {
         const data = Array.isArray(res.data) ? res.data : (res.data?.results || []);
         setConversations(data);
         setLoading(false);
+        setConversationNext(res.data?.next || null);
         // Only open a conversation if it was explicitly deep-linked (e.g. /chat/:id).
         // On first visit, stay on the list / welcome screen instead of auto-opening the last chat.
         if (conversationId) {
@@ -95,6 +142,26 @@ export default function ChatPage() {
       .catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [currentUserId, conversationId]);
+
+  const loadMoreConversations = useCallback(async () => {
+    if (!conversationNext || loadingMoreConversations) return;
+    setLoadingMoreConversations(true);
+    try {
+      const page = new URL(conversationNext, window.location.origin).searchParams.get('page');
+      const res = await chatAPI.getConversations(page ? { page } : {});
+      const data = Array.isArray(res.data) ? res.data : (res.data?.results || []);
+      setConversations((previous) => {
+        const byId = new Map(previous.map((item) => [item.id, item]));
+        data.forEach((item) => byId.set(item.id, { ...byId.get(item.id), ...item }));
+        return [...byId.values()];
+      });
+      setConversationNext(res.data?.next || null);
+    } catch {
+      toast({ title: 'خطا', description: 'بارگذاری گفتگوهای بیشتر ممکن نشد.', variant: 'destructive' });
+    } finally {
+      setLoadingMoreConversations(false);
+    }
+  }, [conversationNext, loadingMoreConversations, toast]);
 
   const loadMessages = useCallback(async (id) => {
     const token = ++paginationRef.current.token;
@@ -142,9 +209,30 @@ export default function ChatPage() {
   }, [loadingOlder, toast]);
 
   const handleMessagesScroll = (event) => {
+    const { scrollHeight, scrollTop, clientHeight } = event.currentTarget;
+    shouldStickToBottomRef.current = scrollHeight - scrollTop - clientHeight < 96;
     if (event.currentTarget.scrollTop <= 48) loadOlderMessages();
   };
 
+
+  const handleSearchHit = useCallback(async (hit) => {
+    if (!activeId || !hit?.id) return;
+    try {
+      const response = await chatAPI.getMessageContext(activeId, hit.id);
+      const page = unwrapMessagePage(response.data);
+      setMessages(page.results);
+      paginationRef.current.oldestId = page.oldestId;
+      paginationRef.current.hasOlder = page.hasOlder;
+      setHasOlder(page.hasOlder);
+      setThreadQuery('');
+      setThreadHits([]);
+      requestAnimationFrame(() => {
+        document.querySelector(`[data-message-id="${hit.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    } catch {
+      toast({ title: 'خطا', description: 'باز کردن پیام یافت‌شده ممکن نشد.', variant: 'destructive' });
+    }
+  }, [activeId, toast]);
   useEffect(() => {
     if (activeId) loadMessages(activeId);
     else setMessages([]);
@@ -155,6 +243,7 @@ export default function ChatPage() {
     activeId,
     setConversations,
     refreshMessages: loadMessages,
+    realtimeConnected,
   });
 
   useChatRealtime({
@@ -167,11 +256,19 @@ export default function ChatPage() {
     },
     onTyping: (event) => {
       if (event.user_id === currentUserId) return;
-      setPeerTyping(event.status !== 'stopped');
+      const isTyping = event.status !== 'stopped';
+      setPeerTyping(isTyping);
+      clearTimeout(peerTypingTimerRef.current);
+      if (isTyping) {
+        peerTypingTimerRef.current = setTimeout(() => setPeerTyping(false), 4000);
+      }
     },
     onPresence: (event) => {
       if (event.user_id === currentUserId) return;
       setPeerPresence(event.status || (event.online ? 'online' : 'offline'));
+    },
+    onSocketStatus: (socketStatus) => {
+      setRealtimeConnected(socketStatus === 'open');
     },
   });
 
@@ -190,6 +287,9 @@ export default function ChatPage() {
     setThreadQuery('');
     setThreadHits([]);
     setForwardingMessage(null);
+    clearTimeout(typingTimerRef.current);
+    clearTimeout(typingDebounceRef.current);
+    clearTimeout(peerTypingTimerRef.current);
   }, [activeId]);
 
   useEffect(() => {
@@ -208,18 +308,36 @@ export default function ChatPage() {
     return () => clearTimeout(handle);
   }, [activeId, threadQuery]);
 
+  const sendTypingStop = useCallback(() => {
+    if (!activeId) return;
+    const socket = getRealtimeSocket(chatPrivateSocketPath(activeId));
+    socket.send({ type: 'typing', status: 'stopped' });
+  }, [activeId]);
+
+  useEffect(() => () => {
+    clearTimeout(typingTimerRef.current);
+    clearTimeout(typingDebounceRef.current);
+    clearTimeout(peerTypingTimerRef.current);
+    if (activeId) sendTypingStop();
+  }, [activeId, sendTypingStop]);
+
   const updateDraft = (value) => {
     const next = typeof value === 'function' ? value(text) : value;
     setText(next);
     if (!activeId) return;
-    const socket = getRealtimeSocket(chatPrivateSocketPath(activeId));
-    socket.send({ type: 'typing', status: String(next || '').trim() ? 'typing' : 'stopped' });
-    clearTimeout(typingTimerRef.current);
-    if (String(next || '').trim()) {
-      typingTimerRef.current = setTimeout(() => {
+    clearTimeout(typingDebounceRef.current);
+    typingDebounceRef.current = setTimeout(() => {
+      const socket = getRealtimeSocket(chatPrivateSocketPath(activeId));
+      if (String(next || '').trim()) {
+        socket.send({ type: 'typing', status: 'typing' });
+      } else {
         socket.send({ type: 'typing', status: 'stopped' });
-      }, 2000);
-    }
+      }
+    }, 300);
+    clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => {
+      sendTypingStop();
+    }, 2000);
   };
 
 
@@ -232,10 +350,13 @@ export default function ChatPage() {
       restoreScrollRef.current = null;
       return;
     }
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    if (shouldStickToBottomRef.current || convLoading) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
   }, [messages.length, convLoading]);
 
   const selectConversation = (id) => {
+    shouldStickToBottomRef.current = true;
     setActiveId(id);
     setMenuOpen(false);
     setMobilePane('chat');
@@ -266,8 +387,14 @@ export default function ChatPage() {
       } else if (conv.status === 'accepted') {
         toast({ title: 'گفتگو', description: 'شما می‌توانید پیام ارسال کنید.' });
       }
-    } catch {
-      toast({ title: 'خطا', description: 'ایجاد گفتگو ممکن نشد.', variant: 'destructive' });
+    } catch (err) {
+      const detail =
+        err?.response?.data?.error ||
+        err?.response?.data?.detail ||
+        (err?.response?.status === 429
+          ? 'تعداد درخواست‌های شما زیاد است. کمی بعد دوباره تلاش کنید.'
+          : 'ایجاد گفتگو ممکن نشد.');
+      toast({ title: 'خطا', description: detail, variant: 'destructive' });
     }
   };
 
@@ -430,13 +557,13 @@ export default function ChatPage() {
     setForwardingMessage(message);
   };
 
-  const handleConfirmForward = async (conversationIds) => {
-    if (!forwardingMessage || !conversationIds?.length) {
+  const handleConfirmForward = async ({ conversationIds = [], roomIds = [] } = {}) => {
+    if (!forwardingMessage || (!conversationIds.length && !roomIds.length)) {
       setForwardingMessage(null);
       return;
     }
     try {
-      await chatAPI.forwardMessage(forwardingMessage.id, conversationIds);
+      await chatAPI.forwardMessage(forwardingMessage.id, { conversationIds, roomIds });
       toast({ title: 'هدایت شد', description: 'پیام به گفتگوهای انتخاب‌شده ارسال شد.' });
     } catch (err) {
       toast({
@@ -493,12 +620,23 @@ export default function ChatPage() {
     });
   };
 
-  const handleSend = async (e, overrideText) => {
+  const handleSend = async (e, overrideText, overrideReply) => {
     e?.preventDefault();
     const payload = (overrideText ?? text).trim();
     if (!activeId || !payload || sending) return;
+    if (active && active.status !== 'accepted') {
+      const desc = active.status === 'pending'
+        ? (active.is_requester ? 'درخواست گفتگو ارسال شده و در انتظار تایید است. پس از تایید می‌توانید پیام بفرستید.' : 'لطفاً ابتدا درخواست گفتگو را بپذیرید تا امکان ارسال پیام فراهم شود.')
+        : active.status === 'declined'
+          ? 'این گفتگو رد شده است. برای ارسال پیام دوباره درخواست دهید.'
+          : active.is_blocked
+            ? 'این گفتگو به دلیل بلاک مسدود است.'
+            : 'در حال حاضر امکان ارسال پیام وجود ندارد.';
+      toast({ title: 'امکان ارسال پیام وجود ندارد', description: desc, variant: 'destructive' });
+      return;
+    }
     setSending(true);
-    const replySnapshot = replyTo;
+    const replySnapshot = overrideReply ?? replyTo;
     const idempotencyKey = (typeof crypto !== 'undefined' && crypto.randomUUID)
       ? crypto.randomUUID()
       : `local-${Date.now()}`;
@@ -526,6 +664,9 @@ export default function ChatPage() {
     setText('');
     setReplyTo(null);
     setShowEmoji(false);
+    clearTimeout(typingTimerRef.current);
+    clearTimeout(typingDebounceRef.current);
+    sendTypingStop();
     try {
       const res = await chatAPI.sendMessage(activeId, {
         text: payload,
@@ -534,7 +675,7 @@ export default function ChatPage() {
       });
       setMessages((prev) => replaceOptimisticMessage(prev, optimistic.id, { ...res.data, status: 'sent' }));
     } catch {
-      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+      setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? { ...m, status: 'failed' } : m)));
       toast({ title: 'خطا', description: 'ارسال پیام ممکن نشد.', variant: 'destructive' });
     } finally {
       setSending(false);
@@ -544,6 +685,12 @@ export default function ChatPage() {
   const insertEmoji = (emoji) => {
     setText((t) => t + emoji);
     textareaRef.current?.focus();
+  };
+
+  const handleRetryMessage = (message) => {
+    if (!message?.text || sending) return;
+    setMessages((previous) => previous.filter((item) => item.id !== message.id));
+    handleSend(null, message.text, message.reply_to || null);
   };
 
   const filteredConversations = useMemo(() => {
@@ -576,10 +723,10 @@ export default function ChatPage() {
 
   return (
     <ChatDashboard model={{
-      user, conversations, activeId, messages, loading, convLoading, text, setText: updateDraft, sending,
+      user, conversations, conversationNext, loadingMoreConversations, loadMoreConversations, activeId, messages, loading, convLoading, text, setText: updateDraft, sending,
     query, setQuery, searchResults, setSearchResults, searching, mobilePane, setMobilePane, showEmoji,
     setShowEmoji, sendProductOpen, setSendProductOpen, filter, setFilter, profileOpen,
-    setProfileOpen, sharedOpen, setSharedOpen, sharedProducts, messagesEndRef, textareaRef,
+    setProfileOpen, sharedOpen, setSharedOpen, sharedProducts, sharedProductsCount, sharedProductsNextOffset, sharedProductsLoading, loadMoreSharedProducts, messagesEndRef, textareaRef,
       messagesScrollRef, handleMessagesScroll, hasOlder, loadingOlder, currentUserId, active, loadMessages, selectConversation, handleStartRequest,
     hideModeNavigation: true,
     peerTyping,
@@ -588,8 +735,11 @@ export default function ChatPage() {
     menuOpen, setMenuOpen, confirmDialog, askConfirm, closeConfirm, handleClearChat,
     handleBlock, handleUnblock, handleSend, insertEmoji, filteredConversations, handleContactStylist,
     replyTo, setReplyTo, threadQuery, setThreadQuery, threadHits,
+    handleRetryMessage,
+    handleSearchHit,
     handleReply, handleForward, handleDeleteMessage, handleReportMessage,
     forwardingMessage, setForwardingMessage, handleConfirmForward,
     }} />
   );
 }
+

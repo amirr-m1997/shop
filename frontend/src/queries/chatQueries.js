@@ -1,8 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { chatAPI } from '../services/api';
 
-const UNREAD_POLL_INTERVAL = 15_000;
+const FALLBACK_POLL_INTERVAL = 60_000;
+const RECONCILE_COOLDOWN = 10_000;
+
+export const fallbackPollInterval = (wsConnected, attempt = 0) => {
+  if (wsConnected) return false;
+  const exp = Math.min(FALLBACK_POLL_INTERVAL * (2 ** Math.max(0, attempt)), 5 * 60_000);
+  const jitter = Math.floor(exp * 0.2 * Math.random());
+  return exp + jitter;
+};
 
 export const chatKeys = {
   all: ['chat'],
@@ -13,52 +21,64 @@ export const chatUnreadQueryOptions = ({
   userId,
   isAuthenticated,
   authLoading = false,
-  pollingAvailable = true,
+  wsConnected = true,
 }) => {
-  const pollingEnabled = Boolean(userId) && isAuthenticated && !authLoading && pollingAvailable;
+  const enabled = Boolean(userId) && isAuthenticated && !authLoading;
   return {
     queryKey: chatKeys.unreadCount(userId),
     queryFn: ({ signal }) => chatAPI.getUnreadCount({ signal }).then((response) => (
       response.data?.count || 0
     )),
-    enabled: pollingEnabled,
+    enabled,
     staleTime: 10_000,
-    refetchInterval: pollingEnabled ? UNREAD_POLL_INTERVAL : false,
+    refetchInterval: enabled ? fallbackPollInterval(wsConnected) : false,
     refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
   };
 };
 
-const canPollNow = () => (
-  typeof document !== 'undefined'
-  && !document.hidden
-  && typeof navigator !== 'undefined'
-  && navigator.onLine
-);
-
 const usePollingAvailability = () => {
-  const [available, setAvailable] = useState(canPollNow);
+  const [online, setOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
+  );
 
   useEffect(() => {
-    const updateAvailability = () => setAvailable(canPollNow());
-    document.addEventListener('visibilitychange', updateAvailability);
-    window.addEventListener('online', updateAvailability);
-    window.addEventListener('offline', updateAvailability);
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
     return () => {
-      document.removeEventListener('visibilitychange', updateAvailability);
-      window.removeEventListener('online', updateAvailability);
-      window.removeEventListener('offline', updateAvailability);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
-  return available;
+  return online;
 };
 
 export const useChatUnreadCount = (userId, isAuthenticated, authLoading = false) => {
-  const pollingAvailable = usePollingAvailability();
-  return useQuery(chatUnreadQueryOptions({
+  const online = usePollingAvailability();
+  const query = useQuery(chatUnreadQueryOptions({
     userId,
     isAuthenticated,
     authLoading,
-    pollingAvailable,
+    wsConnected: online,
   }));
+
+  const lastReconcileRef = useRef(0);
+
+  useEffect(() => {
+    if (!userId || !isAuthenticated) return;
+    const handleVisibility = () => {
+      if (document.hidden) return;
+      const now = Date.now();
+      if (now - lastReconcileRef.current < RECONCILE_COOLDOWN) return;
+      lastReconcileRef.current = now;
+      query.refetch();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [userId, isAuthenticated, query]);
+
+  return query;
 };

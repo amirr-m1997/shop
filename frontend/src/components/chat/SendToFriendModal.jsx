@@ -38,7 +38,6 @@ const SendToFriendModal = ({ product, open, onOpenChange }) => {
   const [searching, setSearching] = useState(false);
   const [selected, setSelected] = useState(null);
   const [message, setMessage] = useState('');
-  const [shareWithReferral, setShareWithReferral] = useState(false);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [tab, setTab] = useState('chats'); // 'chats' | 'search'
@@ -52,7 +51,6 @@ const SendToFriendModal = ({ product, open, onOpenChange }) => {
       setResults([]);
       setSelected(null);
       setMessage('');
-      setShareWithReferral(false);
       setSent(false);
       setTab('chats');
     }
@@ -124,13 +122,7 @@ const SendToFriendModal = ({ product, open, onOpenChange }) => {
         return;
       }
 
-      let messageText = message.trim();
-      if (shareWithReferral) {
-        const referral = await chatAPI.createReferral({ product_id: product.id });
-        const referralUrl = referral.data?.referral_url;
-        if (!referralUrl) throw new Error('Referral URL was not returned.');
-        messageText = [messageText, `Referral link: ${referralUrl}`].filter(Boolean).join('\n');
-      }
+      const messageText = message.trim();
       await chatAPI.sendProduct(targetConvId, {
         product_id: product.id,
         text: messageText,
@@ -352,18 +344,6 @@ const SendToFriendModal = ({ product, open, onOpenChange }) => {
                 rows={2}
                 className="mt-2 w-full resize-none rounded-2xl border border-input bg-background px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/30"
               />
-            )}
-
-            {selected && (
-              <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5 text-xs font-semibold">
-                <input
-                  type="checkbox"
-                  checked={shareWithReferral}
-                  onChange={(e) => setShareWithReferral(e.target.checked)}
-                  className="h-4 w-4 accent-primary"
-                />
-                Include a referral link with this product share
-              </label>
             )}
 
             <DialogFooter className="mt-3 flex-row-reverse gap-2 sm:flex-row">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Gift, Loader2, Search, X } from 'lucide-react';
+import { Gift, Loader2, Search } from 'lucide-react';
 import { productsAPI } from '../../services/api';
 import { formatPrice } from '../../lib/formatPrice';
 import { PLACEHOLDER_IMG } from '../../lib/placeholders';
@@ -40,12 +40,9 @@ const StyleRoomProductPicker = ({ open, onClose, onSelect, busy }) => {
     <div className="fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center sm:p-4">
       <button type="button" aria-label="Close product picker" className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-border/60 bg-popover shadow-2xl sm:rounded-3xl">
-        <div className="flex items-center justify-between border-b border-border/50 px-5 py-4">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-yellow-700 text-black"><Gift className="h-4 w-4" /></div>
-            <div><h3 className="text-sm font-black text-foreground">Share a product</h3><p className="text-[11px] text-muted-foreground">Add a note and send it to the room</p></div>
-          </div>
-          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-muted/50 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
+        <div className="flex items-center gap-2.5 border-b border-border/50 px-5 py-4">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-yellow-700 text-black"><Gift className="h-4 w-4" /></div>
+          <div><h3 className="text-sm font-black text-foreground">Share a product</h3><p className="text-[11px] text-muted-foreground">Add a note and send it to the room</p></div>
         </div>
         <div className="space-y-3 px-4 pt-3">
           <div className="relative">

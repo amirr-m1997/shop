@@ -193,7 +193,7 @@ export const authAPI = {
 // Chat API (Style Chat / Friend Recommendation)
 export const chatAPI = {
   searchUsers: (q) => api.get('/chat/users/search/', { params: { q }, authRequired: true }),
-  getConversations: () => api.get('/chat/conversations/', { authRequired: true }),
+  getConversations: (params = {}) => api.get('/chat/conversations/', { params, authRequired: true }),
   getConversation: (id) => api.get(`/chat/conversations/${id}/`, { authRequired: true }),
   createConversation: (data) => api.post('/chat/conversations/', data, { authRequired: true }),
   acceptConversation: (id) => api.post(`/chat/conversations/${id}/accept/`, {}, { authRequired: true }),
@@ -203,7 +203,9 @@ export const chatAPI = {
   blockConversation: (id) => api.post(`/chat/conversations/${id}/block/`, {}, { authRequired: true }),
   unblockConversation: (id) => api.post(`/chat/conversations/${id}/unblock/`, {}, { authRequired: true }),
   getMessages: (conversationId, params) => api.get(`/chat/conversations/${conversationId}/messages/`, { authRequired: true, params }),
+  getMessageContext: (conversationId, messageId) => api.get(`/chat/conversations/${conversationId}/message-context/`, { params: { message_id: messageId }, authRequired: true }),
   sendMessage: (conversationId, data) => api.post(`/chat/conversations/${conversationId}/send_message/`, data, { authRequired: true }),
+  getSharedProducts: (conversationId, params = {}) => api.get(`/chat/conversations/${conversationId}/shared-products/`, { params, authRequired: true }),
   sendProduct: (conversationId, data) => api.post(`/chat/conversations/${conversationId}/send_product/`, data, { authRequired: true }),
   createReferral: (data) => api.post('/loyalty/referrals/', data, { authRequired: true }),
   markRead: (conversationId, data = {}) => api.post(`/chat/conversations/${conversationId}/mark_read/`, data, { authRequired: true }),
@@ -217,7 +219,11 @@ export const chatAPI = {
   contactStylist: () => api.post('/chat/conversations/support_chat/', {}, { authRequired: true }),
   searchMessages: (conversationId, q) => api.get(`/chat/conversations/${conversationId}/search/`, { params: { q }, authRequired: true }),
   deleteMessage: (messageId, mode) => api.post(`/chat/messages/${messageId}/remove/`, { mode }, { authRequired: true }),
-  forwardMessage: (messageId, conversationIds) => api.post(`/chat/messages/${messageId}/forward/`, { conversation_ids: conversationIds }, { authRequired: true }),
+  forwardMessage: (messageId, { conversationIds = [], roomIds = [] } = {}) => api.post(
+    `/chat/messages/${messageId}/forward/`,
+    { conversation_ids: conversationIds, room_ids: roomIds },
+    { authRequired: true },
+  ),
   reportMessage: (messageId, data) => api.post(`/chat/messages/${messageId}/report/`, data, { authRequired: true }),
   subscribePush: (data) => api.post('/chat/notifications/push_subscribe/', data, { authRequired: true }),
   unsubscribePush: (endpoint) => api.post('/chat/notifications/push_unsubscribe/', { endpoint }, { authRequired: true }),
@@ -261,6 +267,12 @@ export const styleRoomsAPI = {
   messages: (roomId, params, config = {}) => api.get(`/style-rooms/${roomId}/messages/`, { ...config, params, authRequired: true }),
   sendMessage: (roomId, data, config = {}) => api.post(`/style-rooms/${roomId}/messages/`, data, { ...config, authRequired: true }),
   markMessagesRead: (roomId, data = {}, config = {}) => api.post(`/style-rooms/${roomId}/messages/read/`, data, { ...config, authRequired: true }),
+  deleteMessage: (roomId, messageId, mode = 'me', config = {}) => api.post(`/style-rooms/${roomId}/messages/${messageId}/delete/`, { mode }, { ...config, authRequired: true }),
+  forwardMessage: (roomId, messageId, data = {}, config = {}) => api.post(
+    `/style-rooms/${roomId}/messages/${messageId}/forward/`,
+    data,
+    { ...config, authRequired: true },
+  ),
 };
 
 // Customer Club / Loyalty API

@@ -26,6 +26,7 @@ from .serializers import (
 )
 from .services import (
     create_room_message,
+    delete_room_message,
     favorite_room_message,
     mark_room_messages_read,
     react_room_message,
@@ -91,6 +92,7 @@ class StyleRoomConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
             self.user,
             text=data.get('text', ''),
             product=data.get('product'),
+            idempotency_key=data.get('idempotency_key', ''),
         )
 
     async def _handle_react(self, content):
@@ -114,6 +116,21 @@ class StyleRoomConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
         await database_sync_to_async(favorite_room_message)(self.user, message)
         await self.send_json({'type': 'message.favorited', 'ok': True})
 
+    async def _handle_delete(self, content):
+        allow_rate_limit(self.scope, 'room_write', settings.REALTIME['MESSAGE_RATE'], 60)
+        message_id = content.get('message_id')
+        mode = content.get('mode', 'me')
+        message = await database_sync_to_async(self._room_message)(message_id)
+        if message is None:
+            await self.send_json({'type': 'message.error', 'error': 'پیام پیدا نشد.'})
+            return
+        try:
+            await database_sync_to_async(delete_room_message)(self.user, message, mode=mode)
+        except Exception as exc:
+            await self.send_json({'type': 'message.error', 'error': str(exc)})
+            return
+        await self.send_json({'type': 'message.deleted', 'ok': True})
+
     def _room_message(self, message_id):
         return (
             self.room.messages.filter(style_room=self.room, pk=message_id).first()
@@ -135,13 +152,14 @@ class StyleRoomConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
 
     async def _handle_typing(self, content):
         allow_rate_limit(self.scope, 'room_typing', 30, 60)
-        status = content.get('status')
-        if status not in ('typing', 'stopped'):
-            status = 'typing'
+        typing_status = content.get('status')
+        if typing_status not in ('typing', 'stopped'):
+            typing_status = 'typing'
         await self.channel_layer.group_send(self.group, {
             'type': 'typing_event',
             'user_id': self.user.id,
-            'status': status,
+            'status': typing_status,
+            'exclude': self.channel_name,
         })
 
     async def _handle_presence(self, content):
@@ -155,6 +173,7 @@ class StyleRoomConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
         'message.send': '_handle_send',
         'message.react': '_handle_react',
         'message.favorite': '_handle_favorite',
+        'message.delete': '_handle_delete',
         'read.mark': '_handle_read',
         'typing': '_handle_typing',
         'presence': '_handle_presence',
@@ -184,7 +203,17 @@ class StyleRoomConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
             'is_favorite': event.get('is_favorite'),
         })
 
+    async def message_deleted(self, event):
+        await self.send_json({
+            'type': 'message.deleted',
+            'message_id': event['message_id'],
+            'for_everyone': event.get('for_everyone', False),
+            'user_id': event.get('user_id'),
+        })
+
     async def typing_event(self, event):
+        if event.get('exclude') == self.channel_name:
+            return
         await self.send_json({
             'type': 'typing',
             'user_id': event['user_id'],

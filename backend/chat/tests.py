@@ -652,4 +652,27 @@ class ChatSecurityAuditTests(ChatAuthMixin, APITestCase):
         self.assertEqual(forward.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(react.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_forward_private_message_into_style_room(self):
+        from style_rooms.services import add_member, create_room
+        room = create_room(self.alice, title='fwd-room')
+        add_member(room, self.carol, self.alice)
+        source = Message.objects.create(conversation=self.conv, sender=self.bob, text='to-room')
+        resp = self.client.post(
+            f'/api/chat/messages/{source.id}/forward/',
+            {'room_ids': [str(room.pk)]}, format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(Message.objects.filter(style_room=room, text='to-room').exists())
+
+    def test_cannot_forward_into_room_without_membership(self):
+        from style_rooms.services import create_room
+        outsider_room = create_room(self.carol, title='secret-room')
+        source = Message.objects.create(conversation=self.conv, sender=self.bob, text='blocked-fwd')
+        resp = self.client.post(
+            f'/api/chat/messages/{source.id}/forward/',
+            {'room_ids': [str(outsider_room.pk)]}, format='json',
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Message.objects.filter(style_room=outsider_room, text='blocked-fwd').exists())
+
 

@@ -119,7 +119,7 @@ const CheckoutPaymentStep = ({
                     </Button>
                     <Button
                       size="lg"
-                      className="flex-1 rounded-xl h-12 font-bold shadow-md hover:shadow-lg transition-all"
+                      className="w-full rounded-xl h-14 sm:w-auto sm:flex-1 sm:h-12 font-bold shadow-md hover:shadow-lg transition-all"
                       onClick={handlePlaceOrder}
                       disabled={loading}
                       aria-busy={isSubmitting}

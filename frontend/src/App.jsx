@@ -153,12 +153,12 @@ function AppShell() {
     <div
       className={`flex flex-col ${
         isChat
-          ? 'h-screen overflow-hidden'
+          ? 'h-screen supports-[height:100dvh]:h-[100dvh] overflow-hidden'
           : 'min-h-screen pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-0'
       }`}
     >
       <Header />
-      <main className={`flex-1 ${isChat ? 'min-h-0 overflow-hidden' : ''}`}>
+      <main className={`flex-1 ${isChat ? 'flex min-h-0 flex-col overflow-hidden' : ''}`}>
         <Routes>
           <Route path="/" element={<LazyPageLoader Component={HomePage} />} />
           <Route path="/category/:category" element={<LazyPageLoader Component={ProductListingPage} />} />

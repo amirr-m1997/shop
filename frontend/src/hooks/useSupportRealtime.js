@@ -14,6 +14,8 @@ export const useSupportRealtime = ({
   setMessages,
   onQueueUpdated,
   onUnread,
+  onTyping,
+  onPresence,
   departments = [],
 }) => {
   const departmentKey = (departments || []).join('|');
@@ -26,6 +28,12 @@ export const useSupportRealtime = ({
       switch (message.type) {
         case 'chat.message':
           setMessages?.((previous) => mergeMessages(previous, [message.message]));
+          break;
+        case 'typing':
+          onTyping?.(message);
+          break;
+        case 'presence':
+          onPresence?.(message);
           break;
         case 'read_receipt': {
           const markedIds = new Set((message.message_ids || []).map(Number));
@@ -48,7 +56,7 @@ export const useSupportRealtime = ({
       socket.removeListener(listener);
       if (socket.listenerCount === 0) releaseRealtimeSocket(path);
     };
-  }, [currentUserId, activeId, setMessages]);
+  }, [currentUserId, activeId, setMessages, onTyping, onPresence]);
 
   useEffect(() => {
     if (!currentUserId || (!onQueueUpdated && !onUnread)) return undefined;
@@ -73,5 +81,5 @@ export const useSupportRealtime = ({
         if (socket.listenerCount === 0) releaseRealtimeSocket(paths[index]);
       });
     };
-  }, [currentUserId, onQueueUpdated, onUnread, departments]);
+  }, [currentUserId, onQueueUpdated, onUnread, departments, departmentKey]);
 };

@@ -207,6 +207,28 @@ const ProfileDashboard = ({ model }) => {
           )}
         </div>
 
+        {/* ── Mobile Quick Actions (orders + logout at top) ── */}
+        <div className="mb-6 grid grid-cols-2 gap-3 lg:hidden">
+          <Button
+            asChild
+            variant="outline"
+            className="h-11 rounded-xl border-border/60 bg-background/80 font-bold shadow-sm backdrop-blur-sm"
+          >
+            <Link to="/orders" className="flex items-center justify-center gap-2">
+              <Package className="h-4 w-4" />
+              سفارش‌های من
+            </Link>
+          </Button>
+          <Button
+            variant="outline"
+            className="h-11 rounded-xl border-destructive/25 bg-destructive/[0.04] font-bold text-destructive shadow-sm hover:bg-destructive/10"
+            onClick={() => setLogoutOpen(true)}
+          >
+            <LogOut className="h-4 w-4" />
+            خروج از حساب
+          </Button>
+        </div>
+
         {/* ── Verification Banner ── */}
         {(!user?.phone_verified && !user?.email_verified) && (
           <div className="mb-6 overflow-hidden rounded-[1.35rem] border border-amber-500/25 bg-gradient-to-l from-amber-500/[0.12] via-amber-500/[0.05] to-transparent p-4 shadow-sm backdrop-blur-sm sm:p-5 animate-fade-in-up">

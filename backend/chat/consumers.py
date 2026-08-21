@@ -276,16 +276,23 @@ class PrivateChatConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
         )
         if blocked:
             return
-        status = content.get('status')
-        if status not in ('typing', 'stopped'):
-            status = 'typing'
-        await self.channel_layer.group_send(self.group, {
-            'type': 'typing_event',
-            'user_id': self.user.id,
-            'status': status,
-        })
+        typing_status = content.get('status')
+        if typing_status not in ('typing', 'stopped'):
+            typing_status = 'typing'
+        other = self.conversation.other_user(self.user)
+        await self.channel_layer.group_send(
+            f'chat.private.{self.conversation.pk}',
+            {
+                'type': 'typing_event',
+                'user_id': self.user.id,
+                'status': typing_status,
+                'exclude': self.channel_name,
+            },
+        )
 
     async def typing_event(self, event):
+        if event.get('exclude') == self.channel_name:
+            return
         await self.send_json({
             'type': 'typing',
             'user_id': event['user_id'],
@@ -381,6 +388,18 @@ class UserChannelConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
 
     async def conversation_updated(self, event):
         await self.send_json({'type': 'conversation.updated', 'conversation': event['conversation']})
+
+    async def conversation_changed(self, event):
+        await self.send_json({
+            'type': 'conversation.changed',
+            'conversation_id': event['conversation_id'],
+        })
+
+    async def conversation_removed(self, event):
+        await self.send_json({
+            'type': 'conversation.removed',
+            'conversation_id': event['conversation_id'],
+        })
 
     async def notification(self, event):
         await self.send_json({'type': 'notification', 'notification': event['notification']})

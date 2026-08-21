@@ -442,7 +442,7 @@ const CheckoutShippingStep = ({
                         </Button>
                         <Button
                           size="lg"
-                          className="flex-1 rounded-xl h-12 font-bold shadow-md"
+                          className="w-full rounded-xl h-14 sm:w-auto sm:flex-1 sm:h-12 font-bold shadow-md"
                           onClick={validateAndContinue}
                           disabled={isAuthenticated && !selectedAddress}
                         >

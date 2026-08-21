@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { chatAPI } from '../services/api';
 
 export const useChatVisibilityRefresh = ({
-  currentUserId, activeId, setConversations, refreshMessages,
+  currentUserId, activeId, setConversations, refreshMessages, realtimeConnected = true,
 }) => {
   useEffect(() => {
     if (!currentUserId) return undefined;
@@ -27,9 +27,16 @@ export const useChatVisibilityRefresh = ({
 
     const onVisibility = () => { if (!document.hidden) refresh(); };
     document.addEventListener('visibilitychange', onVisibility);
+    const onOnline = () => refresh();
+    window.addEventListener('online', onOnline);
+    const fallbackInterval = realtimeConnected ? null : window.setInterval(refresh, 15000);
+    if (!realtimeConnected) refresh();
+
     return () => {
       cancelled = true;
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('online', onOnline);
+      if (fallbackInterval) window.clearInterval(fallbackInterval);
     };
-  }, [activeId, currentUserId, setConversations, refreshMessages]);
+  }, [activeId, currentUserId, realtimeConnected, setConversations, refreshMessages]);
 };

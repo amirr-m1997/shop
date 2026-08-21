@@ -22,9 +22,10 @@ const RoomActionsMenu = ({ room, onDelete, onLeave, deleting = false, leaving = 
   const menuItem =
     'flex w-full items-center gap-2.5 px-4 py-3 text-sm font-semibold text-foreground transition hover:bg-muted/60';
 
+  const hasDesktopMenu = isOwner || canDelete;
   return (
     <>
-      <div className="relative shrink-0">
+      <div className={`relative shrink-0 ${!hasDesktopMenu ? 'sm:hidden' : ''}`}>
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
@@ -94,7 +95,7 @@ const RoomActionsMenu = ({ room, onDelete, onLeave, deleting = false, leaving = 
                     setOpen(false);
                     setConfirmAction('leave');
                   }}
-                  className={`${menuItem} text-rose-600 hover:bg-rose-500/10 dark:text-rose-400`}
+                  className={`${menuItem} text-rose-600 hover:bg-rose-500/10 dark:text-rose-400 sm:hidden`}
                 >
                   {leaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
                   ترک اتاق

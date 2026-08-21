@@ -7,7 +7,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
-from django.db.models import Q, Count, IntegerField, OuterRef, Subquery
+from django.db.models import Q, Count, Exists, IntegerField, OuterRef, Prefetch, Subquery
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -19,10 +19,13 @@ from .serializers import (
     ConversationSerializer,
     ConversationCreateSerializer,
     MessageSerializer,
+    ProductShareSerializer,
     SendMessageSerializer,
     NotificationSerializer,
 )
 from .throttles import ChatRequestThrottle, ChatSendThrottle
+from .services import broadcast_conversation_changed, broadcast_conversation_removed
+from products.models import Wishlist
 from support.models import SupportConversation, SupportMessage
 from support.serializers import SupportConversationSerializer
 
@@ -101,6 +104,9 @@ class ConversationViewSet(viewsets.ModelViewSet):
         ).order_by('-created_at', '-id')
         return private_conversations_for(user).select_related(
             'user1', 'user2', 'user1__profile', 'user2__profile', 'requested_by'
+        ).prefetch_related(
+            Prefetch('user1__wishlist', queryset=Wishlist.objects.select_related('product__category')),
+            Prefetch('user2__wishlist', queryset=Wishlist.objects.select_related('product__category')),
         ).annotate(
             _last_message_id=Subquery(last_message.values('id')[:1]),
             _last_message_text=Subquery(last_message.values('text')[:1]),
@@ -119,6 +125,19 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 ),
                 0,
                 output_field=IntegerField(),
+            ),
+            _blocked_by_me=Exists(
+                Block.objects.filter(blocker_id=user.id).filter(
+                    Q(blocked_id=OuterRef('user1_id')) | Q(blocked_id=OuterRef('user2_id')),
+                ),
+            ),
+            _is_blocked=Exists(
+                Block.objects.filter(
+                    Q(blocker_id=user.id, blocked_id=OuterRef('user1_id'))
+                    | Q(blocker_id=user.id, blocked_id=OuterRef('user2_id'))
+                    | Q(blocker_id=OuterRef('user1_id'), blocked_id=user.id)
+                    | Q(blocker_id=OuterRef('user2_id'), blocked_id=user.id),
+                ),
             ),
         )
 
@@ -213,6 +232,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 conversation=conversation,
                 text='یک درخواست گفتگو برای شما ارسال کرده',
             )
+            broadcast_conversation_changed(conversation, request.user, other)
 
         data = ConversationSerializer(conversation, context={'request': request}).data
         return Response(data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
@@ -242,15 +262,18 @@ class ConversationViewSet(viewsets.ModelViewSet):
         conversation = self.get_object()
         qs = conversation.messages.exclude(deleted_for=request.user).select_related(
             'sender', 'sender__profile', 'product', 'reply_to', 'reply_to__sender', 'forwarded_from'
-        ).prefetch_related('receipts')
+        ).prefetch_related('receipts', 'reply_to__deleted_for')
         return MessageCursorPagination().paginate(
             request, qs, MessageSerializer, context={'request': request},
         )
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def accept(self, request, pk=None):
         """تایید درخواست گفتگو توسط طرف مقابل (فقط گیرنده درخواست می‌تواند تایید کند)."""
         conversation = self.get_object()
+        # Re-read under lock so concurrent state changes cannot both succeed.
+        conversation = Conversation.objects.select_for_update().get(pk=conversation.pk)
         if conversation.is_requester(request.user):
             return Response({'error': 'شما نمی‌توانید درخواست خودتان را تایید کنید.'}, status=status.HTTP_400_BAD_REQUEST)
         # Only a pending request can be accepted — state machine guard.
@@ -260,7 +283,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         conversation.status = Conversation.STATUS_ACCEPTED
-        conversation.save(update_fields=['status'])
+        conversation.save(update_fields=['status', 'updated_at'])
         # Mark the incoming request notification as read.
         Notification.objects.filter(
             conversation=conversation, recipient=request.user, is_read=False
@@ -272,12 +295,16 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 conversation=conversation,
                 text='درخواست گفتگوی شما را پذیرفته',
             )
+        broadcast_conversation_changed(conversation, conversation.user1, conversation.user2)
         return Response(ConversationSerializer(conversation, context={'request': request}).data)
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def decline(self, request, pk=None):
         """رد درخواست گفتگو توسط طرف مقابل."""
         conversation = self.get_object()
+        # Re-read under lock so concurrent state changes cannot both succeed.
+        conversation = Conversation.objects.select_for_update().get(pk=conversation.pk)
         if conversation.is_requester(request.user):
             return Response({'error': 'شما نمی‌توانید درخواست خودتان را رد کنید.'}, status=status.HTTP_400_BAD_REQUEST)
         if conversation.status != Conversation.STATUS_PENDING:
@@ -286,7 +313,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         conversation.status = Conversation.STATUS_DECLINED
-        conversation.save(update_fields=['status'])
+        conversation.save(update_fields=['status', 'updated_at'])
         Notification.objects.filter(
             conversation=conversation, recipient=request.user, is_read=False
         ).update(is_read=True)
@@ -297,12 +324,16 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 conversation=conversation,
                 text='درخواست گفتگوی شما را رد کرده',
             )
+        broadcast_conversation_changed(conversation, conversation.user1, conversation.user2)
         return Response(ConversationSerializer(conversation, context={'request': request}).data)
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def cancel(self, request, pk=None):
         """لغو درخواست گفتگو توسط درخواست‌دهنده (قبل از تایید طرف مقابل)."""
         conversation = self.get_object()
+        # Re-read under lock so concurrent state changes cannot both succeed.
+        conversation = Conversation.objects.select_for_update().get(pk=conversation.pk)
         if not conversation.is_requester(request.user):
             return Response(
                 {'error': 'فقط درخواست‌دهنده می‌تواند درخواست خود را لغو کند.'},
@@ -313,35 +344,55 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 {'error': 'این درخواست دیگر قابل لغو نیست.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        conversation_id = conversation.pk
+        members = (conversation.user1, conversation.user2)
         conversation.delete()
+        broadcast_conversation_removed(conversation_id, *members)
         return Response({'status': 'ok', 'cancelled': True})
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def clear(self, request, pk=None):
         """پاک کردن سابقه پیام‌ها فقط برای خود کاربر (حذف یک‌طرفه)."""
         conversation = self.get_object()
-        for msg in conversation.messages.exclude(deleted_for=request.user).iterator():
-            msg.deleted_for.add(request.user)
+        through = Message.deleted_for.through
+        message_ids = conversation.messages.exclude(deleted_for=request.user).values_list('id', flat=True)
+        batch = []
+        for message_id in message_ids.iterator(chunk_size=1000):
+            batch.append(through(message_id=message_id, user_id=request.user.id))
+            if len(batch) == 1000:
+                through.objects.bulk_create(batch, ignore_conflicts=True)
+                batch = []
+        if batch:
+            through.objects.bulk_create(batch, ignore_conflicts=True)
         return Response({'status': 'ok', 'cleared': True})
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def block(self, request, pk=None):
         """بلاک کردن طرف مقابل در این گفتگو."""
         conversation = self.get_object()
+        # Re-read under lock so concurrent state changes cannot both succeed.
+        conversation = Conversation.objects.select_for_update().get(pk=conversation.pk)
         other = conversation.other_user(request.user)
         Block.objects.update_or_create(blocker=request.user, blocked=other)
         # بلاک فعال است؛ دیگر امکان ارسال درخواست/پیام وجود ندارد.
         if conversation.status == Conversation.STATUS_PENDING:
             conversation.status = Conversation.STATUS_DECLINED
-            conversation.save(update_fields=['status'])
+            conversation.save(update_fields=['status', 'updated_at'])
+        broadcast_conversation_changed(conversation, conversation.user1, conversation.user2)
         return Response(ConversationSerializer(conversation, context={'request': request}).data)
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def unblock(self, request, pk=None):
         """رفع بلاک کاربر در این گفتگو."""
         conversation = self.get_object()
+        # Re-read under lock so concurrent state changes cannot both succeed.
+        conversation = Conversation.objects.select_for_update().get(pk=conversation.pk)
         other = conversation.other_user(request.user)
         Block.objects.filter(blocker=request.user, blocked=other).delete()
+        broadcast_conversation_changed(conversation, conversation.user1, conversation.user2)
         return Response(ConversationSerializer(conversation, context={'request': request}).data)
 
     def _resolve_product(self, product_id, *, require_active):
@@ -404,6 +455,54 @@ class ConversationViewSet(viewsets.ModelViewSet):
             ]
         })
 
+
+    @action(detail=True, methods=['get'], url_path='shared-products')
+    def shared_products(self, request, pk=None):
+        conversation = self.get_object()
+        try:
+            limit = min(max(int(request.query_params.get('limit', 24)), 1), 50)
+            offset = max(int(request.query_params.get('offset', 0)), 0)
+        except (TypeError, ValueError):
+            return Response({'error': 'پارامترهای صفحه‌بندی نامعتبرند.'}, status=status.HTTP_400_BAD_REQUEST)
+        products = conversation.messages.exclude(deleted_for=request.user).filter(
+            deleted_at__isnull=True, product__isnull=False,
+        ).select_related('product').order_by('-created_at', '-id')
+        total = products.count()
+        rows = list(products[offset:offset + limit])
+        return Response({
+            'count': total,
+            'next_offset': offset + limit if offset + limit < total else None,
+            'results': ProductShareSerializer(
+                [message.product for message in rows], many=True, context={'request': request},
+            ).data,
+        })
+
+    @action(detail=True, methods=['get'], url_path='message-context')
+    def message_context(self, request, pk=None):
+        conversation = self.get_object()
+        try:
+            message_id = int(request.query_params.get('message_id', ''))
+        except (TypeError, ValueError):
+            return Response({'error': 'message_id نامعتبر است.'}, status=status.HTTP_400_BAD_REQUEST)
+        base = conversation.messages.exclude(deleted_for=request.user).filter(deleted_at__isnull=True).select_related(
+            'sender', 'sender__profile', 'product', 'reply_to', 'reply_to__sender', 'forwarded_from',
+        ).prefetch_related('receipts', 'reply_to__deleted_for')
+        target = base.filter(pk=message_id).first()
+        if target is None:
+            return Response({'error': 'پیام مورد نظر یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+        older = list(base.filter(
+            Q(created_at__lt=target.created_at) | Q(created_at=target.created_at, id__lt=target.id)
+        ).order_by('-created_at', '-id')[:25])
+        older.reverse()
+        newer = list(base.filter(
+            Q(created_at__gt=target.created_at) | Q(created_at=target.created_at, id__gt=target.id)
+        ).order_by('created_at', 'id')[:24])
+        rows = older + [target] + newer
+        return Response({
+            'results': MessageSerializer(rows, many=True, context={'request': request}).data,
+            'oldest_id': rows[0].id if rows else None,
+            'has_older': len(older) == 25,
+        })
     @action(detail=True, methods=['post'])
     def send_product(self, request, pk=None):
         """ارسال یک محصول مشخص به گفتگو."""
@@ -504,11 +603,13 @@ class MessageViewSet(viewsets.ModelViewSet):
     def forward(self, request, pk=None):
         from .serializers import MessageSerializer
         from .services import SendMessageError, forward_message
+        data = request.data if isinstance(request.data, dict) else {}
         try:
             messages = forward_message(
                 request.user,
                 self.get_object(),
-                request.data.get('conversation_ids') if isinstance(request.data, dict) else None,
+                conversation_ids=data.get('conversation_ids'),
+                room_ids=data.get('room_ids'),
             )
         except SendMessageError as exc:
             return Response({'error': exc.message}, status=exc.status)

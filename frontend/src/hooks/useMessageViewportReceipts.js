@@ -28,10 +28,14 @@ export const useMessageViewportReceipts = ({
   const seenSent = useRef(new Set());
   const deliveredSent = useRef(new Set());
   const timers = useRef(new Map());
+  const seenQueue = useRef(new Set());
+  const seenQueueConversationId = useRef(null);
 
   useEffect(() => {
     seenSent.current = new Set();
     deliveredSent.current = new Set();
+    seenQueue.current.clear();
+    seenQueueConversationId.current = null;
     timers.current.forEach((timer) => clearTimeout(timer));
     timers.current.clear();
   }, [conversationId]);
@@ -54,13 +58,27 @@ export const useMessageViewportReceipts = ({
       return undefined;
     }
     const root = rootRef?.current || null;
+    const flushQueuedSeen = () => {
+      const queuedConversationId = seenQueueConversationId.current;
+      const ids = [...seenQueue.current];
+      seenQueue.current.clear();
+      seenQueueConversationId.current = null;
+      if (queuedConversationId !== conversationId || !ids.length) return;
+      chatAPI.markRead(conversationId, { message_ids: ids }).catch(() => {
+        ids.forEach((id) => seenSent.current.delete(id));
+      });
+    };
+    const queueSeen = (id) => {
+      seenQueue.current.add(id);
+      seenQueueConversationId.current = conversationId;
+      Promise.resolve().then(flushQueuedSeen);
+    };
+
     const flushSeen = (id) => {
       if (seenSent.current.has(id)) return;
       if (document.hidden || (typeof document.hasFocus === 'function' && !document.hasFocus())) return;
       seenSent.current.add(id);
-      chatAPI.markRead(conversationId, { message_ids: [id] }).catch(() => {
-        seenSent.current.delete(id);
-      });
+      queueSeen(id);
     };
 
     const observer = new IntersectionObserver((entries) => {
@@ -86,17 +104,18 @@ export const useMessageViewportReceipts = ({
     const nodes = (root || document).querySelectorAll('[data-message-receipt="1"]');
     nodes.forEach((node) => observer.observe(node));
 
+    const activeTimers = timers.current;
     const cancelOnHide = () => {
       if (!document.hidden) return;
-      timers.current.forEach((timer) => clearTimeout(timer));
-      timers.current.clear();
+      activeTimers.forEach((timer) => clearTimeout(timer));
+      activeTimers.clear();
     };
     document.addEventListener('visibilitychange', cancelOnHide);
     return () => {
       observer.disconnect();
       document.removeEventListener('visibilitychange', cancelOnHide);
-      timers.current.forEach((timer) => clearTimeout(timer));
-      timers.current.clear();
+      activeTimers.forEach((timer) => clearTimeout(timer));
+      activeTimers.clear();
     };
   }, [conversationId, currentUserId, enabled, messages, rootRef]);
 };

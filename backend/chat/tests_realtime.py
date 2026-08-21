@@ -449,3 +449,34 @@ class SupportRealtimeTests(TransactionTestCase):
             self.assertFalse(connected)
 
         asyncio.run(scenario())
+
+    def test_typing_is_relayed_and_ping_gets_pong(self):
+        conversation = SupportConversation.objects.create(
+            customer=self.customer, assigned_agent=self.staff,
+            department='support', status=SupportConversation.STATUS_ASSIGNED,
+        )
+
+        async def scenario():
+            customer_comm = _communicator(support_routing, f'/ws/support/conversations/{conversation.pk}/', self.customer_token)
+            staff_comm = _communicator(support_routing, f'/ws/support/conversations/{conversation.pk}/', self.staff_token)
+            await customer_comm.connect()
+            await _expect_connected(customer_comm)
+            await staff_comm.connect()
+            await _expect_connected(staff_comm)
+            await _expect_presence(customer_comm, 2)
+            await _expect_presence(staff_comm, 1)
+
+            await customer_comm.send_json_to({'type': 'ping'})
+            pong = await customer_comm.receive_json_from()
+            self.assertEqual(pong['type'], 'pong')
+
+            await customer_comm.send_json_to({'type': 'typing', 'status': 'typing'})
+            typing = await staff_comm.receive_json_from()
+            self.assertEqual(typing['type'], 'typing')
+            self.assertEqual(typing['status'], 'typing')
+            self.assertEqual(typing['user_id'], self.customer.pk)
+
+            await customer_comm.disconnect()
+            await staff_comm.disconnect()
+
+        asyncio.run(scenario())

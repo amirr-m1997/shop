@@ -13,14 +13,26 @@ class StyleRoomMessageSerializer(serializers.ModelSerializer):
     is_read = serializers.SerializerMethodField()
     read_count = serializers.SerializerMethodField()
     read_by_all = serializers.SerializerMethodField()
+    deleted_for_everyone = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
-        fields = ['id', 'sender', 'text', 'product', 'created_at', 'is_read', 'read_count', 'read_by_all']
+        fields = ['id', 'sender', 'text', 'product', 'created_at', 'is_read', 'read_count', 'read_by_all', 'deleted_for_everyone']
         read_only_fields = fields
 
     def get_is_read(self, obj):
         return bool(getattr(obj, '_my_room_reads', []))
+
+    def get_deleted_for_everyone(self, obj):
+        return bool(obj.deleted_at)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.deleted_at:
+            data['text'] = ''
+            data['product'] = None
+            data['deleted_for_everyone'] = True
+        return data
 
     def get_read_count(self, obj):
         all_reads = getattr(obj, '_all_room_reads', None)
@@ -41,6 +53,7 @@ class StyleRoomMessageCreateSerializer(serializers.Serializer):
         source='product', queryset=Product.objects.filter(is_active=True),
         required=False, allow_null=True,
     )
+    idempotency_key = serializers.CharField(required=False, allow_blank=True, max_length=64, default='')
 
     def validate(self, attrs):
         text = (attrs.get('text') or '').strip()

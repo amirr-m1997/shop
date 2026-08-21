@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import {
   Check, CheckCheck, Eye, Gift, Loader2, Search, Send, ShoppingCart, Star, X,
@@ -6,6 +7,8 @@ import {
 import { chatAPI, productsAPI } from '../../services/api';
 import { useCart } from '../../contexts/CartContext';
 import { useToast } from '../ui/use-toast';
+import { useLongPress } from '../../hooks/useLongPress';
+import { useModalA11y } from '../../hooks/useModalA11y';
 import { formatTime } from '../../lib/formatDate';
 import { formatPrice } from '../../lib/formatPrice';
 import { PLACEHOLDER_IMG } from '../../lib/placeholders';
@@ -120,6 +123,79 @@ const ProductMessageCard = ({ product }) => {
   );
 };
 
+/* ── Portal Context Menu ── */
+const ContextMenu = ({ anchorRef, open, onClose, isMine, children }) => {
+  const menuRef = useRef(null);
+  const openedAtRef = useRef(0);
+  const [pos, setPos] = useState({ top: 0, left: 0, maxHeight: 300, openUpward: false });
+
+  const recalc = useCallback(() => {
+    const anchor = anchorRef.current;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    const vv = window.visualViewport;
+    const viewportH = vv?.height ?? window.innerHeight;
+    const viewportW = vv?.width ?? window.innerWidth;
+    const childCount = Array.isArray(children) ? children.filter(Boolean).length : 3;
+    const menuH = Math.min(300, childCount * 36 + 16);
+    const spaceBelow = viewportH - rect.bottom;
+    const openUpward = spaceBelow < menuH && rect.top > spaceBelow;
+    const top = openUpward ? rect.top - menuH - 4 : rect.bottom + 4;
+    let left = isMine ? rect.left : rect.right - 160;
+    left = Math.max(8, Math.min(left, viewportW - 168));
+    setPos({ top, left, maxHeight: menuH, openUpward });
+  }, [anchorRef, isMine, children]);
+
+  useLayoutEffect(() => {
+    if (open) {
+      openedAtRef.current = Date.now();
+      recalc();
+    }
+  }, [open, recalc]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = () => recalc();
+    const keyHandler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('scroll', handler, true);
+    window.addEventListener('resize', handler);
+    window.visualViewport?.addEventListener('resize', handler);
+    window.visualViewport?.addEventListener('scroll', handler);
+    window.addEventListener('keydown', keyHandler);
+    return () => {
+      window.removeEventListener('scroll', handler, true);
+      window.removeEventListener('resize', handler);
+      window.visualViewport?.removeEventListener('resize', handler);
+      window.visualViewport?.removeEventListener('scroll', handler);
+      window.removeEventListener('keydown', keyHandler);
+    };
+  }, [open, recalc, onClose]);
+
+  if (!open) return null;
+
+  return createPortal(
+    <>
+      <div
+        className="fixed inset-0 z-[9998]"
+        onClick={() => {
+          // Swallow the pointer-up click that immediately follows a long press,
+          // otherwise the menu would close the instant it opens.
+          if (Date.now() - openedAtRef.current < 300) return;
+          onClose();
+        }}
+      />
+      <div
+        ref={menuRef}
+        className="fixed z-[9999] w-40 overflow-hidden rounded-xl border border-border/60 bg-popover text-xs shadow-xl"
+        style={{ top: pos.top, left: pos.left, maxHeight: pos.maxHeight }}
+      >
+        {children}
+      </div>
+    </>,
+    document.body,
+  );
+};
+
 /* ── Message bubble ── */
 const tickForStatus = (status, isRead) => {
   const resolved = status || (isRead ? 'seen' : 'sent');
@@ -132,10 +208,14 @@ const tickForStatus = (status, isRead) => {
   return <Check className="h-3.5 w-3.5 opacity-70" aria-label="ارسال‌شده" />;
 };
 
-const MessageBubble = ({ message, isMine, onReply, onForward, onDelete, onReport }) => {
+const MessageBubble = ({ message, isMine, onReply, onForward, onDelete, onReport, onRetry }) => {
   const [showReactions, setShowReactions] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const menuAnchorRef = useRef(null);
   const { toast } = useToast();
+  const { handlers: longPressHandlers } = useLongPress({
+    onLongPress: () => typeof message.id === 'number' && !message.deleted_for_everyone && setShowMenu(true),
+  });
 
   const react = async (emoji) => {
     try {
@@ -167,7 +247,17 @@ const MessageBubble = ({ message, isMine, onReply, onForward, onDelete, onReport
         {!isMine && (
           <p className="mb-1 px-1 text-[11px] font-semibold text-muted-foreground">{message.sender_name}</p>
         )}
-        <div className="group relative">
+        <div
+          ref={menuAnchorRef}
+          className="group relative select-none [-webkit-touch-callout:none]"
+          {...longPressHandlers}
+          onContextMenu={(e) => {
+            if (typeof message.id === 'number' && !message.deleted_for_everyone) {
+              e.preventDefault();
+              setShowMenu(true);
+            }
+          }}
+        >
       <div
         className={`rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed transition-all ${
           isMine
@@ -211,29 +301,22 @@ const MessageBubble = ({ message, isMine, onReply, onForward, onDelete, onReport
             <div className={`mt-1 flex items-center justify-end gap-1 text-[10px] font-semibold ${isMine ? 'text-emerald-700/80 dark:text-sky-200/70' : 'text-muted-foreground'}`}>
               <span dir="ltr">{timeStr}</span>
               {isMine && tickForStatus(message.status, message.is_read)}
+              {isMine && message.status === 'failed' && (
+                <button type="button" onClick={() => onRetry?.(message)} className="text-rose-600 hover:underline dark:text-rose-400">
+                  ارسال مجدد
+                </button>
+              )}
             </div>
           </div>
 
           {typeof message.id === 'number' && !message.deleted_for_everyone && (
-            <button
-              type="button"
-              onClick={() => setShowMenu((value) => !value)}
-              className={`absolute top-1 ${isMine ? 'right-full mr-1' : 'left-full ml-1'} hidden rounded-lg bg-muted/80 px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground group-hover:block`}
-            >
-              بیشتر
-            </button>
-          )}
-          {showMenu && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-              <div className={`absolute z-50 w-40 overflow-hidden rounded-xl border border-border/60 bg-popover text-xs shadow-xl ${isMine ? 'left-0' : 'right-0'} top-8`}>
-                <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); onReply?.(message); }}>پاسخ</button>
-                <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); onForward?.(message); }}>هدایت</button>
-                <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); onDelete?.(message, 'me'); }}>حذف برای من</button>
-                {isMine && <button type="button" className="block w-full px-3 py-2 text-start text-rose-600 hover:bg-rose-500/10" onClick={() => { setShowMenu(false); onDelete?.(message, 'everyone'); }}>حذف برای همه</button>}
-                {!isMine && <button type="button" className="block w-full px-3 py-2 text-start text-rose-600 hover:bg-rose-500/10" onClick={() => { setShowMenu(false); onReport?.(message); }}>گزارش</button>}
-              </div>
-            </>
+            <ContextMenu anchorRef={menuAnchorRef} open={showMenu} onClose={() => setShowMenu(false)} isMine={isMine}>
+            <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); onReply?.(message); }}>پاسخ</button>
+            <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); onForward?.(message); }}>هدایت</button>
+            <button type="button" className="block w-full px-3 py-2 text-start hover:bg-muted" onClick={() => { setShowMenu(false); onDelete?.(message, 'me'); }}>حذف برای من</button>
+            {isMine && <button type="button" className="block w-full px-3 py-2 text-start text-rose-600 hover:bg-rose-500/10" onClick={() => { setShowMenu(false); onDelete?.(message, 'everyone'); }}>حذف برای همه</button>}
+            {!isMine && <button type="button" className="block w-full px-3 py-2 text-start text-rose-600 hover:bg-rose-500/10" onClick={() => { setShowMenu(false); onReport?.(message); }}>گزارش</button>}
+          </ContextMenu>
           )}
           {showReactions && (
             <>
@@ -261,18 +344,17 @@ const MessageBubble = ({ message, isMine, onReply, onForward, onDelete, onReport
 /* ── Send Product Modal ── */
 const SendProductModal = ({ open, onClose, conversationId, onSent }) => {
   const { toast } = useToast();
+  const dialogRef = useModalA11y(open, onClose);
   const [query, setQuery] = useState('');
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(null);
   const [note, setNote] = useState('');
-  const [shareWithReferral, setShareWithReferral] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setQuery('');
     setNote('');
-    setShareWithReferral(false);
     setProducts([]);
     setLoading(true);
     productsAPI.getProducts({ page_size: 12, is_active: true })
@@ -302,13 +384,7 @@ const SendProductModal = ({ open, onClose, conversationId, onSent }) => {
     if (!conversationId || sending) return;
     setSending(product.id);
     try {
-      let messageText = note.trim();
-      if (shareWithReferral) {
-        const referral = await chatAPI.createReferral({ product_id: product.id });
-        const referralUrl = referral.data?.referral_url;
-        if (!referralUrl) throw new Error('Referral URL was not returned.');
-        messageText = [messageText, `Referral link: ${referralUrl}`].filter(Boolean).join('\n');
-      }
+      const messageText = note.trim();
       await chatAPI.sendProduct(conversationId, {
         product_id: product.id,
         text: messageText,
@@ -328,18 +404,18 @@ const SendProductModal = ({ open, onClose, conversationId, onSent }) => {
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 flex w-full max-w-lg max-h-[85vh] flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl border border-border/60 bg-popover shadow-2xl">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="send-product-title" tabIndex="-1" className="relative z-10 flex w-full max-w-lg max-h-[85vh] flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl border border-border/60 bg-popover shadow-2xl">
         <div className="flex items-center justify-between border-b border-border/50 px-5 py-4">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-yellow-700 text-black">
               <Gift className="h-4.5 w-4.5" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-foreground">ارسال محصول</h3>
+              <h3 id="send-product-title" className="text-sm font-black text-foreground">ارسال محصول</h3>
               <p className="text-[11px] text-muted-foreground">یک محصول را برای دوستتان بفرستید</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground">
+          <button type="button" aria-label="بستن ارسال محصول" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -350,6 +426,7 @@ const SendProductModal = ({ open, onClose, conversationId, onSent }) => {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              aria-label="جستجوی محصول"
               placeholder="جستجوی محصول..."
               className="w-full rounded-xl border border-border/60 bg-secondary/40 py-2.5 pe-3 ps-10 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 focus:ring-1 focus:ring-amber-500/20"
               autoFocus
@@ -358,18 +435,10 @@ const SendProductModal = ({ open, onClose, conversationId, onSent }) => {
           <input
             value={note}
             onChange={(e) => setNote(e.target.value)}
+            aria-label="پیام همراه اختیاری"
             placeholder="پیام همراه (اختیاری)..."
             className="w-full rounded-xl border border-border/60 bg-secondary/40 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40"
           />
-          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2.5 text-xs font-semibold text-foreground">
-            <input
-              type="checkbox"
-              checked={shareWithReferral}
-              onChange={(e) => setShareWithReferral(e.target.checked)}
-              className="h-4 w-4 accent-amber-500"
-            />
-            Include a referral link with this product share
-          </label>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -410,4 +479,6 @@ const SendProductModal = ({ open, onClose, conversationId, onSent }) => {
   );
 };
 
-export { Avatar, EMOJIS, MessageBubble, ProductMessageCard, SendProductModal };
+export { Avatar, ContextMenu, EMOJIS, MessageBubble, ProductMessageCard, SendProductModal };
+
+

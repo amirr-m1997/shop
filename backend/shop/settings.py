@@ -131,7 +131,9 @@ ASGI_APPLICATION = 'shop.asgi.application'
 # membership and presence keys with TTLs. When CHANNELS_REDIS_URL is empty we
 # fall back to an in-memory layer that only works for a single dev process —
 # production MUST set it.
-CHANNELS_REDIS_URL = os.getenv('CHANNELS_REDIS_URL', '')
+# CHANNELS_REDIS_URL defaults to REDIS_URL when only the latter is set, so a
+# single Redis URL can serve both cache and channels without duplication.
+CHANNELS_REDIS_URL = os.getenv('CHANNELS_REDIS_URL', os.getenv('REDIS_URL', ''))
 
 if CHANNELS_REDIS_URL:
     CHANNEL_LAYERS = {
@@ -455,10 +457,12 @@ LOGGING = {
         },
 
         # ── Rotating file handlers ────────────────────────
-        # All application logs (info+)
+        # WindowsSafeRotatingFileHandler handles WinError 32 when autoreload
+        # parent holds the file handle during rotation. See
+        # shop/logging_handlers.py for the fallback (close+retry, truncate).
         'application_file': {
             'level': 'INFO',
-            'class': 'logging.handlers.RotatingFileHandler',
+            'class': 'shop.logging_handlers.WindowsSafeRotatingFileHandler',
             'filename': LOG_DIR / 'application.log',
             'maxBytes': 10 * 1024 * 1024,  # 10 MB
             'backupCount': 10,
@@ -469,7 +473,7 @@ LOGGING = {
         # Errors only (warning+, across all loggers)
         'errors_file': {
             'level': 'WARNING',
-            'class': 'logging.handlers.RotatingFileHandler',
+            'class': 'shop.logging_handlers.WindowsSafeRotatingFileHandler',
             'filename': LOG_DIR / 'errors.log',
             'maxBytes': 10 * 1024 * 1024,
             'backupCount': 15,
@@ -480,7 +484,7 @@ LOGGING = {
         # Security events (lockouts, OTP abuse, rate limits, suspicious activity)
         'security_file': {
             'level': 'INFO',
-            'class': 'logging.handlers.RotatingFileHandler',
+            'class': 'shop.logging_handlers.WindowsSafeRotatingFileHandler',
             'filename': LOG_DIR / 'security.log',
             'maxBytes': 10 * 1024 * 1024,
             'backupCount': 20,
@@ -491,7 +495,7 @@ LOGGING = {
         # Payment events (initiation, verification, gateway responses, failures)
         'payment_file': {
             'level': 'INFO',
-            'class': 'logging.handlers.RotatingFileHandler',
+            'class': 'shop.logging_handlers.WindowsSafeRotatingFileHandler',
             'filename': LOG_DIR / 'payment.log',
             'maxBytes': 10 * 1024 * 1024,
             'backupCount': 15,
@@ -589,6 +593,39 @@ LOGGING = {
         # Email service (send status, errors)
         'email': {
             'handlers': ['console', 'application_file', 'errors_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+
+        # ── Channel / WebSocket server — console only (avoid RotatingFileHandler WinError 32)
+        # These loggers emit very frequent HTTP/WS access logs. Routing them to
+        # rotating files via the parent `django` logger would trigger
+        # `application.log` rotation on every request and, on Windows, the
+        # rename `application.log -> application.log.1` fails with
+        # PermissionError when the autoreload parent still holds the file
+        # handle. Console-only keeps behaviour but stays Windows-safe.
+        'daphne': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'daphne.server': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.channels': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.channels.server': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'autobahn': {
+            'handlers': ['console'],
             'level': 'INFO',
             'propagate': False,
         },

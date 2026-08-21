@@ -520,3 +520,48 @@ class SupportPresenceTests(SupportAuthMixin, APITestCase):
         self.auth(self.customer)
         self.client.get('/api/support/my-departments/')
         self.assertEqual(SupportAgentPresence.objects.count(), 0)
+
+    def test_stale_heartbeat_expires_to_away_then_offline(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from support.services import expire_stale_support_presence
+
+        now = timezone.now()
+        SupportAgentPresence.objects.create(
+            staff=self.agent,
+            status=SupportAgentPresence.STATUS_ONLINE,
+            heartbeat_at=now - timedelta(seconds=70),
+        )
+        SupportAgentPresence.objects.create(
+            staff=self.agent2,
+            status=SupportAgentPresence.STATUS_ONLINE,
+            heartbeat_at=now - timedelta(seconds=120),
+        )
+        result = expire_stale_support_presence(offline_after_seconds=90, away_after_seconds=60)
+        self.assertEqual(result['away'], 1)
+        self.assertEqual(result['offline'], 1)
+        self.assertEqual(
+            SupportAgentPresence.objects.get(staff=self.agent).status,
+            SupportAgentPresence.STATUS_AWAY,
+        )
+        self.assertEqual(
+            SupportAgentPresence.objects.get(staff=self.agent2).status,
+            SupportAgentPresence.STATUS_OFFLINE,
+        )
+
+    def test_fresh_heartbeat_keeps_agent_online(self):
+        from django.utils import timezone
+        from support.services import expire_stale_support_presence
+
+        SupportAgentPresence.objects.create(
+            staff=self.agent,
+            status=SupportAgentPresence.STATUS_ONLINE,
+            heartbeat_at=timezone.now(),
+        )
+        result = expire_stale_support_presence(offline_after_seconds=90, away_after_seconds=60)
+        self.assertEqual(result['away'], 0)
+        self.assertEqual(result['offline'], 0)
+        self.assertEqual(
+            SupportAgentPresence.objects.get(staff=self.agent).status,
+            SupportAgentPresence.STATUS_ONLINE,
+        )

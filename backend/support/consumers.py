@@ -119,16 +119,19 @@ class SupportChatConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
 
     async def _handle_typing(self, content):
         allow_rate_limit(self.scope, 'support_typing', 30, 60)
-        status = content.get('status')
-        if status not in ('typing', 'stopped'):
-            status = 'typing'
+        typing_status = content.get('status')
+        if typing_status not in ('typing', 'stopped'):
+            typing_status = 'typing'
         await self.channel_layer.group_send(self.group, {
             'type': 'typing_event',
             'user_id': self.user.id,
-            'status': status,
+            'status': typing_status,
+            'exclude': self.channel_name,
         })
 
     async def typing_event(self, event):
+        if event.get('exclude') == self.channel_name:
+            return
         await self.send_json({
             'type': 'typing',
             'user_id': event['user_id'],

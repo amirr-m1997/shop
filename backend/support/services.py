@@ -1,4 +1,6 @@
-from django.db import transaction
+from datetime import timedelta
+
+from django.db import models, transaction
 from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
@@ -53,9 +55,13 @@ def _publish_support_updated(conversation, event):
 def touch_presence(user):
     if not is_support_eligible(user):
         return
+    now = timezone.now()
     presence, _ = SupportAgentPresence.objects.get_or_create(staff=user)
-    presence.last_seen_at = timezone.now()
-    presence.save(update_fields=['last_seen_at', 'updated_at'])
+    presence.last_seen_at = now
+    presence.heartbeat_at = now
+    if presence.status == 'offline':
+        presence.status = 'online'
+    presence.save(update_fields=['last_seen_at', 'heartbeat_at', 'status', 'updated_at'])
 
 
 def require_department_staff(user, conversation):
@@ -177,39 +183,13 @@ def _publish_support_message(conversation, user, message):
 
 @transaction.atomic
 def mark_support_read(user, conversation, message_ids=None):
-    if user != conversation.customer and user != conversation.assigned_agent:
-        raise PermissionDenied('You are not a participant in this conversation.')
-    if not message_ids:
-        raise ValidationError({'message_ids': 'Seen message ids are required.'})
-    if not isinstance(message_ids, (list, tuple)):
-        raise ValidationError({'message_ids': 'message_ids must be a list.'})
-    ids = []
-    for item in message_ids:
-        try:
-            value = int(item)
-        except (TypeError, ValueError):
-            raise ValidationError({'message_ids': 'Invalid message id.'})
-        if value > 0:
-            ids.append(value)
-    ids = list(dict.fromkeys(ids))
-    if not ids:
-        raise ValidationError({'message_ids': 'Seen message ids are required.'})
-    marked = list(
-        conversation.messages.filter(id__in=ids, is_read=False).exclude(sender=user).values_list('id', flat=True)
-    )
-    if marked:
-        conversation.messages.filter(id__in=marked).update(is_read=True)
-    broadcast_after_commit(
-        f'support.conv.{conversation.pk}',
-        {
-            'type': 'read_receipt',
-            'conversation_id': conversation.pk,
-            'user_id': user.pk,
-            'message_ids': marked,
-            'mark_all': False,
-        },
-    )
-    return {'status': 'ok', 'marked_ids': marked}
+    from chat.read_state import ReadStateError, mark_support_read as mark_unified_support_read
+    try:
+        return mark_unified_support_read(user, conversation, message_ids)
+    except ReadStateError as exc:
+        if exc.status == 403:
+            raise PermissionDenied(exc.message)
+        raise ValidationError({'message_ids': exc.message})
 
 
 @transaction.atomic
@@ -252,7 +232,7 @@ def set_conversation_priority(user, conversation, priority):
     return conversation
 
 
-def support_presence_update(user, status):
+def support_presence_update(user, presence_status):
     """Reflect a live WS presence signal into the persistent staff presence
     row (online/away). Called only from realtime paths, matching the P0-A rule
     that presence changes only via explicit staff signals."""
@@ -260,7 +240,7 @@ def support_presence_update(user, status):
         return
     presence, _ = SupportAgentPresence.objects.get_or_create(staff=user)
     now = timezone.now()
-    presence.status = status
+    presence.status = presence_status
     presence.last_seen_at = now
     presence.heartbeat_at = now
     presence.save(update_fields=['status', 'last_seen_at', 'heartbeat_at', 'updated_at'])
@@ -273,3 +253,23 @@ def support_presence_offline(user):
     if presence:
         presence.status = SupportAgentPresence.STATUS_OFFLINE
         presence.save(update_fields=['status', 'updated_at'])
+
+
+def expire_stale_support_presence(*, offline_after_seconds=90, away_after_seconds=60):
+    """Mark staff offline/away when heartbeats stop (crash, tab close, network)."""
+    now = timezone.now()
+    offline_cutoff = now - timedelta(seconds=offline_after_seconds)
+    away_cutoff = now - timedelta(seconds=away_after_seconds)
+    offline_qs = SupportAgentPresence.objects.filter(
+        status__in=(SupportAgentPresence.STATUS_ONLINE, SupportAgentPresence.STATUS_AWAY),
+    ).filter(
+        models.Q(heartbeat_at__isnull=True) | models.Q(heartbeat_at__lt=offline_cutoff),
+    )
+    away_qs = SupportAgentPresence.objects.filter(
+        status=SupportAgentPresence.STATUS_ONLINE,
+        heartbeat_at__gte=offline_cutoff,
+        heartbeat_at__lt=away_cutoff,
+    )
+    offline_count = offline_qs.update(status=SupportAgentPresence.STATUS_OFFLINE)
+    away_count = away_qs.update(status=SupportAgentPresence.STATUS_AWAY)
+    return {'offline': offline_count, 'away': away_count}

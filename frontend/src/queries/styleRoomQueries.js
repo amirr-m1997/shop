@@ -222,8 +222,18 @@ export const useRemoveStyleRoomItem = (roomId) => {
 
 export const useSendStyleRoomMessage = (roomId) => {
   const queryClient = useQueryClient();
+  const retryKeys = new WeakMap();
   return useMutation({
-    mutationFn: (data) => styleRoomsAPI.sendMessage(roomId, data),
+    mutationFn: (data) => {
+      let idempotencyKey = data?.idempotency_key || retryKeys.get(data);
+      if (!idempotencyKey) {
+        idempotencyKey = (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
+          : `room-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        if (data && typeof data === 'object') retryKeys.set(data, idempotencyKey);
+      }
+      return styleRoomsAPI.sendMessage(roomId, { ...data, idempotency_key: idempotencyKey });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [...styleRoomKeys.detail(roomId), 'messages'] });
     },

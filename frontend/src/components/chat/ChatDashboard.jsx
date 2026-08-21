@@ -14,14 +14,15 @@ const ChatDashboard = ({ model }) => {
     activeId, messages, convLoading, text, setText, sending,
     mobilePane, setMobilePane, showEmoji,
     setShowEmoji, sendProductOpen, setSendProductOpen, profileOpen,
-    setProfileOpen, sharedOpen, setSharedOpen, sharedProducts, messagesEndRef, textareaRef,
+    setProfileOpen, sharedOpen, setSharedOpen, sharedProducts, sharedProductsCount, sharedProductsNextOffset, sharedProductsLoading, loadMoreSharedProducts, messagesEndRef, textareaRef,
     messagesScrollRef, handleMessagesScroll, hasOlder, loadingOlder, currentUserId, active, loadMessages,
     handleAcceptRequest, handleDeclineRequest, handleReopenRequest, handleCancelRequest,
     menuOpen, setMenuOpen, confirmDialog, askConfirm, closeConfirm, handleClearChat,
     handleBlock, handleUnblock, handleSend, insertEmoji,
     peerTyping = false, peerPresence = 'offline',
     replyTo, setReplyTo, threadQuery, setThreadQuery, threadHits,
-    handleReply, handleForward, handleDeleteMessage, handleReportMessage,
+    handleSearchHit,
+    handleReply, handleForward, handleDeleteMessage, handleReportMessage, handleRetryMessage,
     forwardingMessage, setForwardingMessage, handleConfirmForward,
     filteredConversations = [],
   } = model;
@@ -82,7 +83,7 @@ const ChatDashboard = ({ model }) => {
                                   : (active.other_user?.last_seen_at ? 'آخرین بازدید ثبت شده' : 'آفلاین')}
                         </span>
                         {sharedProducts.length > 0 && (
-                          <span className="truncate text-muted-foreground">• {sharedProducts.length.toLocaleString('fa-IR')} محصول مشترک</span>
+                          <span className="truncate text-muted-foreground">• {sharedProductsCount.toLocaleString('fa-IR')} محصول مشترک</span>
                         )}
                       </p>
                     </div>
@@ -99,7 +100,7 @@ const ChatDashboard = ({ model }) => {
                     >
                       <ShoppingBag className="h-4 w-4" />
                       <span className="hidden xl:inline">محصولات</span>
-                      <span className="tabular-nums">({sharedProducts.length.toLocaleString('fa-IR')})</span>
+                      <span className="tabular-nums">({sharedProductsCount.toLocaleString('fa-IR')})</span>
                     </button>
                   )}
 
@@ -118,10 +119,7 @@ const ChatDashboard = ({ model }) => {
                             <button
                               key={hit.id}
                               type="button"
-                              onClick={() => {
-                                const node = document.querySelector(`[data-message-id="${hit.id}"]`);
-                                node?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                              }}
+                              onClick={() => handleSearchHit?.(hit)}
                               className="block w-full truncate rounded-lg px-2 py-1.5 text-start text-foreground hover:bg-muted"
                             >
                               {hit.text}
@@ -272,6 +270,7 @@ const ChatDashboard = ({ model }) => {
                           onForward={handleForward}
                           onDelete={handleDeleteMessage}
                           onReport={handleReportMessage}
+                          onRetry={handleRetryMessage}
                         />
                       ))}
                       <div ref={messagesEndRef} />
@@ -654,8 +653,16 @@ const ChatDashboard = ({ model }) => {
         sharedOpen={sharedOpen}
         setSharedOpen={setSharedOpen}
         sharedProducts={sharedProducts}
+        sharedProductsCount={sharedProductsCount}
+        sharedProductsNextOffset={sharedProductsNextOffset}
+        sharedProductsLoading={sharedProductsLoading}
+        loadMoreSharedProducts={loadMoreSharedProducts}
         confirmDialog={confirmDialog}
         closeConfirm={closeConfirm}
+        forwardingMessage={forwardingMessage}
+        setForwardingMessage={setForwardingMessage}
+        handleConfirmForward={handleConfirmForward}
+        conversations={filteredConversations}
       />
     </div>
   );

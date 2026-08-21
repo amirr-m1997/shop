@@ -123,31 +123,49 @@ def private_conversation_ids_for(user):
 def _conversation_snippet(conversation, user):
     """Lightweight last-message + unread summary for realtime list updates.
 
-    Mirrors the shape produced by ConversationSerializer.get_last_message /
-    get_unread_count for a single conversation, without the heavy annotated
-    queryset — used only for push events.
+    Uses a single aggregated query instead of two separate queries.
     """
-    last = (
-        conversation.messages.exclude(deleted_for=user)
-        .filter(deleted_at__isnull=True)
-        .order_by('-created_at', '-id').first()
+    from django.db.models import Count, Q, Max
+    base = conversation.messages.exclude(deleted_for=user).filter(deleted_at__isnull=True)
+    agg = base.aggregate(
+        last_id=Max('id'),
+        unread=Count('id', filter=Q(is_read=False) & ~Q(sender=user)),
     )
-    unread = (
-        conversation.messages.exclude(deleted_for=user)
-        .filter(deleted_at__isnull=True, is_read=False).exclude(sender=user).count()
-    )
+    last = None
+    if agg['last_id']:
+        last = base.filter(pk=agg['last_id']).values('id', 'text', 'product_id', 'sender_id', 'created_at').first()
     return {
         'id': conversation.pk,
-        'unread_count': unread,
+        'unread_count': agg['unread'] or 0,
         'updated_at': conversation.updated_at.isoformat(),
         'last_message': {
-            'id': last.id,
-            'text': last.text[:100],
-            'has_product': bool(last.product_id),
-            'sender_id': last.sender_id,
-            'created_at': last.created_at.isoformat(),
+            'id': last['id'],
+            'text': (last['text'] or '')[:100],
+            'has_product': bool(last['product_id']),
+            'sender_id': last['sender_id'],
+            'created_at': last['created_at'].isoformat(),
         } if last else None,
     }
+
+
+def broadcast_conversation_changed(conversation, *users):
+    """Ask open clients to reconcile a conversation after a lifecycle change."""
+    recipients = {user.pk: user for user in users if user is not None}
+    for recipient in recipients.values():
+        broadcast_after_commit(
+            f'chat.user.{recipient.pk}',
+            {'type': 'conversation.changed', 'conversation_id': conversation.pk},
+        )
+
+
+def broadcast_conversation_removed(conversation_id, *users):
+    """Remove a cancelled pending request from every open client list."""
+    recipients = {user.pk: user for user in users if user is not None}
+    for recipient in recipients.values():
+        broadcast_after_commit(
+            f'chat.user.{recipient.pk}',
+            {'type': 'conversation.removed', 'conversation_id': conversation_id},
+        )
 
 
 def _broadcast_message(conversation, user, message):
@@ -179,6 +197,13 @@ def _visible_source_message(user, message):
     if message.conversation_id:
         conversation = message.conversation
         if conversation is None or not conversation.is_member(user):
+            return None
+        if message.deleted_for.filter(pk=user.pk).exists():
+            return None
+        return message
+    if message.style_room_id:
+        room = message.style_room
+        if room is None or not room.is_member(user):
             return None
         if message.deleted_for.filter(pk=user.pk).exists():
             return None
@@ -277,12 +302,8 @@ def send_private_message(
     forwarded_from = None
     forwarded_pk = _int_or_none(forwarded_from_id)
     if forwarded_pk:
-        forwarded_from = Message.objects.filter(pk=forwarded_pk).select_related('conversation').first()
-        if forwarded_from is None or not forwarded_from.conversation or not forwarded_from.conversation.is_member(user):
-            raise SendMessageError('پیام قابل هدایت یافت نشد.', 404)
-        if forwarded_from.deleted_at:
-            raise SendMessageError('پیام حذف‌شده را نمی‌توان هدایت کرد.', 400)
-        if forwarded_from.deleted_for.filter(pk=user.pk).exists():
+        forwarded_from = Message.objects.filter(pk=forwarded_pk).select_related('conversation', 'style_room').first()
+        if _visible_source_message(user, forwarded_from) is None:
             raise SendMessageError('پیام قابل هدایت یافت نشد.', 404)
 
     try:
@@ -373,24 +394,11 @@ def _mark_private_read(user, conversation, message_ids):
 @transaction.atomic
 def mark_conversation_read(user, conversation, message_ids=None):
     """Mark specific private messages read. Opening a thread is not enough."""
-    up_to_id, found = _mark_private_read(user, conversation, message_ids)
-    if not found:
-        return {'status': 'ok', 'marked_ids': []}
-    broadcast_after_commit(
-        f'chat.private.{conversation.pk}',
-        {
-            'type': 'read_receipt',
-            'conversation_id': conversation.pk,
-            'up_to_message_id': up_to_id,
-            'message_ids': found,
-            'user_id': user.pk,
-        },
-    )
-    broadcast_after_commit(
-        f'chat.user.{user.pk}',
-        {'type': 'unread', 'conversation': _conversation_snippet(conversation, user)},
-    )
-    return {'status': 'ok', 'marked_ids': found}
+    from .read_state import ReadStateError, mark_private_read
+    try:
+        return mark_private_read(user, conversation, message_ids)
+    except ReadStateError as exc:
+        raise SendMessageError(exc.message, exc.status)
 
 
 @transaction.atomic
@@ -401,11 +409,13 @@ def mark_conversation_delivered(user, conversation, message_ids=None):
     if not found:
         return {'status': 'ok', 'delivered_ids': []}
     now = timezone.now()
-    for message in candidates:
-        receipt, _ = MessageReceipt.objects.get_or_create(message=message, user=user)
-        if receipt.delivered_at is None:
-            receipt.delivered_at = now
-            receipt.save(update_fields=['delivered_at'])
+    new_receipts = [
+        MessageReceipt(message=message, user=user, delivered_at=now)
+        for message in candidates
+    ]
+    if new_receipts:
+        MessageReceipt.objects.bulk_create(new_receipts, ignore_conflicts=True, batch_size=500)
+    MessageReceipt.objects.filter(message_id__in=found, user=user, delivered_at__isnull=True).update(delivered_at=now)
     broadcast_after_commit(
         f'chat.private.{conversation.pk}',
         {
@@ -522,28 +532,25 @@ def delete_message(user, message, mode='me'):
     return {'status': 'ok', 'mode': 'everyone', 'message_id': message.pk}
 
 
-def forward_message(user, message, conversation_ids):
+def forward_message(user, message, conversation_ids=None, room_ids=None):
     source = _visible_source_message(user, message)
     if source is None:
         raise SendMessageError('پیام قابل هدایت یافت نشد.', 404)
-    if not conversation_ids or not isinstance(conversation_ids, (list, tuple)):
-        raise SendMessageError('حداقل یک گفتگوی مقصد لازم است.', 400)
-    targets = []
-    for item in conversation_ids:
-        parsed = _int_or_none(item)
-        if parsed and parsed not in targets:
-            targets.append(parsed)
-    if not targets:
-        raise SendMessageError('حداقل یک گفتگوی مقصد لازم است.', 400)
-    if len(targets) > MAX_FORWARD_TARGETS:
+    if not conversation_ids and not room_ids:
+        raise SendMessageError('حداقل یک مقصد لازم است.', 400)
+
+    total_targets = len(conversation_ids or []) + len(room_ids or [])
+    if total_targets > MAX_FORWARD_TARGETS:
         raise SendMessageError(f'حداکثر {MAX_FORWARD_TARGETS} مقصد مجاز است.', 400)
 
     created = []
     source_conversation_id = source.conversation_id
     if source.conversation and Block.is_blocked(user, source.conversation.other_user(user)):
         raise SendMessageError('پیام قابل هدایت یافت نشد.', 404)
-    for conversation_id in targets:
-        if conversation_id == source_conversation_id:
+
+    for item in (conversation_ids or []):
+        conversation_id = _int_or_none(item)
+        if not conversation_id or conversation_id == source_conversation_id:
             continue
         conversation = Conversation.objects.filter(pk=conversation_id).select_related('user1', 'user2').first()
         if conversation is None or not conversation.is_member(user) or not conversation.is_accepted:
@@ -558,6 +565,18 @@ def forward_message(user, message, conversation_ids):
             require_active_product=False,
             forwarded_from_id=source.pk,
         ))
+
+    for room_id in (room_ids or []):
+        from style_rooms.models import StyleRoom
+        from style_rooms.services import forward_to_room
+        room = StyleRoom.objects.filter(pk=room_id).first()
+        if room is None:
+            continue
+        try:
+            created.append(forward_to_room(user, room, source))
+        except Exception:
+            continue
+
     if not created:
         raise SendMessageError('هیچ مقصد معتبری برای هدایت پیدا نشد.', 400)
     return created

@@ -6,6 +6,7 @@ import { Avatar } from './ChatDomainComponents';
 const ConversationSidebar = ({ model }) => {
   const {
     conversations, activeId, loading, query, setQuery, searchResults,
+    conversationNext, loadingMoreConversations, loadMoreConversations,
     setSearchResults, searching, mobilePane, filter, setFilter,
     handleStartRequest, filteredConversations, selectConversation,
   } = model;
@@ -118,7 +119,13 @@ const ConversationSidebar = ({ model }) => {
           )}
 
           {/* Conversation list */}
-          <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-2 scrollbar-hide">
+          <div
+            className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5 pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-2 scrollbar-hide"
+            onScroll={(event) => {
+              const { scrollHeight, scrollTop, clientHeight } = event.currentTarget;
+              if (conversationNext && scrollHeight - scrollTop - clientHeight < 120) loadMoreConversations?.();
+            }}
+          >
             {loading ? (
               <div className="space-y-2 p-2">
                 {[1, 2, 3, 4, 5].map((i) => (
@@ -195,6 +202,11 @@ const ConversationSidebar = ({ model }) => {
                   </button>
                 );
               })
+            )}
+            {loadingMoreConversations && (
+              <div className="flex justify-center py-3" aria-label="در حال بارگذاری گفتگوهای بیشتر">
+                <Loader2 className="h-4 w-4 animate-spin text-amber-600 dark:text-amber-500" />
+              </div>
             )}
           </div>
         </aside>

@@ -7,6 +7,8 @@ import { useToast } from '../components/ui/use-toast';
 import { ProductMessageCard } from '../components/chat/ChatDomainComponents';
 import { useChatRealtime } from '../hooks/useChatRealtime';
 import { useSupportRealtime } from '../hooks/useSupportRealtime';
+import { supportConversationSocketPath } from '../lib/realtimePaths';
+import { getRealtimeSocket } from '../services/realtime';
 import { formatDateShort, formatRelativeDate, formatTime } from '../lib/formatDate';
 
 const DEPARTMENTS = [
@@ -37,7 +39,11 @@ export default function SupportChatPage() {
   const [products, setProducts] = useState([]);
   const [productsOpen, setProductsOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState('list');
+  const [peerTyping, setPeerTyping] = useState(false);
   const endRef = useRef(null);
+  const typingDebounceRef = useRef(null);
+  const typingTimerRef = useRef(null);
+  const peerTypingTimerRef = useRef(null);
   const initialConversationIdRef = useRef(Number(searchParams.get('conversation')) || null);
   const active = useMemo(() => conversations.find((item) => item.id === activeId) || selectedConversation, [activeId, conversations, selectedConversation]);
 
@@ -101,7 +107,59 @@ export default function SupportChatPage() {
     onSupportUpdated: refreshSoon,
     onSupportUnread: refreshSoon,
   });
-  useSupportRealtime({ currentUserId: user?.id, activeId, setMessages });
+  useSupportRealtime({
+    currentUserId: user?.id,
+    activeId,
+    setMessages,
+    onTyping: (event) => {
+      if (event.user_id === user?.id) return;
+      const isTyping = event.status !== 'stopped';
+      setPeerTyping(isTyping);
+      clearTimeout(peerTypingTimerRef.current);
+      if (isTyping) {
+        peerTypingTimerRef.current = setTimeout(() => setPeerTyping(false), 4000);
+      }
+    },
+  });
+
+  const sendSupportTypingStop = useCallback(() => {
+    if (!activeId) return;
+    const socket = getRealtimeSocket(supportConversationSocketPath(activeId));
+    socket.send({ type: 'typing', status: 'stopped' });
+  }, [activeId]);
+
+  useEffect(() => {
+    setPeerTyping(false);
+    clearTimeout(typingDebounceRef.current);
+    clearTimeout(typingTimerRef.current);
+    clearTimeout(peerTypingTimerRef.current);
+  }, [activeId]);
+
+  useEffect(() => () => {
+    clearTimeout(typingDebounceRef.current);
+    clearTimeout(typingTimerRef.current);
+    clearTimeout(peerTypingTimerRef.current);
+    if (activeId) sendSupportTypingStop();
+  }, [activeId, sendSupportTypingStop]);
+
+  const updateDraft = (value) => {
+    const next = typeof value === 'function' ? value(draft) : value;
+    setDraft(next);
+    if (!activeId) return;
+    clearTimeout(typingDebounceRef.current);
+    typingDebounceRef.current = setTimeout(() => {
+      const socket = getRealtimeSocket(supportConversationSocketPath(activeId));
+      if (String(next || '').trim()) {
+        socket.send({ type: 'typing', status: 'typing' });
+      } else {
+        socket.send({ type: 'typing', status: 'stopped' });
+      }
+    }, 300);
+    clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => {
+      sendSupportTypingStop();
+    }, 2000);
+  };
 
   const openDepartment = async (department) => {
     if (busy || loading) return;
@@ -145,6 +203,9 @@ export default function SupportChatPage() {
       const response = await supportAPI.sendMessage(active.id, { text });
       setMessages((items) => [...items, response.data]);
       setDraft('');
+      clearTimeout(typingDebounceRef.current);
+      clearTimeout(typingTimerRef.current);
+      sendSupportTypingStop();
       await refresh();
     } catch {
       toast({ title: 'ارسال پیام ممکن نبود.', variant: 'destructive' });
@@ -181,7 +242,7 @@ export default function SupportChatPage() {
     }
   };
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [messages.length]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [messages.length, peerTyping]);
 
   if (!user?.id) {
     return <div className="flex min-h-[70vh] flex-col items-center justify-center bg-background p-6 text-center" dir="rtl"><MessageCircle className="mb-4 h-12 w-12 text-amber-600" /><h1 className="text-2xl font-black">پشتیبانی و استایلیست</h1><p className="mt-2 text-sm text-muted-foreground">برای شروع گفت‌وگو وارد حساب کاربری شوید.</p><Link to="/login" className="mt-6 rounded-xl bg-amber-500 px-5 py-3 font-bold text-black">ورود به حساب</Link></div>;
@@ -201,7 +262,7 @@ export default function SupportChatPage() {
             </div>
           </aside>
           <section className={`${mobilePane === 'chat' ? 'flex' : 'hidden'} min-w-0 flex-1 flex-col sm:flex`} data-testid="support-message-pane">
-            {active ? <><header className="flex min-h-[72px] items-center justify-between gap-3 border-b border-border/50 bg-card px-3 py-3 sm:px-4"><div className="flex min-w-0 items-center gap-3"><button type="button" onClick={() => setMobilePane('list')} className="rounded-xl p-2 hover:bg-muted sm:hidden" aria-label="بازگشت به فهرست گفت‌وگوها"><ArrowRight className="h-5 w-5" /></button><div className="min-w-0"><h2 className="truncate font-black">{DEPARTMENTS.find((item) => item.value === active.department)?.label}</h2><p className="text-xs text-muted-foreground">{active.assigned_agent ? `کارشناس: ${counterpartName(active, user)} · ` : ''}{statusLabel(active.status)}</p></div></div>{active.status === 'closed' ? <button type="button" onClick={() => changeStatus('reopen')} disabled={busy} className="flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs font-bold"><RotateCcw className="h-4 w-4" /> بازگشایی</button> : <button type="button" onClick={() => changeStatus('close')} disabled={busy} className="flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs font-bold"><XCircle className="h-4 w-4" /> بستن</button>}</header><div className="flex-1 overflow-y-auto p-4">{messagesLoading ? <Loader2 className="mx-auto mt-8 h-5 w-5 animate-spin text-amber-600" /> : messages.map((message, index) => { const mine = message.sender?.id === user.id || message.sender_id === user.id; const previous = messages[index - 1]; const showDate = !previous || formatDateShort(previous.created_at) !== formatDateShort(message.created_at); const senderName = mine ? 'شما' : (message.sender?.display_name || message.sender?.username || active.assigned_agent?.display_name || active.assigned_agent?.username || 'کارشناس'); return <div key={message.id}>{showDate && <div className="my-3 text-center"><span className="rounded-full bg-muted px-3 py-1 text-[10px] font-bold text-muted-foreground">{formatDateShort(message.created_at)}</span></div>}<div className={`mb-3 flex flex-col ${mine ? 'items-start' : 'items-end'}`}><span className="mb-1 px-2 text-[10px] font-bold text-muted-foreground">{senderName}</span><div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-right ${mine ? 'bg-amber-500 text-black' : 'bg-card ring-1 ring-border/50'}`}>{message.text && <p className="whitespace-pre-wrap break-words">{message.text}</p>}{message.product && <ProductMessageCard product={message.product} />}<p className="mt-1 text-[10px] opacity-70">{formatTime(message.created_at)}</p></div></div></div>; })}<div ref={endRef} /></div>{productsOpen && <div className="max-h-64 overflow-y-auto border-t border-border/50 bg-card p-3"><div className="grid grid-cols-2 gap-2">{products.map((product) => <button key={product.id} type="button" onClick={() => sendProduct(product)} disabled={busy} className="rounded-xl border border-border/50 p-1 text-right disabled:opacity-50"><ProductMessageCard product={product} /></button>)}</div></div>}<form onSubmit={sendMessage} className="flex gap-2 border-t border-border/50 bg-card p-3"><button type="button" onClick={() => setProductsOpen((value) => !value)} disabled={busy || active.status === 'closed'} className="rounded-xl border border-amber-500/30 px-3 text-amber-600 disabled:opacity-50" aria-label="اشتراک‌گذاری محصول"><ShoppingBag className="h-5 w-5" /></button><input value={draft} onChange={(event) => setDraft(event.target.value)} disabled={busy || active.status === 'closed'} placeholder="پیام خود را بنویسید..." className="min-w-0 flex-1 rounded-xl border border-border bg-background px-4 py-3 text-right text-sm outline-none focus:border-amber-500" /><button type="submit" disabled={busy || active.status === 'closed' || !draft.trim()} className="rounded-xl bg-amber-500 px-4 text-black disabled:opacity-50" aria-label="ارسال پیام"><Send className="h-5 w-5" /></button></form></> : <div className="flex h-full flex-col items-center justify-center p-6 text-center"><Crown className="mb-4 h-12 w-12 text-amber-600" /><h2 className="text-xl font-black">یک بخش پشتیبانی را انتخاب کنید</h2><p className="mt-2 max-w-sm text-sm text-muted-foreground">گفت‌وگو در همین فضای چت باز می‌شود.</p></div>}
+            {active ? <><header className="flex min-h-[72px] items-center justify-between gap-3 border-b border-border/50 bg-card px-3 py-3 sm:px-4"><div className="flex min-w-0 items-center gap-3"><button type="button" onClick={() => setMobilePane('list')} className="rounded-xl p-2 hover:bg-muted sm:hidden" aria-label="بازگشت به فهرست گفت‌وگوها"><ArrowRight className="h-5 w-5" /></button><div className="min-w-0"><h2 className="truncate font-black">{DEPARTMENTS.find((item) => item.value === active.department)?.label}</h2><p className="text-xs text-muted-foreground">{active.assigned_agent ? `کارشناس: ${counterpartName(active, user)} · ` : ''}{statusLabel(active.status)}</p></div></div>{active.status === 'closed' ? <button type="button" onClick={() => changeStatus('reopen')} disabled={busy} className="flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs font-bold"><RotateCcw className="h-4 w-4" /> بازگشایی</button> : <button type="button" onClick={() => changeStatus('close')} disabled={busy} className="flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs font-bold"><XCircle className="h-4 w-4" /> بستن</button>}</header><div className="flex-1 overflow-y-auto p-4">{messagesLoading ? <Loader2 className="mx-auto mt-8 h-5 w-5 animate-spin text-amber-600" /> : messages.map((message, index) => { const mine = message.sender?.id === user.id || message.sender_id === user.id; const previous = messages[index - 1]; const showDate = !previous || formatDateShort(previous.created_at) !== formatDateShort(message.created_at); const senderName = mine ? 'شما' : (message.sender?.display_name || message.sender?.username || active.assigned_agent?.display_name || active.assigned_agent?.username || 'کارشناس'); return <div key={message.id}>{showDate && <div className="my-3 text-center"><span className="rounded-full bg-muted px-3 py-1 text-[10px] font-bold text-muted-foreground">{formatDateShort(message.created_at)}</span></div>}<div className={`mb-3 flex flex-col ${mine ? 'items-start' : 'items-end'}`}><span className="mb-1 px-2 text-[10px] font-bold text-muted-foreground">{senderName}</span><div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-right ${mine ? 'bg-amber-500 text-black' : 'bg-card ring-1 ring-border/50'}`}>{message.text && <p className="whitespace-pre-wrap break-words">{message.text}</p>}{message.product && <ProductMessageCard product={message.product} />}<p className="mt-1 text-[10px] opacity-70">{formatTime(message.created_at)}</p></div></div></div>; })}{peerTyping && <div className="mb-3 flex items-center gap-2 ps-12"><div className="rounded-2xl bg-muted/60 px-4 py-2 text-xs text-muted-foreground"><span className="inline-flex gap-1"><span className="h-1.5 w-1.5 animate-bounce rounded-full bg-amber-500 [animation-delay:0ms]" /><span className="h-1.5 w-1.5 animate-bounce rounded-full bg-amber-500 [animation-delay:150ms]" /><span className="h-1.5 w-1.5 animate-bounce rounded-full bg-amber-500 [animation-delay:300ms]" /></span></div></div>}<div ref={endRef} /></div>{productsOpen && <div className="max-h-64 overflow-y-auto border-t border-border/50 bg-card p-3"><div className="grid grid-cols-2 gap-2">{products.map((product) => <button key={product.id} type="button" onClick={() => sendProduct(product)} disabled={busy} className="rounded-xl border border-border/50 p-1 text-right disabled:opacity-50"><ProductMessageCard product={product} /></button>)}</div></div>}<form onSubmit={sendMessage} className="flex gap-2 border-t border-border/50 bg-card p-3"><button type="button" onClick={() => setProductsOpen((value) => !value)} disabled={busy || active.status === 'closed'} className="rounded-xl border border-amber-500/30 px-3 text-amber-600 disabled:opacity-50" aria-label="اشتراک‌گذاری محصول"><ShoppingBag className="h-5 w-5" /></button><input value={draft} onChange={(event) => updateDraft(event.target.value)} disabled={busy || active.status === 'closed'} placeholder="پیام خود را بنویسید..." className="min-w-0 flex-1 rounded-xl border border-border bg-background px-4 py-3 text-right text-sm outline-none focus:border-amber-500" /><button type="submit" disabled={busy || active.status === 'closed' || !draft.trim()} className="rounded-xl bg-amber-500 px-4 text-black disabled:opacity-50" aria-label="ارسال پیام"><Send className="h-5 w-5" /></button></form></> : <div className="flex h-full flex-col items-center justify-center p-6 text-center"><Crown className="mb-4 h-12 w-12 text-amber-600" /><h2 className="text-xl font-black">یک بخش پشتیبانی را انتخاب کنید</h2><p className="mt-2 max-w-sm text-sm text-muted-foreground">گفت‌وگو در همین فضای چت باز می‌شود.</p></div>}
           </section>
         </div>
       </div>
