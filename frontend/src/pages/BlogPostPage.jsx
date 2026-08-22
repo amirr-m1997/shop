@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import EmptyState from '../components/ui/EmptyState';
+import DOMPurify from 'dompurify';
 import { blogAPI } from '../services/api';
 import { formatDate } from '../lib/formatDate';
 import Skeleton from '../components/ui/Skeleton';
@@ -272,7 +273,7 @@ const BlogPostPage = () => {
           {isHtmlContent(post.content) ? (
             <div
               className="blog-html space-y-4 text-base leading-[1.9] sm:text-lg"
-              dangerouslySetInnerHTML={{ __html: post.content }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
             />
           ) : (
             renderPlainContent(post.content)
