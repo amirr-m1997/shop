@@ -46,17 +46,29 @@ export const useStyleRoomRealtime = ({ roomId, currentUserId, setMessages, onTyp
           )));
           break;
         }
-        case 'message.updated':
-          setMessages?.((previous) => previous.map((item) => (
-            item.id === message.message_id
-              ? {
-                  ...item,
-                  reaction: message.reaction ?? item.reaction,
-                  is_favorite: message.is_favorite ?? item.is_favorite,
-                }
-              : item
-          )));
+        case 'message.updated': {
+          const isOwnReaction = message.user_id == null || message.user_id === currentUserId;
+          const isOwnFavorite = message.user_id == null || message.user_id === currentUserId;
+          setMessages?.((previous) => previous.map((item) => {
+            if (item.id !== message.message_id) return item;
+            const next = { ...item };
+            if (message.reaction !== undefined && isOwnReaction) {
+              next.reaction = message.reaction;
+              next.my_reaction = message.reaction;
+            }
+            if (message.reactions !== undefined) {
+              next.reactions = message.reactions;
+            }
+            if (message.is_favorite !== undefined && isOwnFavorite) {
+              next.is_favorite = message.is_favorite;
+            }
+            if (message.favorites_count !== undefined) {
+              next.favorites_count = message.favorites_count;
+            }
+            return next;
+          }));
           break;
+        }
         case 'message.deleted': {
           const deletedId = Number(message.message_id);
           if (message.for_everyone) {

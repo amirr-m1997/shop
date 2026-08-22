@@ -182,9 +182,10 @@ describe('useStyleRoomRealtime', () => {
     const [socket] = mocks.getRealtimeSocket.mock.results.map((r) => r.value);
     act(() => socket.dispatch({ type: 'message.updated', message_id: 22, reaction: '🔥' }));
     const updater = callbacks.setMessages.mock.calls[0][0];
-    expect(applyUpdater(updater, [{ id: 22, reaction: null, is_favorite: false }])).toEqual([
-      { id: 22, reaction: '🔥', is_favorite: false },
-    ]);
+    const result = applyUpdater(updater, [{ id: 22, reaction: null, is_favorite: false }]);
+    expect(result[0].reaction).toBe('🔥');
+    expect(result[0].my_reaction).toBe('🔥');
+    expect(result[0].is_favorite).toBe(false);
   });
 
   it('forwards typing and presence events', () => {

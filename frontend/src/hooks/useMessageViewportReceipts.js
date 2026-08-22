@@ -119,16 +119,32 @@ export const useMessageViewportReceipts = ({
     observeNew();
 
     const activeTimers = timers.current;
-    const cancelOnHide = () => {
-      if (!document.hidden) return;
-      activeTimers.forEach((timer) => clearTimeout(timer));
-      activeTimers.clear();
+    const handleVisibility = () => {
+      if (document.hidden) {
+        activeTimers.forEach((timer) => clearTimeout(timer));
+        activeTimers.clear();
+        return;
+      }
+      // Tab became visible — re-trigger intersection checks for currently
+      // visible nodes. Elements that stayed intersecting while hidden never
+      // get a new observer callback, so we unobserve + re-observe them.
+      const nodes = (root || document).querySelectorAll('[data-message-receipt="1"]');
+      nodes.forEach((node) => {
+        const id = Number(node.getAttribute('data-message-id'));
+        if (!id || seenSent.current.has(id) || activeTimers.has(id)) return;
+        if (observedNodes.current.has(node)) {
+          observer.unobserve(node);
+          observer.observe(node);
+        }
+      });
     };
-    document.addEventListener('visibilitychange', cancelOnHide);
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleVisibility);
     return () => {
       observer.disconnect();
       observerRef.current = null;
-      document.removeEventListener('visibilitychange', cancelOnHide);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleVisibility);
       activeTimers.forEach((timer) => clearTimeout(timer));
       activeTimers.clear();
     };

@@ -414,3 +414,12 @@ class UserChannelConsumer(RealtimeConsumerMixin, AsyncJsonWebsocketConsumer):
 
     async def support_updated(self, event):
         await self.send_json({'type': 'support.updated', 'conversation_id': event['conversation_id']})
+
+    async def message_deleted(self, event):
+        await self.send_json({
+            'type': 'message.deleted',
+            'message_id': event['message_id'],
+            'for_everyone': event.get('for_everyone', False),
+            'user_id': event.get('user_id'),
+            'conversation_id': event.get('conversation_id'),
+        })

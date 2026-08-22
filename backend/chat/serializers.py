@@ -205,8 +205,7 @@ class MessageSerializer(serializers.ModelSerializer):
         if not reply:
             return None
         hidden = bool(reply.deleted_at)
-        request = self.context.get('request')
-        viewer = getattr(request, 'user', None) if request else None
+        viewer = self._get_viewer()
         if not hidden and viewer and getattr(viewer, 'is_authenticated', False):
             prefetched = getattr(reply, '_prefetched_objects_cache', {})
             deleted_for = prefetched.get('deleted_for')
