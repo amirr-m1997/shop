@@ -52,8 +52,14 @@ def get_login_failure_count(identifier):
 def record_login_failure(identifier):
     """Record a login failure. Returns new count."""
     key = _login_fail_key(identifier)
-    count = cache.get(key, 0) + 1
-    cache.set(key, count, LOGIN_FAIL_LOCKOUT_DURATION + 60)
+    timeout = LOGIN_FAIL_LOCKOUT_DURATION + 60
+    try:
+        count = cache.incr(key)
+    except ValueError:
+        if cache.add(key, 1, timeout=timeout):
+            count = 1
+        else:
+            count = cache.incr(key)
 
     delay = get_login_delay(identifier)
     if delay:
@@ -204,16 +210,27 @@ def _otp_lock_key(identifier):
 def record_otp_send(identifier):
     """Record an OTP send event. Returns count in current window."""
     key = _otp_send_key(identifier)
-    count = cache.get(key, 0) + 1
-    cache.set(key, count, 900)  # 15 min window
+    try:
+        count = cache.incr(key)
+    except ValueError:
+        if cache.add(key, 1, timeout=900):
+            count = 1
+        else:
+            count = cache.incr(key)
     return count
 
 
 def record_otp_failure(identifier):
     """Record an OTP verification failure. Returns new count."""
     key = _otp_fail_key(identifier)
-    count = cache.get(key, 0) + 1
-    cache.set(key, count, OTP_FAIL_LOCKOUT_DURATION + 60)
+    timeout = OTP_FAIL_LOCKOUT_DURATION + 60
+    try:
+        count = cache.incr(key)
+    except ValueError:
+        if cache.add(key, 1, timeout=timeout):
+            count = 1
+        else:
+            count = cache.incr(key)
 
     if count >= OTP_FAIL_LOCKOUT_THRESHOLD:
         lock_key = _otp_lock_key(identifier)
