@@ -485,15 +485,34 @@ def user_view(request):
                 profile.avatar.delete(save=False)
             profile.avatar = None
         elif getattr(avatar, 'size', None) is not None:
-            # Validate image type / size before replacing the old avatar.
-            content_type = getattr(avatar, 'content_type', '') or ''
-            if not content_type.startswith('image/'):
-                return Response({'error': 'فقط فایل تصویری مجاز است.'}, status=status.HTTP_400_BAD_REQUEST)
+            # Validate real image bytes (not just client-supplied Content-Type).
             if avatar.size > settings.MAX_AVATAR_SIZE:
                 return Response(
                     {'error': f'حجم تصویر نباید بیشتر از {settings.MAX_AVATAR_SIZE // (1024 * 1024)} مگابایت باشد.'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            # Real image validation with Pillow (rejects spoofed Content-Type and SVG/scripts).
+            try:
+                from django.core.files.images import get_image_dimensions
+                from PIL import Image
+                try:
+                    avatar.seek(0)
+                except Exception:
+                    pass
+                dims = get_image_dimensions(avatar)
+                if not dims or not dims[0] or not dims[1]:
+                    raise ValueError('Invalid image dimensions')
+                try:
+                    avatar.seek(0)
+                except Exception:
+                    pass
+                Image.open(avatar).verify()
+                try:
+                    avatar.seek(0)
+                except Exception:
+                    pass
+            except Exception:
+                return Response({'error': 'فایل تصویری نامعتبر است.'}, status=status.HTTP_400_BAD_REQUEST)
             if profile.avatar:
                 profile.avatar.delete(save=False)
             profile.avatar = avatar
