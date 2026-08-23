@@ -486,7 +486,8 @@ def redeem_loyalty_reward(*, user, rule_id, idempotency_key):
     )
     redemption.ledger_transaction = ledger.transaction
     redemption.save(update_fields=['ledger_transaction', 'updated_at'])
-    LoyaltyRedemptionRule.objects.filter(pk=rule.pk).update(used_count=rule.used_count + 1)
+    from django.db.models import F
+    LoyaltyRedemptionRule.objects.filter(pk=rule.pk).update(used_count=F('used_count') + 1)
     return redemption
 
 
