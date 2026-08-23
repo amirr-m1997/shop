@@ -331,7 +331,7 @@ class Coupon(models.Model):
     def __str__(self):
         return self.code
 
-    def is_valid(self, user=None, subtotal=None):
+    def is_valid(self, user=None, subtotal=None, guest_email=None):
         if not self.is_active:
             return False, "کوپن غیرفعال است"
         now = timezone.now()
@@ -348,6 +348,13 @@ class Coupon(models.Model):
                 return False, "ابتدا هدیه خوش‌آمدگویی را دریافت کنید"
         if user and CouponUsage.objects.filter(coupon=self, user=user).exists():
             return False, "شما قبلاً از این کوپن استفاده کرده‌اید"
+        if not user and guest_email:
+            # Guest reuse: same email cannot reuse same coupon (even with different session).
+            # Prevents trivial bypass of "once per user" via guest checkout.
+            if Order.objects.filter(
+                guest_email=guest_email, coupon=self
+            ).exclude(status__in=['cancelled', 'expired', 'returned']).exists():
+                return False, "این کوپن قبلاً با این ایمیل استفاده شده است"
         if subtotal is not None and self.min_amount is not None and subtotal < self.min_amount:
             return False, f"حداقل مبلغ سفارش برای این کوپن {self.min_amount:,} تومان است"
         return True, ""

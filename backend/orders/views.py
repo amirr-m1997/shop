@@ -225,6 +225,7 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
                     valid, msg = coupon.is_valid(
                         user=request.user if not is_guest else None,
                         subtotal=subtotal,
+                        guest_email=serializer.validated_data.get('guest_email') if is_guest else None,
                     )
                     if not valid:
                         return Response({'error': msg}, status=status.HTTP_400_BAD_REQUEST)

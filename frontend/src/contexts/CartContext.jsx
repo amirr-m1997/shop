@@ -105,6 +105,8 @@ export const CartProvider = ({ children }) => {
 
   useEffect(() => {
     if (authLoading) return;
+    setCoupon(null);
+    setCouponError(null);
     fetchCart();
   }, [authLoading, isAuthenticated, fetchCart]);
 
