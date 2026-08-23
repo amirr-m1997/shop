@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from django.db.models import Q, Sum
+from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -32,6 +32,11 @@ def custom_report(request):
     except ValueError:
         return Response({'error': 'فرمت تاریخ نامعتبر'}, status=400)
 
+    if start > end:
+        return Response({'error': 'تاریخ شروع باید قبل از تاریخ پایان باشد'}, status=400)
+    if (end - start).days > 366:
+        return Response({'error': 'بازه تاریخ حداکثر یک سال است'}, status=400)
+
     start_aware = timezone.make_aware(start) if timezone.is_naive(start) else start
     end_aware = timezone.make_aware(end) if timezone.is_naive(end) else end
 
@@ -48,14 +53,14 @@ def custom_report(request):
         truncate_func = lambda d: d.strftime('%Y-%m')
 
     groups = {}
-    for order in orders_qs.select_related('user'):
+    for order in orders_qs.select_related('user').annotate(items_count=Count('items')):
         key = truncate_func(order.created_at)
         if key not in groups:
             groups[key] = {'date': key, 'revenue': 0, 'orders': 0, 'items': 0}
         if order.payment_status == 'paid':
             groups[key]['revenue'] += float(order.total)
         groups[key]['orders'] += 1
-        groups[key]['items'] += order.items.count()
+        groups[key]['items'] += order.items_count
 
     data = sorted(groups.values(), key=lambda x: x['date'])
 
@@ -99,11 +104,15 @@ def comparison_chart(request):
         return {
             'revenue': float(qs.filter(payment_status='paid').aggregate(t=Sum('total'))['t'] or 0),
             'orders': qs.count(),
-            'items': sum(qi.quantity for qi in OrderItem.objects.filter(order__in=qs)),
+            'items': OrderItem.objects.filter(order__in=qs).aggregate(t=Sum('quantity'))['t'] or 0,
         }
 
+    # Align previous period to same elapsed duration as current (MTD vs MTD)
+    elapsed = now - current_start
+    previous_end_aligned = previous_start + elapsed
+
     current = get_period_stats(current_start, now)
-    previous = get_period_stats(previous_start, previous_end)
+    previous = get_period_stats(previous_start, previous_end_aligned)
 
     changes = {}
     for key in ['revenue', 'orders', 'items']:
@@ -116,7 +125,7 @@ def comparison_chart(request):
 
     return Response({
         'period': period,
-        'current': {**current, 'label': label_current},
+        'current': {**current, 'label': label_current, 'is_partial': True},
         'previous': {**previous, 'label': label_previous},
         'changes': changes,
     })
