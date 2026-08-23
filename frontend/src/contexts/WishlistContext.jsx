@@ -38,6 +38,7 @@ export const WishlistProvider = ({ children }) => {
   const wishlistRef = useRef([]);
   const wishlistIdsRef = useRef(new Set());
   const itemListenersRef = useRef(new Map());
+  const togglingRef = useRef(new Set());
 
   const notifyItem = useCallback((productId) => {
     itemListenersRef.current.get(productId)?.forEach((listener) => listener());
@@ -91,7 +92,8 @@ export const WishlistProvider = ({ children }) => {
     if (!isAuthenticated) {
       return { success: false, requiresAuth: true };
     }
-
+    if (togglingRef.current.has(productId)) return { success: false };
+    togglingRef.current.add(productId);
     try {
       if (wishlistIdsRef.current.has(productId)) {
         // Remove from wishlist
@@ -112,6 +114,8 @@ export const WishlistProvider = ({ children }) => {
     } catch (error) {
       console.error('Error toggling wishlist:', error);
       return { success: false };
+    } finally {
+      togglingRef.current.delete(productId);
     }
   }, [isAuthenticated, replaceWishlist]);
 

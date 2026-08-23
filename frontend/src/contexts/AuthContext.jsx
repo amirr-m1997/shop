@@ -115,14 +115,19 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const logout = useCallback(async () => {
-    setUser(null);
-    await clearUserQueries();
     try {
       await authAPI.logout();
-    } catch {
-      // Ignore logout errors
+    } catch (err) {
+      // Clear local state for privacy even if server is unreachable,
+      // but surface the error so the UI can warn on shared devices.
+      const msg = err.response?.data?.error || err.response?.data?.detail || 'خروج با خطا مواجه شد؛ برای اطمینان مرورگر را ببندید.';
+      setError(msg);
+      throw new Error(msg, { cause: err });
+    } finally {
+      setUser(null);
+      await clearUserQueries();
+      resetSessionExpirySignal();
     }
-    resetSessionExpirySignal();
   }, [clearUserQueries]);
 
   const value = useMemo(() => ({
