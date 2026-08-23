@@ -128,8 +128,13 @@ def comparison_chart(request):
 @permission_classes([IsAuthenticated, IsAdminUser])
 def calendar_data(request):
     """داده تقویم: سفارشات و وظایف بر اساس ماه"""
-    year = int(request.query_params.get('year', timezone.now().year))
-    month = int(request.query_params.get('month', timezone.now().month))
+    try:
+        year = int(request.query_params.get('year', timezone.now().year))
+        month = int(request.query_params.get('month', timezone.now().month))
+        if not (1 <= month <= 12):
+            raise ValueError()
+    except (ValueError, TypeError):
+        return Response({'error': 'ماه یا سال نامعتبر است.'}, status=400)
 
     start = timezone.make_aware(datetime(year, month, 1))
     if month == 12:

@@ -123,12 +123,12 @@ class ProductFilter(django_filters.FilterSet):
             return queryset.none()
 
     def filter_in_stock(self, queryset, name, value):
-        """فیلتر محصولات موجود در انبار"""
+        """فیلتر کردن بر اساس موجودی انبار (شامل واریانت‌ها)"""
+        from django.db.models import Q
+        in_stock_q = Q(stock__gt=0) | Q(variants__stock__gt=0)
         if value:
-            return queryset.filter(stock__gt=0)
-        # stock can go negative via reservations, so "out of stock"
-        # must cover stock <= 0, not only exactly zero.
-        return queryset.filter(stock__lte=0)
+            return queryset.filter(in_stock_q).distinct()
+        return queryset.exclude(in_stock_q).distinct()
 
 
 class ProductPagination(PageNumberPagination):
