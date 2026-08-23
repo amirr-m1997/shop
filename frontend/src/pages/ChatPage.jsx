@@ -249,30 +249,38 @@ export default function ChatPage() {
     realtimeConnected,
   });
 
+  const onNotification = useCallback((notification) => {
+    toast({ title: 'اعلان جدید', description: notification.text });
+  }, [toast]);
+
+  const onTyping = useCallback((event) => {
+    if (event.user_id === currentUserId) return;
+    const isTyping = event.status !== 'stopped';
+    setPeerTyping(isTyping);
+    clearTimeout(peerTypingTimerRef.current);
+    if (isTyping) {
+      peerTypingTimerRef.current = setTimeout(() => setPeerTyping(false), 4000);
+    }
+  }, [currentUserId]);
+
+  const onPresence = useCallback((event) => {
+    if (event.user_id === currentUserId) return;
+    setPeerPresence(event.status || (event.online ? 'online' : 'offline'));
+  }, [currentUserId]);
+
+  const onSocketStatus = useCallback((socketStatus) => {
+    setRealtimeConnected(socketStatus === 'open');
+  }, []);
+
   useChatRealtime({
     currentUserId,
     activeId,
     setMessages,
     setConversations,
-    onNotification: (notification) => {
-      toast({ title: 'اعلان جدید', description: notification.text });
-    },
-    onTyping: (event) => {
-      if (event.user_id === currentUserId) return;
-      const isTyping = event.status !== 'stopped';
-      setPeerTyping(isTyping);
-      clearTimeout(peerTypingTimerRef.current);
-      if (isTyping) {
-        peerTypingTimerRef.current = setTimeout(() => setPeerTyping(false), 4000);
-      }
-    },
-    onPresence: (event) => {
-      if (event.user_id === currentUserId) return;
-      setPeerPresence(event.status || (event.online ? 'online' : 'offline'));
-    },
-    onSocketStatus: (socketStatus) => {
-      setRealtimeConnected(socketStatus === 'open');
-    },
+    onNotification,
+    onTyping,
+    onPresence,
+    onSocketStatus,
   });
 
   useMessageViewportReceipts({

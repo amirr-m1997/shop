@@ -1,24 +1,31 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { chatAPI } from '../services/api';
 
 export const useChatVisibilityRefresh = ({
   currentUserId, activeId, setConversations, refreshMessages, realtimeConnected = true,
 }) => {
+  const callbacksRef = useRef({ setConversations, refreshMessages });
+  callbacksRef.current = { setConversations, refreshMessages };
+  const lastRefreshRef = useRef(0);
+
   useEffect(() => {
     if (!currentUserId) return undefined;
     let cancelled = false;
 
     const refresh = async () => {
       if (document.hidden || !navigator.onLine) return;
+      const now = Date.now();
+      if (now - lastRefreshRef.current < 10000) return;
+      lastRefreshRef.current = now;
       try {
         const conversationResponse = await chatAPI.getConversations();
         if (cancelled) return;
         const conversations = Array.isArray(conversationResponse.data)
           ? conversationResponse.data
           : (conversationResponse.data?.results || []);
-        setConversations(conversations);
+        callbacksRef.current.setConversations(conversations);
         if (activeId && conversations.some((item) => item.id === Number(activeId))) {
-          await refreshMessages(activeId);
+          await callbacksRef.current.refreshMessages(activeId);
         }
       } catch {
         // Visibility refresh is best-effort; dedicated loaders surface errors.
@@ -38,5 +45,5 @@ export const useChatVisibilityRefresh = ({
       window.removeEventListener('online', onOnline);
       if (fallbackInterval) window.clearInterval(fallbackInterval);
     };
-  }, [activeId, currentUserId, realtimeConnected, setConversations, refreshMessages]);
+  }, [activeId, currentUserId, realtimeConnected]);
 };

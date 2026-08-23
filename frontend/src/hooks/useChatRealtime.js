@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { chatPrivateSocketPath, chatUserSocketPath } from '../lib/realtimePaths';
 import { mergeMessages } from '../lib/messages';
 import { chatAPI } from '../services/api';
@@ -22,17 +22,24 @@ export const useChatRealtime = ({
   onPresence,
   onSocketStatus,
 }) => {
+  const callbacksRef = useRef({});
+  callbacksRef.current = {
+    onNotification, onSupportUnread, onSupportUpdated, onTyping, onPresence, onSocketStatus,
+    setMessages, setConversations,
+  };
+
   useEffect(() => {
     if (!currentUserId) return undefined;
     const path = chatUserSocketPath(currentUserId);
     const socket = getRealtimeSocket(path);
-    const offStatus = onSocketStatus ? socket.onStatus(onSocketStatus) : null;
+    const offStatus = callbacksRef.current.onSocketStatus ? socket.onStatus(callbacksRef.current.onSocketStatus) : null;
     const listener = (message) => {
+      const cbs = callbacksRef.current;
       switch (message.type) {
         case 'conversation.updated':
         case 'unread':
           if (!message.conversation) break;
-          setConversations?.((previous) => previous.map((conversation) => (
+          cbs.setConversations?.((previous) => previous.map((conversation) => (
             conversation.id === message.conversation.id
               ? { ...conversation, ...message.conversation }
               : conversation
@@ -43,7 +50,7 @@ export const useChatRealtime = ({
             .then((response) => {
               const fresh = response.data;
               if (!fresh?.id) return;
-              setConversations?.((previous) => {
+              cbs.setConversations?.((previous) => {
                 const withoutFresh = previous.filter((item) => item.id !== fresh.id);
                 return [fresh, ...withoutFresh].sort((first, second) => (
                   new Date(second.updated_at || 0) - new Date(first.updated_at || 0)
@@ -54,26 +61,26 @@ export const useChatRealtime = ({
             .catch(() => {});
           break;
         case 'conversation.removed':
-          setConversations?.((previous) => previous.filter(
+          cbs.setConversations?.((previous) => previous.filter(
             (conversation) => conversation.id !== Number(message.conversation_id)
           ));
           break;
         case 'notification':
-          onNotification?.(message.notification);
+          cbs.onNotification?.(message.notification);
           break;
         case 'support.unread':
-          onSupportUnread?.(message);
+          cbs.onSupportUnread?.(message);
           break;
         case 'message.deleted': {
           // delete-for-me is now only sent to the deleter's user channel (all their devices)
           const deletedId = Number(message.message_id);
           if (!message.for_everyone && message.user_id === currentUserId) {
-            setMessages?.((previous) => previous.filter((item) => Number(item.id) !== deletedId));
+            cbs.setMessages?.((previous) => previous.filter((item) => Number(item.id) !== deletedId));
           }
           break;
         }
         case 'support.updated':
-          onSupportUpdated?.(message);
+          cbs.onSupportUpdated?.(message);
           break;
         default:
           break;
@@ -86,20 +93,21 @@ export const useChatRealtime = ({
       socket.removeListener(listener);
       if (socket.listenerCount === 0) releaseRealtimeSocket(path);
     };
-  }, [currentUserId, setConversations, onNotification, onSupportUnread, onSupportUpdated, onSocketStatus, setMessages]);
+  }, [currentUserId]);
 
   useEffect(() => {
     if (!currentUserId || !activeId) return undefined;
     const path = chatPrivateSocketPath(activeId);
     const socket = getRealtimeSocket(path);
     const listener = (message) => {
+      const cbs = callbacksRef.current;
       switch (message.type) {
         case 'chat.message':
-          setMessages?.((previous) => mergeMessages(previous, [message.message]));
+          cbs.setMessages?.((previous) => mergeMessages(previous, [message.message]));
           break;
         case 'delivery_receipt': {
           const markedIds = new Set((message.message_ids || []).map(Number));
-          setMessages?.((previous) => previous.map((item) => (
+          cbs.setMessages?.((previous) => previous.map((item) => (
             item.sender_id === currentUserId && markedIds.has(Number(item.id)) && item.status !== 'seen'
               ? { ...item, status: 'delivered' }
               : item
@@ -109,7 +117,7 @@ export const useChatRealtime = ({
         case 'read_receipt': {
           const markedIds = new Set((message.message_ids || []).map(Number));
           const upTo = message.up_to_message_id;
-          setMessages?.((previous) => previous.map((item) => {
+          cbs.setMessages?.((previous) => previous.map((item) => {
             const isMine = item.sender_id === currentUserId;
             if (!isMine) return item;
             const itemId = Number(item.id);
@@ -122,7 +130,7 @@ export const useChatRealtime = ({
         }
         case 'message.updated': {
           const isOwnFavorite = message.user_id == null || message.user_id === currentUserId;
-          setMessages?.((previous) => previous.map((item) => {
+          cbs.setMessages?.((previous) => previous.map((item) => {
             if (item.id !== message.message_id) return item;
             const next = { ...item };
             if (message.reaction !== undefined) {
@@ -148,21 +156,21 @@ export const useChatRealtime = ({
         case 'message.deleted': {
           const deletedId = Number(message.message_id);
           if (message.for_everyone) {
-            setMessages?.((previous) => previous.map((item) => (
+            cbs.setMessages?.((previous) => previous.map((item) => (
               Number(item.id) === deletedId
                 ? { ...item, deleted_for_everyone: true, text: '', product: null }
                 : item
             )));
           } else if (message.user_id === currentUserId) {
-            setMessages?.((previous) => previous.filter((item) => Number(item.id) !== deletedId));
+            cbs.setMessages?.((previous) => previous.filter((item) => Number(item.id) !== deletedId));
           }
           break;
         }
         case 'typing':
-          onTyping?.(message);
+          cbs.onTyping?.(message);
           break;
         case 'presence':
-          onPresence?.(message);
+          cbs.onPresence?.(message);
           break;
         default:
           break;
@@ -174,5 +182,5 @@ export const useChatRealtime = ({
       socket.removeListener(listener);
       if (socket.listenerCount === 0) releaseRealtimeSocket(path);
     };
-  }, [currentUserId, activeId, setMessages, onTyping, onPresence]);
+  }, [currentUserId, activeId]);
 };
