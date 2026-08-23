@@ -55,3 +55,8 @@ backend/logs/
 
 
 logs/
+
+# Leaked one-off docs
+New Text Document.txt
+TXT.txt
+sitemap_clothing_store.pdf
