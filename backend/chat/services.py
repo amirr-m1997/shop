@@ -674,10 +674,13 @@ def subscribe_push(user, *, endpoint='', p256dh='', auth='', user_agent=''):
         raise SendMessageError('آدرس پوش نامعتبر است.', 400)
     if not p256dh or not auth_key:
         raise SendMessageError('کلیدهای پوش ناقص است.', 400)
+    endpoint_trunc = endpoint[:500]
+    # Shared device: if same endpoint was registered for another user, remove old owner first.
+    PushSubscription.objects.filter(endpoint=endpoint_trunc).exclude(user=user).delete()
     PushSubscription.objects.update_or_create(
-        endpoint=endpoint[:500],
+        user=user,
+        endpoint=endpoint_trunc,
         defaults={
-            'user': user,
             'p256dh': p256dh[:200],
             'auth': auth_key[:200],
             'user_agent': (user_agent or '')[:300],
